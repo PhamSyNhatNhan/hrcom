@@ -143,9 +143,9 @@ const HomePage = () => {
                 <div className="relative w-full aspect-[16/9] sm:h-[500px] z-0">
                     <ImageCarousel
                         images={[
-                            '/hr-companion-bannerB01.jpg',
-                            '/hr-companion-bannerB02.jpg',
-                            '/hr-companion-bannerB03.jpg',
+                            '/Background/hr-companion-bannerB01.jpg',
+                            '/Background/hr-companion-bannerB02.jpg',
+                            '/Background/hr-companion-bannerB03.jpg',
                         ]}
                         className="w-full h-full object-cover"
                     />
