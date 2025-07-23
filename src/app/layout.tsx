@@ -252,9 +252,11 @@ const RootLayout = ({ children }: LayoutProps) => {
                                                     Đăng nhập
                                                 </button>
                                             </Link>
-                                            <button className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-cyan-600 hover:to-blue-700 font-medium text-sm transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
-                                                Đăng ký
-                                            </button>
+                                            <Link href="/auth/register">
+                                                <button className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-cyan-600 hover:to-blue-700 font-medium text-sm transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
+                                                    Đăng ký
+                                                </button>
+                                            </Link>
                                         </div>
                                     )}
                                 </div>
@@ -352,18 +354,22 @@ const RootLayout = ({ children }: LayoutProps) => {
                             <div className="pt-4 border-t">
                                 {!isLoggedIn ? (
                                     <div className="space-y-2">
-                                        <button
-                                            onClick={() => {
-                                                setIsLoggedIn(true);
-                                                setIsMenuOpen(false);
-                                            }}
-                                            className="block w-full text-left text-cyan-600 font-medium py-2 transition-all duration-300 transform hover:scale-105"
-                                        >
-                                            Đăng nhập
-                                        </button>
-                                        <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
-                                            Đăng ký
-                                        </button>
+                                        <Link href="/auth/login">
+                                            <button
+                                                onClick={() => {
+                                                    //setIsLoggedIn(true);
+                                                    setIsMenuOpen(false);
+                                                }}
+                                                className="block w-full text-left text-cyan-600 font-medium py-2 transition-all duration-300 transform hover:scale-105"
+                                            >
+                                                Đăng nhập
+                                            </button>
+                                        </Link>
+                                        <Link href="/auth/register">
+                                            <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
+                                                Đăng ký
+                                            </button>
+                                        </Link>
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
