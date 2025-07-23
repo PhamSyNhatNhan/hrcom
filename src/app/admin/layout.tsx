@@ -164,7 +164,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                     <div className="hidden lg:block">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center h-16 border-b border-gray-100">
-                                <Link href="/" className="transform hover:scale-105 transition-transform duration-300">
+                                <Link href="/public" className="transform hover:scale-105 transition-transform duration-300">
                                     <div className="w-[150px] h-[40px] relative">
                                         <Image
                                             src="/HR-Comapnion-logo.png"
@@ -244,14 +244,12 @@ const RootLayout = ({ children }: LayoutProps) => {
                                         </div>
                                     ) : (
                                         <div className="flex items-center space-x-3">
-                                            <Link href="/auth/login">
-                                                <button
-                                                    //onClick={() => setIsLoggedIn(true)}
-                                                    className="text-cyan-600 hover:text-cyan-700 font-medium text-sm transition-all duration-300 transform hover:scale-105"
-                                                >
-                                                    Đăng nhập
-                                                </button>
-                                            </Link>
+                                            <button
+                                                onClick={() => setIsLoggedIn(true)}
+                                                className="text-cyan-600 hover:text-cyan-700 font-medium text-sm transition-all duration-300 transform hover:scale-105"
+                                            >
+                                                Đăng nhập
+                                            </button>
                                             <button className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-cyan-600 hover:to-blue-700 font-medium text-sm transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
                                                 Đăng ký
                                             </button>
@@ -264,7 +262,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                         {/* Trang chu + lien he + ve chung toi + partner, mentor, tin tuc su kien + hoat dong, blog  */}
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-center items-center h-12 space-x-8">
-                                <Link href="/" className={navLinkClass('/')}>Trang chủ</Link>
+                                <Link href="/public" className={navLinkClass('/')}>Trang chủ</Link>
                                 <Link href="/mentor" className={navLinkClass('/mentor')}>Mentor</Link>
                                 <Link href="/news" className={navLinkClass('/news')}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={navLinkClass('/blog')}>Blog HR Companion</Link>
@@ -276,7 +274,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                     <div className="lg:hidden">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center h-16">
-                                <Link href="/" className="transform hover:scale-105 transition-transform duration-300">
+                                <Link href="/public" className="transform hover:scale-105 transition-transform duration-300">
                                     <div className="w-[150px] h-[40px] relative">
                                         <Image
                                             src="/HR-Comapnion-logo.png"
@@ -343,7 +341,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                             </div>
 
                             <div className="space-y-3">
-                                <Link href="/" className={`block py-2 pl-4 ${navLinkClass('/')}`} onClick={handleNavLinkClick}>Trang chủ</Link>
+                                <Link href="/public" className={`block py-2 pl-4 ${navLinkClass('/')}`} onClick={handleNavLinkClick}>Trang chủ</Link>
                                 <Link href="/mentor" className={`block py-2 pl-4 ${navLinkClass('/mentor')}`} onClick={handleNavLinkClick}>Mentor</Link>
                                 <Link href="/news" className={`block py-2 pl-4 ${navLinkClass('/news')}`} onClick={handleNavLinkClick}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={`block py-2 pl-4 ${navLinkClass('/blog')}`} onClick={handleNavLinkClick}>Blog HR Companion</Link>
@@ -410,6 +408,15 @@ const RootLayout = ({ children }: LayoutProps) => {
                         </div>
                     </div>
                 </div>
+
+                {!isLoggedIn && (
+                    <button
+                        onClick={() => setIsLoggedIn(true)}
+                        className="fixed bottom-4 right-4 z-[60] bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-full shadow-lg transition-all duration-300 text-sm transform hover:scale-110 hover:shadow-xl"
+                    >
+                        Đăng nhập nhanh
+                    </button>
+                )}
             </>
         );
     };
@@ -480,12 +487,12 @@ const RootLayout = ({ children }: LayoutProps) => {
 
     return (
         <html lang="vi">
-            <body className="min-h-screen bg-gradient-to-br from-slate-50 to-cyan-50">
-                <Header />
-                <FloatingMenu />
-                <main>{children}</main>
-                <Footer />
-            </body>
+        <body className="min-h-screen bg-gradient-to-br from-slate-50 to-cyan-50">
+        <Header />
+        <FloatingMenu />
+        <main>{children}</main>
+        <Footer />
+        </body>
         </html>
     );
 };
