@@ -1,4 +1,3 @@
-// lib/auth.ts
 import { createClient } from '@/utils/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -16,7 +15,6 @@ export const signInWithEmail = async (email: string, password: string) => {
         }
 
         if (data.user) {
-            // Lấy thông tin profile
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
@@ -27,23 +25,24 @@ export const signInWithEmail = async (email: string, password: string) => {
                 console.error('Error fetching profile:', profileError)
             }
 
-            // Tạo user object để lưu vào store
             const user = {
                 id: data.user.id,
                 email: data.user.email!,
                 role: data.user.user_metadata?.role || 'user',
-                profile: profile || undefined
+                profile: profile || undefined,
             }
 
-            // Lưu vào Zustand store
             useAuthStore.getState().setUser(user)
 
             return { user, error: null }
         }
 
         return { user: null, error: null }
-    } catch (error: any) {
-        return { user: null, error: error.message }
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            return { user: null, error: error.message }
+        }
+        return { user: null, error: 'Đã xảy ra lỗi không xác định' }
     }
 }
 
@@ -54,12 +53,14 @@ export const signOut = async () => {
         const { error } = await supabase.auth.signOut()
         if (error) throw error
 
-        // Clear Zustand store
         useAuthStore.getState().logout()
 
         return { error: null }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            return { error: error.message }
+        }
+        return { error: 'Đã xảy ra lỗi không xác định' }
     }
 }
 
@@ -67,12 +68,14 @@ export const getCurrentUser = async () => {
     const supabase = createClient()
 
     try {
-        const { data: { user }, error } = await supabase.auth.getUser()
+        const {
+            data: { user },
+            error,
+        } = await supabase.auth.getUser()
 
         if (error) throw error
 
         if (user) {
-            // Lấy profile
             const { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
@@ -83,7 +86,7 @@ export const getCurrentUser = async () => {
                 id: user.id,
                 email: user.email!,
                 role: user.user_metadata?.role || 'user',
-                profile: profile || undefined
+                profile: profile || undefined,
             }
 
             useAuthStore.getState().setUser(userWithProfile)
@@ -91,7 +94,10 @@ export const getCurrentUser = async () => {
         }
 
         return { user: null, error: null }
-    } catch (error: any) {
-        return { user: null, error: error.message }
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            return { user: null, error: error.message }
+        }
+        return { user: null, error: 'Đã xảy ra lỗi không xác định' }
     }
 }

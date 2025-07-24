@@ -68,9 +68,13 @@ export default function LoginPage() {
                     router.push('/');
                 }
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError('Đã xảy ra lỗi. Vui lòng thử lại.');
-            console.error('Login error:', err);
+            if (err instanceof Error) {
+                console.error('Login error:', err.message);
+            } else {
+                console.error('Login error:', err);
+            }
         } finally {
             setIsLoading(false);
             setLoading(false);

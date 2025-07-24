@@ -1,4 +1,3 @@
-// components/AdminRouteGuard.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
