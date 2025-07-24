@@ -17,21 +17,15 @@ import {
     Facebook, Edit
 } from 'lucide-react';
 import '@/app/globals.css'
-import {usePathname} from "next/navigation";
+import {usePathname, useRouter} from "next/navigation";
+import {useAuthStore} from "@/stores/authStore";
+import {signOut} from "@/lib/auth";
 
 interface LayoutProps {
     children: ReactNode;
 }
 
 const RootLayout = ({ children }: LayoutProps) => {
-    interface HeaderProps {
-        currentPage?: string;
-        user?: {
-            name: string;
-            avatar?: string;
-        } | null;
-    }
-
     const FloatingMenu = () => {
         return (
             <div className="fixed right-2 md:right-4 top-1/2 -translate-y-1/2 z-40">
@@ -90,22 +84,31 @@ const RootLayout = ({ children }: LayoutProps) => {
         );
     };
 
-    const Header: React.FC<HeaderProps> = ({ user = null }) => {
+    interface HeaderProps {
+        currentPage?: string;
+    }
+
+    const Header: React.FC<HeaderProps> = () => {
         const pathname = usePathname();
+        const router = useRouter();
+        const { user } = useAuthStore();
+
+        // State for UI interactivity
         const [isMenuOpen, setIsMenuOpen] = useState(false);
         const [searchQuery, setSearchQuery] = useState('');
         const [isScrolled, setIsScrolled] = useState(false);
         const [lastScrollY, setLastScrollY] = useState(0);
         const [showHeader, setShowHeader] = useState(true);
-        const [isLoggedIn, setIsLoggedIn] = useState(false);
         const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-        const demoUser = user ?? {
-            name: 'Nguyễn Văn A',
-            avatar: null,
-        };
+        // Prevent hydration mismatch by ensuring user-specific UI renders only on the client
+        const [isMounted, setIsMounted] = useState(false);
+        useEffect(() => {
+            setIsMounted(true);
+        }, []);
 
-        const isActivePage = (page: string): boolean => pathname === page || pathname === `/${page}`;
+        // Helper functions for styling and events
+        const isActivePage = (page: string): boolean => pathname === page || pathname.startsWith(`/${page}`);
 
         const navLinkClass = (page: string): string =>
             `text-gray-700 hover:text-cyan-600 transition-all duration-300 ease-in-out font-medium transform hover:scale-105 ${
@@ -123,19 +126,32 @@ const RootLayout = ({ children }: LayoutProps) => {
             setIsMenuOpen(false);
         };
 
-        // Handle click outside for user menu
+        const handleLogout = async () => {
+            setIsUserMenuOpen(false);
+            setIsMenuOpen(false);
+
+            const { error } = await signOut(); // Call the central signOut function
+
+            if (error) {
+                console.error('Error signing out:', error);
+                // Optionally, show an error message to the user here
+            } else {
+                router.push('/'); // Redirect to home page after successful logout
+            }
+        };
+
+        // Effect for handling click outside the user menu
         useEffect(() => {
             const handleClickOutside = (event: MouseEvent) => {
-                const target = event.target as HTMLElement;
-                if (!target.closest('.user-menu-container')) {
+                if (!(event.target as HTMLElement).closest('.user-menu-container')) {
                     setIsUserMenuOpen(false);
                 }
             };
-
             document.addEventListener('mousedown', handleClickOutside);
             return () => document.removeEventListener('mousedown', handleClickOutside);
         }, []);
 
+        // Effect for handling scroll behavior and body overflow
         useEffect(() => {
             const handleScroll = () => {
                 const currentScrollY = window.scrollY;
@@ -143,15 +159,19 @@ const RootLayout = ({ children }: LayoutProps) => {
                 setIsScrolled(currentScrollY > 10);
                 setLastScrollY(currentScrollY);
             };
-
             window.addEventListener('scroll', handleScroll);
             document.body.style.overflow = isMenuOpen ? 'hidden' : 'unset';
-
             return () => {
                 window.removeEventListener('scroll', handleScroll);
                 document.body.style.overflow = 'unset';
             };
         }, [lastScrollY, isMenuOpen]);
+
+        // Derived values from store state
+        const isLoggedIn = !!user;
+        const userName = user?.profile?.full_name || 'User';
+        const userAvatar = user?.profile?.image_url;
+
 
         return (
             <>
@@ -164,106 +184,59 @@ const RootLayout = ({ children }: LayoutProps) => {
                     <div className="hidden lg:block">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center h-16 border-b border-gray-100">
+                                {/* Logo */}
                                 <Link href="/" className="transform hover:scale-105 transition-transform duration-300">
                                     <div className="w-[150px] h-[40px] relative">
-                                        <Image
-                                            src="/HR-Comapnion-logo.png"
-                                            alt="HR Companion Logo"
-                                            fill
-                                            className="object-contain"
-                                        />
+                                        <Image src="/HR-Comapnion-logo.png" alt="HR Companion Logo" fill className="object-contain" />
                                     </div>
                                 </Link>
 
+                                {/* Search and Auth */}
                                 <div className="flex items-center space-x-4">
+                                    {/* Search Bar */}
                                     <div className="relative transform hover:scale-105 transition-transform duration-300">
-                                        <input
-                                            type="text"
-                                            placeholder="Tìm kiếm..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)}
-                                            className="w-64 pl-4 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white/90 text-sm transition-all duration-300"
-                                        />
-                                        <button
-                                            onClick={handleSearch}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-cyan-600 transition-colors duration-300"
-                                        >
+                                        <input type="text" placeholder="Tìm kiếm..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)} className="w-64 pl-4 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white/90 text-sm transition-all duration-300" />
+                                        <button onClick={handleSearch} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-cyan-600 transition-colors duration-300">
                                             <Search className="w-4 h-4" />
                                         </button>
                                     </div>
 
-                                    {isLoggedIn ? (
+                                    {/* Conditional rendering based on authentication state */}
+                                    {isMounted && isLoggedIn ? (
                                         <div className="relative user-menu-container">
-                                            <button
-                                                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                                                className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 px-3 py-2 rounded-xl transition-all duration-300 transform hover:scale-105"
-                                            >
-                                                {demoUser.avatar ? (
-                                                    <Image
-                                                        src={demoUser.avatar}
-                                                        alt={demoUser.name}
-                                                        width={32}
-                                                        height={32}
-                                                        className="rounded-full object-cover"
-                                                    />
+                                            <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 px-3 py-2 rounded-xl transition-all duration-300 transform hover:scale-105">
+                                                {userAvatar ? (
+                                                    <Image src={userAvatar} alt={userName} width={32} height={32} className="rounded-full object-cover" />
                                                 ) : (
                                                     <div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center">
                                                         <User className="w-5 h-5 text-white" />
                                                     </div>
                                                 )}
-                                                <span className="text-sm font-medium text-gray-700">{demoUser.name}</span>
+                                                <span className="text-sm font-medium text-gray-700">{userName}</span>
                                                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
                                             </button>
 
                                             {/* Dropdown Menu */}
-                                            <div className={`absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${
-                                                isUserMenuOpen
-                                                    ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                                                    : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
-                                            } transform origin-top-right`}>
-                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-t-xl border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200">
-                                                    <User className="w-4 h-4 text-gray-500" />
-                                                    <span>Tài khoản của tôi</span>
-                                                </button>
-                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200">
-                                                    <Settings className="w-4 h-4 text-gray-500" />
-                                                    <span>Cài đặt</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setIsLoggedIn(false);
-                                                        setIsUserMenuOpen(false);
-                                                    }}
-                                                    className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-b-xl text-red-600 flex items-center space-x-2 transition-colors duration-200"
-                                                >
-                                                    <LogOut className="w-4 h-4" />
-                                                    <span>Đăng xuất</span>
-                                                </button>
+                                            <div className={`absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${isUserMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'} transform origin-top-right`}>
+                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-t-xl border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200"><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
+                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200"><Settings className="w-4 h-4 text-gray-500" /><span>Cài đặt</span></button>
+                                                <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-b-xl text-red-600 flex items-center space-x-2 transition-colors duration-200"><LogOut className="w-4 h-4" /><span>Đăng xuất</span></button>
                                             </div>
                                         </div>
-                                    ) : (
+                                    ) : isMounted ? (
                                         <div className="flex items-center space-x-3">
-                                            <Link href="/auth/login">
-                                                <button
-                                                    //onClick={() => setIsLoggedIn(true)}
-                                                    className="text-cyan-600 hover:text-cyan-700 font-medium text-sm transition-all duration-300 transform hover:scale-105"
-                                                >
-                                                    Đăng nhập
-                                                </button>
-                                            </Link>
-                                            <Link href="/auth/register">
-                                                <button className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-cyan-600 hover:to-blue-700 font-medium text-sm transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
-                                                    Đăng ký
-                                                </button>
-                                            </Link>
+                                            <Link href="/auth/login"><button className="text-cyan-600 hover:text-cyan-700 font-medium text-sm transition-all duration-300 transform hover:scale-105">Đăng nhập</button></Link>
+                                            <Link href="/auth/register"><button className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-cyan-600 hover:to-blue-700 font-medium text-sm transition-all duration-300 transform hover:scale-105 hover:shadow-lg">Đăng ký</button></Link>
                                         </div>
+                                    ) : (
+                                        // Placeholder to prevent layout shift during mount
+                                        <div className="h-10 w-[180px]"></div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Trang chu + lien he + ve chung toi + partner, mentor, tin tuc su kien + hoat dong, blog  */}
+                        {/* Navigation Links */}
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-center items-center h-12 space-x-8">
                                 <Link href="/" className={navLinkClass('/')}>Trang chủ</Link>
@@ -279,37 +252,15 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <div className="flex justify-between items-center h-16">
                                 <Link href="/" className="transform hover:scale-105 transition-transform duration-300">
-                                    <div className="w-[150px] h-[40px] relative">
-                                        <Image
-                                            src="/HR-Comapnion-logo.png"
-                                            alt="HR Companion Logo"
-                                            fill
-                                            className="object-contain"
-                                        />
-                                    </div>
+                                    <div className="w-[150px] h-[40px] relative"><Image src="/HR-Comapnion-logo.png" alt="HR Companion Logo" fill className="object-contain" /></div>
                                 </Link>
                                 <div className="flex items-center space-x-3">
-                                    {isLoggedIn && (
+                                    {isMounted && isLoggedIn && (
                                         <div className="flex items-center space-x-2 transform hover:scale-105 transition-transform duration-300">
-                                            {demoUser.avatar ? (
-                                                <Image
-                                                    src={demoUser.avatar}
-                                                    alt={demoUser.name}
-                                                    width={32}
-                                                    height={32}
-                                                    className="rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center">
-                                                    <User className="w-5 h-5 text-white" />
-                                                </div>
-                                            )}
+                                            {userAvatar ? (<Image src={userAvatar} alt={userName} width={32} height={32} className="rounded-full object-cover" />) : (<div className="w-8 h-8 bg-cyan-500 rounded-full flex items-center justify-center"><User className="w-5 h-5 text-white" /></div>)}
                                         </div>
                                     )}
-                                    <button
-                                        onClick={() => setIsMenuOpen(!isMenuOpen)}
-                                        className="text-gray-700 hover:text-cyan-600 transition-all duration-300 transform hover:scale-110"
-                                    >
+                                    <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-gray-700 hover:text-cyan-600 transition-all duration-300 transform hover:scale-110">
                                         {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                                     </button>
                                 </div>
@@ -319,31 +270,17 @@ const RootLayout = ({ children }: LayoutProps) => {
                 </nav>
 
                 {/* Mobile Menu Overlay */}
-                <div className={`lg:hidden fixed inset-0 z-40 transition-all duration-500 ease-in-out ${
-                    isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                }`}>
+                <div className={`lg:hidden fixed inset-0 z-40 transition-all duration-500 ease-in-out ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                     <div className="absolute inset-0 bg-black/20 backdrop-blur-sm"></div>
-                    <div className={`absolute top-16 left-0 right-0 bg-white/95 backdrop-blur-md shadow-xl border-b border-gray-200 transition-all duration-500 ease-in-out transform ${
-                        isMenuOpen ? 'translate-y-0 scale-100' : '-translate-y-full scale-95'
-                    } origin-top`}>
+                    <div className={`absolute top-16 left-0 right-0 bg-white/95 backdrop-blur-md shadow-xl border-b border-gray-200 transition-all duration-500 ease-in-out transform ${isMenuOpen ? 'translate-y-0 scale-100' : '-translate-y-full scale-95'} origin-top`}>
                         <div className="px-4 py-4 space-y-4">
+                            {/* Search */}
                             <div className="relative border-b pb-4">
-                                <input
-                                    type="text"
-                                    placeholder="Tìm kiếm..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)}
-                                    className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white/90 text-sm transition-all duration-300"
-                                />
-                                <button
-                                    onClick={handleSearch}
-                                    className="absolute right-3 top-2 text-gray-500 hover:text-cyan-600 transition-all duration-300 hover:scale-110"
-                                >
-                                    <Search className="w-4 h-4" />
-                                </button>
+                                <input type="text" placeholder="Tìm kiếm..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)} className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white/90 text-sm transition-all duration-300" />
+                                <button onClick={handleSearch} className="absolute right-3 top-2 text-gray-500 hover:text-cyan-600 transition-all duration-300 hover:scale-110"><Search className="w-4 h-4" /></button>
                             </div>
 
+                            {/* Nav Links */}
                             <div className="space-y-3">
                                 <Link href="/" className={`block py-2 pl-4 ${navLinkClass('/')}`} onClick={handleNavLinkClick}>Trang chủ</Link>
                                 <Link href="/mentor" className={`block py-2 pl-4 ${navLinkClass('/mentor')}`} onClick={handleNavLinkClick}>Mentor</Link>
@@ -351,67 +288,27 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/blog" className={`block py-2 pl-4 ${navLinkClass('/blog')}`} onClick={handleNavLinkClick}>Blog HR Companion</Link>
                             </div>
 
+                            {/* Auth Section */}
                             <div className="pt-4 border-t">
-                                {!isLoggedIn ? (
+                                {isMounted && !isLoggedIn ? (
                                     <div className="space-y-2">
-                                        <Link href="/auth/login">
-                                            <button
-                                                onClick={() => {
-                                                    //setIsLoggedIn(true);
-                                                    setIsMenuOpen(false);
-                                                }}
-                                                className="block w-full text-left text-cyan-600 font-medium py-2 transition-all duration-300 transform hover:scale-105"
-                                            >
-                                                Đăng nhập
-                                            </button>
-                                        </Link>
-                                        <Link href="/auth/register">
-                                            <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg">
-                                                Đăng ký
-                                            </button>
-                                        </Link>
+                                        <Link href="/auth/login"><button onClick={() => setIsMenuOpen(false)} className="block w-full text-left text-cyan-600 font-medium py-2 transition-all duration-300 transform hover:scale-105">Đăng nhập</button></Link>
+                                        <Link href="/auth/register"><button onClick={() => setIsMenuOpen(false)} className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg">Đăng ký</button></Link>
                                     </div>
-                                ) : (
+                                ) : isMounted && isLoggedIn ? (
                                     <div className="space-y-3">
-                                        <div className="flex items-center space-x-3 py-2 transition-all duration-300 transform hover:scale-105">
-                                            {demoUser.avatar ? (
-                                                <Image
-                                                    src={demoUser.avatar}
-                                                    alt={demoUser.name}
-                                                    width={40}
-                                                    height={40}
-                                                    className="rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center">
-                                                    <User className="w-6 h-6 text-white" />
-                                                </div>
-                                            )}
+                                        <div className="flex items-center space-x-3 py-2">
+                                            {userAvatar ? (<Image src={userAvatar} alt={userName} width={40} height={40} className="rounded-full object-cover" />) : (<div className="w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center"><User className="w-6 h-6 text-white" /></div>)}
                                             <div>
-                                                <div className="text-sm font-medium text-gray-700">{demoUser.name}</div>
+                                                <div className="text-sm font-medium text-gray-700">{userName}</div>
                                                 <div className="text-xs text-gray-500">Thành viên</div>
                                             </div>
                                         </div>
-                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105">
-                                            <User className="w-4 h-4 text-gray-500" />
-                                            <span>Tài khoản của tôi</span>
-                                        </button>
-                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105">
-                                            <Settings className="w-4 h-4 text-gray-500" />
-                                            <span>Cài đặt</span>
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setIsLoggedIn(false);
-                                                setIsMenuOpen(false);
-                                            }}
-                                            className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg text-red-600 flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"
-                                        >
-                                            <LogOut className="w-4 h-4" />
-                                            <span>Đăng xuất</span>
-                                        </button>
+                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
+                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><Settings className="w-4 h-4 text-gray-500" /><span>Cài đặt</span></button>
+                                        <button onClick={handleLogout} className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg text-red-600 flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><LogOut className="w-4 h-4" /><span>Đăng xuất</span></button>
                                     </div>
-                                )}
+                                ) : null}
                             </div>
                         </div>
                     </div>
