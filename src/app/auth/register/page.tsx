@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Listbox } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
+import { supabase } from '@/utils/supabase/regi';
 
 
 interface RegisterFormData {
@@ -37,16 +38,43 @@ export default function RegisterPage() {
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (formData.password !== formData.confirmPassword) {
-            alert('Mật khẩu xác nhận không khớp!');
-            return;
-        }
-        console.log('Register submitted:', formData);
-        // Gọi API Supabase hoặc xử lý tạo tài khoản tại đây
-    };
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (formData.password !== formData.confirmPassword) {
+        alert('Mật khẩu xác nhận không khớp!');
+        return;
+    }
+    if (!formData.email.endsWith('@gmail.com')) {
+        alert('Vui lòng sử dụng Gmail để đăng ký!');
+        return;
+    }
 
+    const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+            data: {
+                full_name: formData.fullName,
+                gender: selected?.value || '',
+                birth_date: formData.birthDate,
+            },
+            emailRedirectTo: window.location.origin + '/auth/callback',
+        },
+    });
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+    if (data?.user?.identities?.length === 0) {
+        alert('Email này đã được đăng ký. Vui lòng kiểm tra email để xác nhận hoặc đăng nhập.');
+        return;
+    }
+
+
+    alert('Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.');
+    window.location.href = '/auth/login';
+};
     // gender
 
     const people = [

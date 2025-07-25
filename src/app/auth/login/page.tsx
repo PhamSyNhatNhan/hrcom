@@ -61,6 +61,7 @@ export default function LoginPage() {
             }
 
             if (user) {
+                // Sau khi đăng nhập thành công
                 // Redirect based on role
                 if (user.role === 'admin' || user.role === 'superadmin') {
                     router.push('/admin');
