@@ -14,7 +14,20 @@ import { ImageCarousel } from '@/component/ImageCarousel';
 import { ActivityCard} from '@/component/ActivityCard';
 import Link from "next/link";
 import {BlogCard} from "@/component/BlogCard";
+import {PartnerCard} from "@/component/PartnerCard";
 
+const partners = [
+    { imageSrc: '/partner/Logo-JobUp.jpg', href: '#' },
+    { imageSrc: '/partner/logo-topcv.jpg', href: '#' },
+    { imageSrc: '/partner/CareerBuilder_with-tagline-in-Vietnam.png', href: '#' },
+    { imageSrc: '/partner/logo-IDM.png', href: '#' },
+    { imageSrc: '/partner/FSOFT.png', href: '#' },
+    { imageSrc: '/partner/GITIHON.png', href: '#' },
+    { imageSrc: '/partner/Logo-DH-Phenikaa.jpg', href: '#' },
+    { imageSrc: '/partner/Logo-DH-xaydung.jpg', href: '#' },
+    { imageSrc: '/partner/Logo-HVTC.jpg', href: '#' },
+    { imageSrc: '/partner/Logo-TMU.jpg', href: '#' },
+];
 
 const featuredMentors = [
   {
@@ -196,7 +209,7 @@ const HomePage = () => {
 
 
             {/* Activity Section */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
                         title="HOẠT ĐỘNG NỔI BẬT HR COMPANION"
@@ -233,8 +246,27 @@ const HomePage = () => {
                 </div>
             </section>
 
+            {/* Partner Section */}
+            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white pb-16">
+                <div className="max-w-7xl mx-auto">
+                    <SectionHeader
+                        title="ĐỐI TÁC HR COMPANION"
+                        subtitle="HR Companion tự hào hợp tác cùng các tổ chức, doanh nghiệp và chuyên gia để lan tỏa giá trị bền vững trong quản trị nhân sự."
+                    />
+
+                    <div className="flex flex-wrap justify-center gap-6">
+                        {partners.map((partner, index) => (
+                            <div key={index} className="w-40 sm:w-48 md:w-52">
+                                <PartnerCard partner={partner} />
+                            </div>
+                        ))}
+                    </div>
+
+                </div>
+            </section>
+
             {/* Blog Section */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8">
+            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
                         title="Khởi nghiệp thực chiến"

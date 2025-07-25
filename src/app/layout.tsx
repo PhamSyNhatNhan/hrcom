@@ -219,7 +219,6 @@ const RootLayout = ({ children }: LayoutProps) => {
                                             {/* Dropdown Menu */}
                                             <div className={`absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${isUserMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'} transform origin-top-right`}>
                                                 <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-t-xl border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200"><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
-                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200"><Settings className="w-4 h-4 text-gray-500" /><span>Cài đặt</span></button>
                                                 <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-b-xl text-red-600 flex items-center space-x-2 transition-colors duration-200"><LogOut className="w-4 h-4" /><span>Đăng xuất</span></button>
                                             </div>
                                         </div>

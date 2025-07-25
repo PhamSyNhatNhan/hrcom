@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
+import { Listbox } from "@headlessui/react";
+import { ChevronDownIcon } from "@heroicons/react/20/solid";
+
 
 interface RegisterFormData {
     fullName: string;
@@ -43,6 +46,16 @@ export default function RegisterPage() {
         console.log('Register submitted:', formData);
         // Gọi API Supabase hoặc xử lý tạo tài khoản tại đây
     };
+
+    // gender
+
+    const people = [
+        { id: 1, name: "Nam", value: "Nam" },
+        { id: 2, name: "Nữ", value: "Nữ" },
+        { id: 3, name: "Khác", value: "Khác" },
+    ];
+
+    const [selected, setSelected] = useState<typeof people[0] | null>(null);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -203,19 +216,26 @@ export default function RegisterPage() {
                                         <label htmlFor="gender" className="block text-sm font-semibold text-gray-700 mb-2">
                                             Giới tính *
                                         </label>
-                                        <select
-                                            id="gender"
-                                            name="gender"
-                                            required
-                                            className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
-                                            value={formData.gender}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="">Chọn</option>
-                                            <option value="male">Nam</option>
-                                            <option value="female">Nữ</option>
-                                            <option value="other">Khác</option>
-                                        </select>
+                                        <Listbox value={selected} onChange={setSelected}>
+                                            <div className="relative">
+                                                <Listbox.Button className="flex justify-between items-center block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white text-left">
+                                                    <span>{selected?.name || "Chọn"}</span>
+                                                    <ChevronDownIcon className="w-5 h-5 text-gray-500 ml-2" aria-hidden="true" />
+                                                </Listbox.Button>
+
+                                                <Listbox.Options className="absolute z-10 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 focus:outline-none overflow-hidden">
+                                                    {people.map((person) => (
+                                                        <Listbox.Option
+                                                            key={person.id}
+                                                            value={person}
+                                                            className="cursor-pointer select-none px-4 py-3 hover:bg-gray-100 transition-colors duration-150"
+                                                        >
+                                                            {person.name}
+                                                        </Listbox.Option>
+                                                    ))}
+                                                </Listbox.Options>
+                                            </div>
+                                        </Listbox>
                                     </div>
 
                                     {/* Ngày sinh */}
