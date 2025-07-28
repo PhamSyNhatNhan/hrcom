@@ -5,8 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Listbox } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
-import { supabase } from '@/utils/supabase/regi';
-
+import {createClient} from '@/utils/supabase/client';
 
 interface RegisterFormData {
     fullName: string;
@@ -18,6 +17,8 @@ interface RegisterFormData {
 }
 
 export default function RegisterPage() {
+    const supabase = createClient()
+
     const [formData, setFormData] = useState<RegisterFormData>({
         fullName: '',
         email: '',
@@ -29,6 +30,16 @@ export default function RegisterPage() {
 
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Gender
+    const genderOptions = [
+        { id: 1, name: "Nam", value: "Nam" },
+        { id: 2, name: "Nữ", value: "Nữ" },
+        { id: 3, name: "Khác", value: "Khác" },
+    ];
+
+    const [selectedGender, setSelectedGender] = useState<typeof genderOptions[0] | null>(null);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -38,52 +49,108 @@ export default function RegisterPage() {
         }));
     };
 
+    const handleGenderChange = (gender: typeof genderOptions[0] | null) => {
+        setSelectedGender(gender);
+        setFormData(prev => ({
+            ...prev,
+            gender: gender?.value || '',
+        }));
+    };
+
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-        alert('Mật khẩu xác nhận không khớp!');
-        return;
-    }
-    if (!formData.email.endsWith('@gmail.com')) {
-        alert('Vui lòng sử dụng Gmail để đăng ký!');
-        return;
-    }
+        e.preventDefault();
+        setIsLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-            data: {
-                full_name: formData.fullName,
-                gender: selected?.value || '',
-                birth_date: formData.birthDate,
-            },
-            emailRedirectTo: window.location.origin + '/auth/callback',
-        },
-    });
+        try {
+            // Validation
+            if (formData.password !== formData.confirmPassword) {
+                alert('Mật khẩu xác nhận không khớp!');
+                return;
+            }
 
-    if (error) {
-        alert(error.message);
-        return;
-    }
-    if (data?.user?.identities?.length === 0) {
-        alert('Email này đã được đăng ký. Vui lòng kiểm tra email để xác nhận hoặc đăng nhập.');
-        return;
-    }
+            if (!formData.email.includes('@gmail.com')) {
+                alert('Vui lòng sử dụng Gmail để đăng ký!');
+                return;
+            }
 
+            if (!formData.gender) {
+                alert('Vui lòng chọn giới tính!');
+                return;
+            }
 
-    alert('Đăng ký thành công! Vui lòng kiểm tra email để xác nhận.');
-    window.location.href = '/auth/login';
-};
-    // gender
+            if (!formData.birthDate) {
+                alert('Vui lòng chọn ngày sinh!');
+                return;
+            }
 
-    const people = [
-        { id: 1, name: "Nam", value: "Nam" },
-        { id: 2, name: "Nữ", value: "Nữ" },
-        { id: 3, name: "Khác", value: "Khác" },
-    ];
+            if (formData.password.length < 6) {
+                alert('Mật khẩu phải có ít nhất 6 ký tự!');
+                return;
+            }
 
-    const [selected, setSelected] = useState<typeof people[0] | null>(null);
+            console.log('Đang đăng ký với dữ liệu:', {
+                email: formData.email,
+                fullName: formData.fullName,
+                gender: formData.gender,
+                birthDate: formData.birthDate
+            });
+
+            console.log('Selected Gender:', selectedGender);
+            console.log('Form Data Gender:', formData.gender);
+
+            const { data, error } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        full_name: formData.fullName,
+                        name: formData.fullName,
+                        gender: formData.gender,
+                        birthdate: formData.birthDate,
+                        role: 'user'
+                    },
+                    emailRedirectTo: `${window.location.origin}/auth/login`,
+                },
+            });
+
+            console.log('Kết quả đăng ký:', { data, error });
+
+            if (error) {
+                console.error('Lỗi đăng ký:', error);
+                alert(`Lỗi đăng ký: ${error.message}`);
+                return;
+            }
+
+            // Kiểm tra nếu email đã tồn tại
+            if (data?.user?.identities && data.user.identities.length === 0) {
+                alert('Email này đã được đăng ký. Vui lòng kiểm tra email để xác nhận hoặc đăng nhập.');
+                return;
+            }
+
+            if (data?.user) {
+                alert('Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.');
+                setFormData({
+                    fullName: '',
+                    email: '',
+                    password: '',
+                    confirmPassword: '',
+                    gender: '',
+                    birthDate: '',
+                });
+                setSelectedGender(null);
+
+                setTimeout(() => {
+                    window.location.href = '/auth/login';
+                }, 1000);
+            }
+
+        } catch (err) {
+            console.error('Lỗi không mong muốn:', err);
+            alert('Có lỗi xảy ra, vui lòng thử lại!');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -95,7 +162,7 @@ export default function RegisterPage() {
                             <div className="text-center mb-8">
                                 <div className="flex justify-center mb-6">
                                     <Image
-                                        src="/HR-Comapnion-logo.png"
+                                        src="/HR-Companion-logo.png"
                                         alt="Logo"
                                         width={160}
                                         height={50}
@@ -143,7 +210,7 @@ export default function RegisterPage() {
                                             autoComplete="email"
                                             required
                                             className="block w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
-                                            placeholder="example@company.com"
+                                            placeholder="example@gmail.com"
                                             value={formData.email}
                                             onChange={handleChange}
                                         />
@@ -168,7 +235,7 @@ export default function RegisterPage() {
                                             autoComplete="new-password"
                                             required
                                             className="block w-full pl-12 pr-12 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
-                                            placeholder="Tối thiểu 8 ký tự"
+                                            placeholder="Tối thiểu 6 ký tự"
                                             value={formData.password}
                                             onChange={handleChange}
                                         />
@@ -244,21 +311,23 @@ export default function RegisterPage() {
                                         <label htmlFor="gender" className="block text-sm font-semibold text-gray-700 mb-2">
                                             Giới tính *
                                         </label>
-                                        <Listbox value={selected} onChange={setSelected}>
+                                        <Listbox value={selectedGender} onChange={handleGenderChange}>
                                             <div className="relative">
                                                 <Listbox.Button className="flex justify-between items-center block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white text-left">
-                                                    <span>{selected?.name || "Chọn"}</span>
+                                                    <span className={selectedGender ? "text-gray-900" : "text-gray-400"}>
+                                                        {selectedGender?.name || "Chọn giới tính"}
+                                                    </span>
                                                     <ChevronDownIcon className="w-5 h-5 text-gray-500 ml-2" aria-hidden="true" />
                                                 </Listbox.Button>
 
                                                 <Listbox.Options className="absolute z-10 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 focus:outline-none overflow-hidden">
-                                                    {people.map((person) => (
+                                                    {genderOptions.map((option) => (
                                                         <Listbox.Option
-                                                            key={person.id}
-                                                            value={person}
+                                                            key={option.id}
+                                                            value={option}
                                                             className="cursor-pointer select-none px-4 py-3 hover:bg-gray-100 transition-colors duration-150"
                                                         >
-                                                            {person.name}
+                                                            {option.name}
                                                         </Listbox.Option>
                                                     ))}
                                                 </Listbox.Options>
@@ -276,6 +345,7 @@ export default function RegisterPage() {
                                             type="date"
                                             name="birthDate"
                                             required
+                                            max={new Date().toISOString().split('T')[0]} // Không cho chọn ngày tương lai
                                             className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
                                             value={formData.birthDate}
                                             onChange={handleChange}
@@ -286,12 +356,25 @@ export default function RegisterPage() {
                                 {/* Submit Button */}
                                 <button
                                     type="submit"
-                                    className="w-full flex justify-center py-3 px-4 rounded-xl shadow-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-[1.02] hover:shadow-xl"
+                                    disabled={isLoading}
+                                    className="w-full flex justify-center py-3 px-4 rounded-xl shadow-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-[1.02] hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                 >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                                    </svg>
-                                    Tạo tài khoản
+                                    {isLoading ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Đang xử lý...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                            </svg>
+                                            Tạo tài khoản
+                                        </>
+                                    )}
                                 </button>
 
                                 {/* Login Link */}
