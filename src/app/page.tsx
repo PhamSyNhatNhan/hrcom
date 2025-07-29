@@ -247,7 +247,7 @@ const HomePage = () => {
             </section>
 
             {/* Partner Section */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white pb-16">
+            <section id="partner-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-white pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
                         title="ĐỐI TÁC HR COMPANION"

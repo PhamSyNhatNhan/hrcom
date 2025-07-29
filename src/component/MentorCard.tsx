@@ -1,15 +1,14 @@
 'use client'
 import React from 'react';
 import { Star } from 'lucide-react';
+import Link from 'next/link';
 
 interface Mentor {
     id: number;
     name: string;
     role: string;
     company: string;
-    rating: number;
     sessions: number;
-    price: string;
     image: string;
     specialties: string[];
 }
@@ -36,11 +35,7 @@ export const MentorCard = ({ mentor }: MentorCardProps) => (
 
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-1">
-                    <Star className="w-5 h-5 text-yellow-400 fill-current" />
-                    <span className="font-bold text-gray-900">{mentor.rating}</span>
-                    <span className="text-gray-500">({mentor.sessions} sessions)</span>
                 </div>
-                <div className="text-cyan-600 font-bold text-lg">{mentor.price}/h</div>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-6">
@@ -53,10 +48,11 @@ export const MentorCard = ({ mentor }: MentorCardProps) => (
           </span>
                 ))}
             </div>
-
-            <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 font-medium group-hover:shadow-lg">
-                Xem Hồ Sơ
-            </button>
+            <Link href={`/mentor/${mentor.id}`}>
+                <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 font-medium group-hover:shadow-lg">
+                    Xem Hồ Sơ
+                </button>
+            </Link>
         </div>
     </div>
 );
