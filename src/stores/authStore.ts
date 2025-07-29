@@ -2,6 +2,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+
 export interface Profile {
     id: string
     full_name: string
