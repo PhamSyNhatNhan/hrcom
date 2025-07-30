@@ -1,5 +1,5 @@
 'use client'
-import React, {useState, ReactNode, useEffect} from 'react';
+import React, { useState, ReactNode, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -17,9 +17,9 @@ import {
     Facebook, Edit
 } from 'lucide-react';
 import '@/app/globals.css'
-import {usePathname, useRouter} from "next/navigation";
-import {useAuthStore} from "@/stores/authStore";
-import {signOut} from "@/lib/auth";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/authStore";
+import { signOut } from "@/lib/auth";
 
 interface LayoutProps {
     children: ReactNode;
@@ -39,8 +39,8 @@ const RootLayout = ({ children }: LayoutProps) => {
                     >
                         <Linkedin className="w-5 h-5 md:w-6 md:h-6" />
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
-                        LinkedIn
-                    </span>
+                            LinkedIn
+                        </span>
                     </a>
 
                     {/* Zalo */}
@@ -52,8 +52,8 @@ const RootLayout = ({ children }: LayoutProps) => {
                     >
                         <Zap className="w-5 h-5 md:w-6 md:h-6" />
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
-                        Zalo
-                    </span>
+                            Zalo
+                        </span>
                     </a>
 
                     {/* Facebook */}
@@ -65,8 +65,8 @@ const RootLayout = ({ children }: LayoutProps) => {
                     >
                         <Facebook className="w-5 h-5 md:w-6 md:h-6" />
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
-                        Facebook
-                    </span>
+                            Facebook
+                        </span>
                     </a>
 
                     {/* Contact/Edit */}
@@ -76,8 +76,8 @@ const RootLayout = ({ children }: LayoutProps) => {
                     >
                         <Edit className="w-5 h-5 md:w-6 md:h-6" />
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
-                        Liên hệ
-                    </span>
+                            Liên hệ
+                        </span>
                     </a>
                 </div>
             </div>
@@ -111,10 +111,9 @@ const RootLayout = ({ children }: LayoutProps) => {
         const isActivePage = (page: string): boolean => pathname === page || pathname.startsWith(`/${page}`);
 
         const navLinkClass = (page: string): string =>
-            `text-gray-700 hover:text-cyan-600 transition-all duration-300 ease-in-out font-medium transform hover:scale-105 ${
-                isActivePage(page)
-                    ? 'text-cyan-600 font-semibold text-lg scale-105'
-                    : ''
+            `text-gray-700 hover:text-cyan-600 transition-all duration-300 ease-in-out font-medium transform hover:scale-105 ${isActivePage(page)
+                ? 'text-cyan-600 font-semibold text-lg scale-105'
+                : ''
             }`;
 
         const handleSearch = (e: React.FormEvent | React.KeyboardEvent) => {
@@ -176,9 +175,8 @@ const RootLayout = ({ children }: LayoutProps) => {
         return (
             <>
                 <nav
-                    className={`bg-white/80 backdrop-blur-md shadow-lg sticky top-0 z-50 border-b border-cyan-100 transition-all duration-500 ease-in-out transform ${
-                        showHeader ? 'translate-y-0 scale-100' : '-translate-y-full scale-95'
-                    } ${isScrolled ? 'bg-white/95 shadow-xl' : ''}`}
+                    className={`bg-white/80 backdrop-blur-md shadow-lg sticky top-0 z-50 border-b border-cyan-100 transition-all duration-500 ease-in-out transform ${showHeader ? 'translate-y-0 scale-100' : '-translate-y-full scale-95'
+                        } ${isScrolled ? 'bg-white/95 shadow-xl' : ''}`}
                 >
                     {/* PC Layout */}
                     <div className="hidden lg:block">
@@ -218,7 +216,11 @@ const RootLayout = ({ children }: LayoutProps) => {
 
                                             {/* Dropdown Menu */}
                                             <div className={`absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${isUserMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'} transform origin-top-right`}>
-                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-t-xl border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200"><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
+                                                <button className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-t-xl border-b border-gray-100 flex items-center space-x-2 transition-colors duration-200" onClick={() => {
+                                                    setIsUserMenuOpen(false);
+                                                    setIsMenuOpen(false);
+                                                    router.push('/user');
+                                                }}><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
                                                 <button onClick={handleLogout} className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 rounded-b-xl text-red-600 flex items-center space-x-2 transition-colors duration-200"><LogOut className="w-4 h-4" /><span>Đăng xuất</span></button>
                                             </div>
                                         </div>
@@ -315,7 +317,11 @@ const RootLayout = ({ children }: LayoutProps) => {
                                                 <div className="text-xs text-gray-500">Thành viên</div>
                                             </div>
                                         </div>
-                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
+                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105" onClick={() => {
+                                            setIsUserMenuOpen(false);
+                                            setIsMenuOpen(false);
+                                            router.push('/user');
+                                        }}><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
                                         <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><Settings className="w-4 h-4 text-gray-500" /><span>Cài đặt</span></button>
                                         <button onClick={handleLogout} className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg text-red-600 flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><LogOut className="w-4 h-4" /><span>Đăng xuất</span></button>
                                     </div>
@@ -353,7 +359,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <ul className="space-y-3">
                             <li><Link href="/mentor" className="hover:text-cyan-400 transition-colors">Mentor</Link></li>
                             <li><Link href="/activity" className="hover:text-cyan-400 transition-colors">Hoạt động</Link></li>
-                            <li><Link href="/partner" className="hover:text-cyan-400 transition-colors">Đối tác</Link></li>
+                            <li><Link href="/#partner-section" className="hover:text-cyan-400 transition-colors">Đối tác</Link></li>
                             <li><Link href="/blog" className="hover:text-cyan-400 transition-colors">Blog HR Companion</Link></li>
                         </ul>
                     </div>
