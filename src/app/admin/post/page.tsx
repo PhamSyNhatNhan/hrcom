@@ -16,10 +16,6 @@ import {
     Save,
 } from 'lucide-react';
 import Image from 'next/image';
-import dynamic from 'next/dynamic';
-
-// Dynamic import EditorJS to avoid SSR issues
-const EditorJS = dynamic(() => import('@editorjs/editorjs'), { ssr: false });
 
 interface Post {
     id: string;

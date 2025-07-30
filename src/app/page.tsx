@@ -1,4 +1,3 @@
-// src/app/page.tsx - Updated version with posts from database
 'use client';
 import React from 'react';
 import {
