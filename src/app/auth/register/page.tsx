@@ -162,7 +162,7 @@ export default function RegisterPage() {
                             <div className="text-center mb-8">
                                 <div className="flex justify-center mb-6">
                                     <Image
-                                        src="/HR-Companion-logo.png"
+                                        src="/HR-Comapnion-logo.png"
                                         alt="Logo"
                                         width={160}
                                         height={50}
