@@ -1,7 +1,5 @@
-// stores/authStore.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
 
 export interface Profile {
     id: string
@@ -11,12 +9,13 @@ export interface Profile {
     birthdate?: string
     created_at: string
     updated_at: string
+    // KHÔNG có role - role ở auth.users.user_metadata
 }
 
 export interface User {
     id: string
     email: string
-    role: 'user' | 'admin' | 'superadmin'
+    role: 'user' | 'admin' | 'superadmin' // Role lấy từ auth.users.user_metadata
     profile?: Profile
 }
 

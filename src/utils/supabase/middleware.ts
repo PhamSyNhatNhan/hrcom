@@ -1,3 +1,4 @@
+// src/utils/supabase/middleware.ts - Lấy role từ metadata
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -80,7 +81,7 @@ export async function updateSession(request: NextRequest) {
             return supabaseResponse
         }
 
-        // Đã đăng nhập
+        // Đã đăng nhập - lấy role từ user_metadata
         const userRole = user.user_metadata?.role || 'user'
         console.log('User logged in:', { email: user.email, role: userRole })
 

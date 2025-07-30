@@ -124,6 +124,8 @@ const activities = [
     },
 ];
 
+
+
 const HomePage = () => {
     // Load featured posts from database
     const {
@@ -132,14 +134,6 @@ const HomePage = () => {
     } = usePublishedPosts({
         type: 'blog',
         limit: 4
-    });
-
-    const {
-        posts: featuredActivityPosts,
-        loading: activityLoading
-    } = usePublishedPosts({
-        type: 'activity',
-        limit: 6
     });
 
     return (
@@ -200,45 +194,18 @@ const HomePage = () => {
                 </div>
             </section>
 
-            {/* Activity Section - Use database posts if available, fallback to static */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white pb-16">
+            {/* Activity Section */}
+            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
                         title="HOẠT ĐỘNG NỔI BẬT HR COMPANION"
                         subtitle="Kết nối – Tư vấn – Đồng hành cùng mentor nhân sự giàu kinh nghiệm"
                     />
 
-                    <div className="mt-16">
-                        {activityLoading ? (
-                            <div className="flex justify-center items-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                <span className="ml-2 text-gray-600">Đang tải hoạt động...</span>
-                            </div>
-                        ) : featuredActivityPosts.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                                {featuredActivityPosts.map((post) => (
-                                    <PostCard
-                                        key={post.id}
-                                        post={post}
-                                        showAuthor={false}
-                                        showExcerpt={true}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            // Fallback to static activities if no posts
-                            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                                {activities.map((activity, index) => (
-                                    <ActivityCard key={index} activity={activity} />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="text-center mt-12">
-                        <Link href="/activity">
-                            <Button variant="secondary">XEM TẤT CẢ HOẠT ĐỘNG</Button>
-                        </Link>
+                    <div className="mt-16 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                        {activities.map((activity, index) => (
+                            <ActivityCard key={index} activity={activity} />
+                        ))}
                     </div>
                 </div>
             </section>
