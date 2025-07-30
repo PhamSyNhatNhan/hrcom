@@ -99,7 +99,6 @@ const PostPage: React.FC = () => {
             const EditorJS = (await import('@editorjs/editorjs')).default;
             const Header = (await import('@editorjs/header')).default;
             const List = (await import('@editorjs/list')).default;
-            const Paragraph = (await import('@editorjs/paragraph')).default;
             const Quote = (await import('@editorjs/quote')).default;
             const Delimiter = (await import('@editorjs/delimiter')).default;
             const ImageTool = (await import('@editorjs/image')).default;
@@ -112,25 +111,9 @@ const PostPage: React.FC = () => {
                 holder: 'editorjs',
                 data: initialData || undefined,
                 tools: {
-                    header: {
-                        class: Header,
-                        config: {
-                            levels: [1, 2, 3, 4],
-                            defaultLevel: 2
-                        }
-                    },
-                    list: {
-                        class: List,
-                        inlineToolbar: true
-                    },
-                    paragraph: {
-                        class: Paragraph,
-                        inlineToolbar: true
-                    },
-                    quote: {
-                        class: Quote,
-                        inlineToolbar: true
-                    },
+                    header: Header,
+                    list: List,
+                    quote: Quote,
                     delimiter: Delimiter,
                     image: {
                         class: ImageTool,
