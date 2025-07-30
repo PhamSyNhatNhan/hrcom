@@ -1,3 +1,4 @@
+// src/lib/auth.ts - Updated version
 import { createClient } from '@/utils/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -28,7 +29,7 @@ export const signInWithEmail = async (email: string, password: string) => {
             const user = {
                 id: data.user.id,
                 email: data.user.email!,
-                role: data.user.user_metadata?.role || 'user',
+                role: profile?.role || 'user', // Get role from profiles table
                 profile: profile || undefined,
             }
 
@@ -85,7 +86,7 @@ export const getCurrentUser = async () => {
             const userWithProfile = {
                 id: user.id,
                 email: user.email!,
-                role: user.user_metadata?.role || 'user',
+                role: profile?.role || 'user', // Get role from profiles table
                 profile: profile || undefined,
             }
 

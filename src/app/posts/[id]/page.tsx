@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
+import { postService, Post, CreatePostData, UpdatePostData } from '@/lib/posts';
 import { SectionHeader } from '@/component/SectionHeader';
 import { Button } from '@/component/Button';
 import {
@@ -14,28 +14,13 @@ import {
     Upload,
     X,
     Save,
+    AlertCircle,
 } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 
 // Dynamic import EditorJS to avoid SSR issues
 const EditorJS = dynamic(() => import('@editorjs/editorjs'), { ssr: false });
-
-interface Post {
-    id: string;
-    title: string;
-    thumbnail: string | null;
-    content: any;
-    author_id: string;
-    type: 'activity' | 'blog';
-    published: boolean;
-    published_at: string | null;
-    created_at: string;
-    updated_at: string;
-    profiles: {
-        full_name: string;
-    };
-}
 
 interface PostFormData {
     title: string;
@@ -47,7 +32,6 @@ interface PostFormData {
 
 const PostPage: React.FC = () => {
     const { user } = useAuthStore();
-    const supabase = createClient();
     const editorRef = useRef<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,6 +43,7 @@ const PostPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'activity' | 'blog'>('all');
     const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'draft'>('all');
+    const [error, setError] = useState<string>('');
 
     // Form state
     const [formData, setFormData] = useState<PostFormData>({
@@ -75,22 +60,34 @@ const PostPage: React.FC = () => {
     const loadPosts = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('posts')
-                .select(`
-          *,
-          profiles (
-            full_name
-          )
-        `)
-                .order('created_at', { ascending: false });
+            setError('');
 
-            if (error) throw error;
-            setPosts(data || []);
+            const result = await postService.getPosts({
+                type: filterType,
+                published: filterPublished === 'all' ? 'all' : filterPublished === 'published',
+                search: searchTerm || undefined,
+                limit: 100 // Load more posts for admin panel
+            });
+
+            setPosts(result.posts);
+            console.log('Posts loaded successfully:', result.posts.length);
         } catch (error) {
             console.error('Error loading posts:', error);
+            setError('Không thể tải danh sách bài viết. Vui lòng thử lại.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Test database connection
+    const testConnection = async () => {
+        try {
+            const isConnected = await postService.testConnection();
+            console.log('Database connection test:', isConnected ? 'SUCCESS' : 'FAILED');
+            return isConnected;
+        } catch (error) {
+            console.error('Connection test error:', error);
+            return false;
         }
     };
 
@@ -98,86 +95,94 @@ const PostPage: React.FC = () => {
     const initializeEditor = async (initialData?: any) => {
         if (typeof window === 'undefined') return;
 
-        const EditorJS = (await import('@editorjs/editorjs')).default;
-        const Header = (await import('@editorjs/header')).default;
-        const List = (await import('@editorjs/list')).default;
-        const Paragraph = (await import('@editorjs/paragraph')).default;
-        const Quote = (await import('@editorjs/quote')).default;
-        const Delimiter = (await import('@editorjs/delimiter')).default;
-        const ImageTool = (await import('@editorjs/image')).default;
+        try {
+            const EditorJS = (await import('@editorjs/editorjs')).default;
+            const Header = (await import('@editorjs/header')).default;
+            const List = (await import('@editorjs/list')).default;
+            const Paragraph = (await import('@editorjs/paragraph')).default;
+            const Quote = (await import('@editorjs/quote')).default;
+            const Delimiter = (await import('@editorjs/delimiter')).default;
+            const ImageTool = (await import('@editorjs/image')).default;
 
-        if (editorRef.current) {
-            editorRef.current.destroy();
-        }
+            if (editorRef.current) {
+                editorRef.current.destroy();
+            }
 
-        editorRef.current = new EditorJS({
-            holder: 'editorjs',
-            data: initialData || undefined,
-            tools: {
-                header: {
-                    class: Header,
-                    config: {
-                        levels: [1, 2, 3, 4],
-                        defaultLevel: 2
-                    }
-                },
-                list: {
-                    class: List,
-                    inlineToolbar: true
-                },
-                paragraph: {
-                    class: Paragraph,
-                    inlineToolbar: true
-                },
-                quote: {
-                    class: Quote,
-                    inlineToolbar: true
-                },
-                delimiter: Delimiter,
-                image: {
-                    class: ImageTool,
-                    config: {
-                        uploader: {
-                            uploadByFile: async (file: File) => {
-                                const imageUrl = await uploadImage(file);
-                                return {
-                                    success: 1,
-                                    file: {
-                                        url: imageUrl
+            editorRef.current = new EditorJS({
+                holder: 'editorjs',
+                data: initialData || undefined,
+                tools: {
+                    header: {
+                        class: Header,
+                        config: {
+                            levels: [1, 2, 3, 4],
+                            defaultLevel: 2
+                        }
+                    },
+                    list: {
+                        class: List,
+                        inlineToolbar: true
+                    },
+                    paragraph: {
+                        class: Paragraph,
+                        inlineToolbar: true
+                    },
+                    quote: {
+                        class: Quote,
+                        inlineToolbar: true
+                    },
+                    delimiter: Delimiter,
+                    image: {
+                        class: ImageTool,
+                        config: {
+                            uploader: {
+                                uploadByFile: async (file: File) => {
+                                    try {
+                                        const imageUrl = await postService.uploadImage(file);
+                                        return {
+                                            success: 1,
+                                            file: {
+                                                url: imageUrl
+                                            }
+                                        };
+                                    } catch (error) {
+                                        console.error('Error uploading image:', error);
+                                        return {
+                                            success: 0,
+                                            error: 'Upload failed'
+                                        };
                                     }
-                                };
+                                }
                             }
                         }
                     }
-                }
-            },
-            placeholder: 'Bắt đầu viết nội dung bài viết...'
-        });
-    };
+                },
+                placeholder: 'Bắt đầu viết nội dung bài viết...'
+            });
 
-    // Upload image to Supabase Storage
-    const uploadImage = async (file: File): Promise<string> => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-        const filePath = `posts/${fileName}`;
-
-        const { data, error } = await supabase.storage
-            .from('images')
-            .upload(filePath, file);
-
-        if (error) throw error;
-
-        const { data: urlData } = supabase.storage
-            .from('images')
-            .getPublicUrl(filePath);
-
-        return urlData.publicUrl;
+            console.log('Editor initialized successfully');
+        } catch (error) {
+            console.error('Error initializing editor:', error);
+            setError('Không thể khởi tạo trình soạn thảo');
+        }
     };
 
     // Handle thumbnail upload
     const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setError('Kích thước file không được vượt quá 5MB');
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                setError('Chỉ được chọn file hình ảnh');
+                return;
+            }
+
             setFormData(prev => ({ ...prev, thumbnail: file }));
 
             // Create preview
@@ -191,52 +196,64 @@ const PostPage: React.FC = () => {
 
     // Save post
     const savePost = async () => {
-        if (!user || !editorRef.current) return;
+        if (!user || !editorRef.current) {
+            setError('Người dùng chưa đăng nhập hoặc trình soạn thảo chưa sẵn sàng');
+            return;
+        }
 
         try {
             setUploading(true);
+            setError('');
+
+            // Validate form
+            if (!formData.title.trim()) {
+                setError('Vui lòng nhập tiêu đề bài viết');
+                return;
+            }
 
             // Get content from editor
             const savedData = await editorRef.current.save();
 
-            let thumbnailUrl = '';
-            if (formData.thumbnail) {
-                thumbnailUrl = await uploadImage(formData.thumbnail);
+            // Validate content
+            if (!savedData.blocks || savedData.blocks.length === 0) {
+                setError('Vui lòng nhập nội dung bài viết');
+                return;
             }
 
-            const postData = {
+            let thumbnailUrl = '';
+            if (formData.thumbnail) {
+                thumbnailUrl = await postService.uploadImage(formData.thumbnail);
+            }
+
+            const postData: CreatePostData | UpdatePostData = {
                 title: formData.title,
                 type: formData.type,
                 content: savedData,
-                thumbnail: thumbnailUrl || null,
+                thumbnail: thumbnailUrl || undefined,
                 published: formData.published,
-                published_at: formData.published ? new Date().toISOString() : null,
-                author_id: user.id
             };
 
             let result;
             if (editingPost) {
                 // Update existing post
-                result = await supabase
-                    .from('posts')
-                    .update(postData)
-                    .eq('id', editingPost.id);
+                result = await postService.updatePost({
+                    id: editingPost.id,
+                    ...postData
+                });
+                console.log('Post updated successfully:', result);
             } else {
                 // Create new post
-                result = await supabase
-                    .from('posts')
-                    .insert([postData]);
+                result = await postService.createPost(postData, user.id);
+                console.log('Post created successfully:', result);
             }
-
-            if (result.error) throw result.error;
 
             // Reset form and reload posts
             resetForm();
-            loadPosts();
+            await loadPosts();
 
         } catch (error) {
             console.error('Error saving post:', error);
-            alert('Lỗi khi lưu bài viết');
+            setError(`Lỗi khi lưu bài viết: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setUploading(false);
         }
@@ -247,36 +264,26 @@ const PostPage: React.FC = () => {
         if (!confirm('Bạn có chắc chắn muốn xóa bài viết này?')) return;
 
         try {
-            const { error } = await supabase
-                .from('posts')
-                .delete()
-                .eq('id', postId);
-
-            if (error) throw error;
-
-            loadPosts();
+            setError('');
+            await postService.deletePost(postId);
+            await loadPosts();
+            console.log('Post deleted successfully');
         } catch (error) {
             console.error('Error deleting post:', error);
-            alert('Lỗi khi xóa bài viết');
+            setError(`Lỗi khi xóa bài viết: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
 
     // Toggle publish status
-    const togglePublishStatus = async (postId: string, currentStatus: boolean) => {
+    const togglePublishStatus = async (postId: string) => {
         try {
-            const { error } = await supabase
-                .from('posts')
-                .update({
-                    published: !currentStatus,
-                    published_at: !currentStatus ? new Date().toISOString() : null
-                })
-                .eq('id', postId);
-
-            if (error) throw error;
-
-            loadPosts();
+            setError('');
+            await postService.togglePublishStatus(postId);
+            await loadPosts();
+            console.log('Post publish status toggled successfully');
         } catch (error) {
             console.error('Error updating publish status:', error);
+            setError(`Lỗi khi cập nhật trạng thái: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
 
@@ -313,6 +320,7 @@ const PostPage: React.FC = () => {
             published: false
         });
         setThumbnailPreview('');
+        setError('');
         if (editorRef.current) {
             editorRef.current.destroy();
             editorRef.current = null;
@@ -333,8 +341,13 @@ const PostPage: React.FC = () => {
 
     // Effects
     useEffect(() => {
-        loadPosts();
-    }, []);
+        const initializePage = async () => {
+            await testConnection();
+            await loadPosts();
+        };
+
+        initializePage();
+    }, [filterType, filterPublished]);
 
     useEffect(() => {
         if (showForm && !editingPost) {
@@ -344,6 +357,17 @@ const PostPage: React.FC = () => {
         }
     }, [showForm]);
 
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (searchTerm !== '') {
+                loadPosts();
+            }
+        }, 500);
+
+        return () => clearTimeout(timeoutId);
+    }, [searchTerm]);
+
+    // Permission check
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -362,6 +386,22 @@ const PostPage: React.FC = () => {
                     title="QUẢN LÝ BÀI VIẾT"
                     subtitle="Tạo và quản lý các bài viết hoạt động và blog"
                 />
+
+                {/* Error Display */}
+                {error && (
+                    <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+                        <div className="flex items-center">
+                            <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+                            <span className="text-sm text-red-700">{error}</span>
+                            <button
+                                onClick={() => setError('')}
+                                className="ml-auto text-red-400 hover:text-red-600"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Controls */}
                 <div className="mb-8 bg-white rounded-xl shadow-sm p-6">
@@ -623,7 +663,7 @@ const PostPage: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <button
-                                                onClick={() => togglePublishStatus(post.id, post.published)}
+                                                onClick={() => togglePublishStatus(post.id)}
                                                 className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
                                                     post.published
                                                         ? 'bg-green-100 text-green-800 hover:bg-green-200'

@@ -17,3 +17,302 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Add this to your globals.css file */
+
+/* Editor.js Styles */
+.codex-editor {
+  font-family: inherit;
+}
+
+.codex-editor__redactor {
+  padding-bottom: 200px !important;
+}
+
+.ce-block__content {
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+.ce-paragraph {
+  line-height: 1.6;
+  font-size: 16px;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.ce-header {
+  font-weight: bold;
+  color: #111827;
+  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+}
+
+.ce-header[data-level="1"] {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.ce-header[data-level="2"] {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+.ce-header[data-level="3"] {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+.ce-header[data-level="4"] {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.cdx-list {
+  margin: 1rem 0;
+}
+
+.cdx-list__item {
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+  color: #374151;
+}
+
+.cdx-quote {
+  margin: 1.5rem 0;
+  border-left: 4px solid #06b6d4;
+  padding-left: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0 0.5rem 0.5rem 0;
+  padding: 1rem;
+}
+
+.cdx-quote__text {
+  font-style: italic;
+  color: #4b5563;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+.cdx-quote__caption {
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: right;
+}
+
+.cdx-quote__caption::before {
+  content: "— ";
+}
+
+.image-tool {
+  margin: 2rem 0;
+}
+
+.image-tool__image {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.image-tool__caption {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+.cdx-delimiter {
+  margin: 2rem 0;
+  text-align: center;
+}
+
+.cdx-delimiter::before {
+  content: "***";
+  font-size: 1.5rem;
+  color: #9ca3af;
+  letter-spacing: 0.5rem;
+}
+
+/* Toolbar styles */
+.ce-toolbar__content {
+  max-width: none !important;
+}
+
+.ce-toolbar__actions {
+  right: 0 !important;
+}
+
+.ce-inline-toolbar {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.ce-inline-tool {
+  color: #374151;
+  border-radius: 0.25rem;
+}
+
+.ce-inline-tool:hover {
+  background-color: #f3f4f6;
+}
+
+.ce-inline-tool--active {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Conversion toolbar */
+.ce-conversion-toolbar {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.ce-conversion-tool {
+  color: #374151;
+  border-radius: 0.25rem;
+}
+
+.ce-conversion-tool:hover {
+  background-color: #f3f4f6;
+}
+
+/* Settings panel */
+.ce-settings {
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.ce-settings__button {
+  color: #374151;
+  border-radius: 0.25rem;
+}
+
+.ce-settings__button:hover {
+  background-color: #f3f4f6;
+}
+
+/* Plus button */
+.ce-toolbar__plus {
+  background: #06b6d4;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+}
+
+.ce-toolbar__plus:hover {
+  background: #0891b2;
+}
+
+/* Block selection */
+.ce-block--selected .ce-block__content {
+  background-color: #f0f9ff;
+  border-radius: 0.25rem;
+}
+
+/* Focus styles */
+.ce-block:focus-within {
+  background-color: #fefefe;
+}
+
+/* Placeholder styles */
+.ce-paragraph[data-placeholder]:empty::before {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Loading animation for images */
+.image-tool--loading {
+  position: relative;
+}
+
+.image-tool--loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #06b6d4;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .ce-paragraph {
+    font-size: 14px;
+  }
+
+  .ce-header[data-level="1"] {
+    font-size: 1.5rem;
+  }
+
+  .ce-header[data-level="2"] {
+    font-size: 1.25rem;
+  }
+
+  .ce-header[data-level="3"] {
+    font-size: 1.125rem;
+  }
+
+  .ce-toolbar__content {
+    padding: 0 10px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .ce-paragraph {
+    color: #d1d5db;
+  }
+
+  .ce-header {
+    color: #f9fafb;
+  }
+
+  .cdx-quote {
+    background-color: #1f2937;
+    border-left-color: #06b6d4;
+  }
+
+  .cdx-quote__text {
+    color: #d1d5db;
+  }
+
+  .cdx-quote__caption {
+    color: #9ca3af;
+  }
+}
+
+/* Print styles */
+@media print {
+  .ce-toolbar,
+  .ce-inline-toolbar,
+  .ce-conversion-toolbar,
+  .ce-settings {
+    display: none !important;
+  }
+
+  .ce-block__content {
+    page-break-inside: avoid;
+  }
+
+  .image-tool {
+    page-break-inside: avoid;
+  }
+}
