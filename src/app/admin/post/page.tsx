@@ -16,10 +16,7 @@ import {
     Save,
 } from 'lucide-react';
 import Image from 'next/image';
-import dynamic from 'next/dynamic';
 
-// Dynamic import EditorJS to avoid SSR issues
-const EditorJS = dynamic(() => import('@editorjs/editorjs'), { ssr: false });
 
 interface Post {
     id: string;
@@ -98,61 +95,65 @@ const PostPage: React.FC = () => {
     const initializeEditor = async (initialData?: any) => {
         if (typeof window === 'undefined') return;
 
-        const EditorJS = (await import('@editorjs/editorjs')).default;
-        const Header = (await import('@editorjs/header')).default;
-        const List = (await import('@editorjs/list')).default;
-        const Paragraph = (await import('@editorjs/paragraph')).default;
-        const Quote = (await import('@editorjs/quote')).default;
-        const Delimiter = (await import('@editorjs/delimiter')).default;
-        const ImageTool = (await import('@editorjs/image')).default;
+        try {
+            const EditorJS = (await import('@editorjs/editorjs')).default;
+            const Header = (await import('@editorjs/header')).default;
+            const List = (await import('@editorjs/list')).default;
+            const Paragraph = (await import('@editorjs/paragraph')).default;
+            const Quote = (await import('@editorjs/quote')).default;
+            const Delimiter = (await import('@editorjs/delimiter')).default;
+            const ImageTool = (await import('@editorjs/image')).default;
 
-        if (editorRef.current) {
-            editorRef.current.destroy();
-        }
+            if (editorRef.current) {
+                editorRef.current.destroy();
+            }
 
-        editorRef.current = new EditorJS({
-            holder: 'editorjs',
-            data: initialData || undefined,
-            tools: {
-                header: {
-                    class: Header,
-                    config: {
-                        levels: [1, 2, 3, 4],
-                        defaultLevel: 2
-                    }
-                },
-                list: {
-                    class: List,
-                    inlineToolbar: true
-                },
-                paragraph: {
-                    class: Paragraph,
-                    inlineToolbar: true
-                },
-                quote: {
-                    class: Quote,
-                    inlineToolbar: true
-                },
-                delimiter: Delimiter,
-                image: {
-                    class: ImageTool,
-                    config: {
-                        uploader: {
-                            uploadByFile: async (file: File) => {
-                                const imageUrl = await uploadImage(file);
-                                return {
-                                    success: 1,
-                                    file: {
-                                        url: imageUrl
-                                    }
-                                };
+            editorRef.current = new EditorJS({
+                holder: 'editorjs',
+                data: initialData || undefined,
+                tools: {
+                    header: {
+                        class: Header,
+                        config: {
+                            levels: [1, 2, 3, 4],
+                            defaultLevel: 2
+                        }
+                    },
+                    list: {
+                        class: List,
+                        inlineToolbar: true
+                    },
+                    paragraph: {
+                        class: Paragraph,
+                        inlineToolbar: true
+                    },
+                    quote: {
+                        class: Quote,
+                        inlineToolbar: true
+                    },
+                    delimiter: Delimiter,
+                    image: {
+                        class: ImageTool,
+                        config: {
+                            uploader: {
+                                uploadByFile: async (file: File) => {
+                                    const imageUrl = await uploadImage(file);
+                                    return {
+                                        success: 1,
+                                        file: {
+                                            url: imageUrl
+                                        }
+                                    };
+                                }
                             }
                         }
                     }
-                }
-            },
-            placeholder: 'Bắt đầu viết nội dung bài viết...'
-        });
+                },
+                placeholder: 'Bắt đầu viết nội dung bài viết...'
+            });
+        } catch (error) {
+            console.error('Error initializing editor:', error);
+        }
     };
 
     // Upload image to Supabase Storage
@@ -343,6 +344,15 @@ const PostPage: React.FC = () => {
             }, 100);
         }
     }, [showForm]);
+
+    // Cleanup editor when component unmounts
+    useEffect(() => {
+        return () => {
+            if (editorRef.current) {
+                editorRef.current.destroy();
+            }
+        };
+    }, []);
 
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
         return (
