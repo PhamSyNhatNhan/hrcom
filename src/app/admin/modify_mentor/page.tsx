@@ -482,7 +482,7 @@ const ManagerMentor: React.FC = () => {
             const skillString = editingMentor.skill
                 ? (Array.isArray(editingMentor.skill)
                     ? editingMentor.skill.join(', ')
-                    : editingMentor.skill.toString())
+                    : (editingMentor.skill as string).toString())
                 : '';
             setSkillInputValue(skillString);
 
