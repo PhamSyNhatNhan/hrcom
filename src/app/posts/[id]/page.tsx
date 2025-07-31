@@ -330,7 +330,7 @@ const PostDetailPage = () => {
                     <div className="flex flex-wrap items-center justify-center gap-6 text-gray-600 mb-8">
                         <div className="flex items-center gap-2">
                             <Calendar className="w-5 h-5" />
-                            <span>{formatDate(post.published_at || post.created_at)}</span>
+                            <span>{formatDate(post.published_at || post.created_at || "")}</span>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -344,7 +344,7 @@ const PostDetailPage = () => {
                         {post.profiles?.image_url ? (
                             <Image
                                 src={post.profiles.image_url}
-                                alt={post.profiles.full_name}
+                                alt={post.profiles.full_name ?? "Người dùng"}
                                 width={56}
                                 height={56}
                                 className="rounded-full object-cover ring-4 ring-cyan-100 shadow-lg"
