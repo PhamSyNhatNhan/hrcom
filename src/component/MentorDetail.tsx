@@ -40,7 +40,7 @@ interface Mentor {
     full_name: string;
     headline: string;
     avatar: string;
-    skill: string;
+    skill: string[];
     description?: string;
     experience?: Array<{
         id: string;
@@ -85,7 +85,7 @@ interface MentorDetailProps {
 //                     backgroundPosition: 'center',
 //                 }}
 //             />
-            
+
 //             {/* Avatar và thông tin cơ bản */}
 //             <div className="absolute left-6 top-24 flex items-start gap-4">
 //                 <img
@@ -106,7 +106,7 @@ interface MentorDetailProps {
 //             {/* Giới thiệu bản thân */}
 //             {mentor.description && (
 //                 <div>
-//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
 //                         GIỚI THIỆU BẢN THÂN
 //                     </h3>
 //                     <p className="text-gray-700 text-sm leading-relaxed">{mentor.description}</p>
@@ -116,13 +116,13 @@ interface MentorDetailProps {
 //             {/* Kinh nghiệm làm việc */}
 //             {mentor.experience && mentor.experience.length > 0 && (
 //                 <div>
-//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
 //                         KINH NGHIỆM LÀM VIỆC
 //                     </h3>
 //                     <div className="space-y-3">
 //                         {mentor.experience.map((exp, idx) => (
 //                             <div key={idx} className="flex items-start gap-3">
-//                                 <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+//                                 <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
 //                                     <div className="w-2 h-2 bg-white rounded-full"></div>
 //                                 </div>
 //                                 <div className="flex-1">
@@ -143,13 +143,13 @@ interface MentorDetailProps {
 //             {/* Quá trình học tập */}
 //             {mentor.education && mentor.education.length > 0 && (
 //                 <div>
-//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
 //                         QUÁ TRÌNH HỌC TẬP
 //                     </h3>
 //                     <div className="space-y-3">
 //                         {mentor.education.map((edu, idx) => (
 //                             <div key={idx} className="flex items-start gap-3">
-//                                 <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+//                                 <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
 //                                     <div className="w-2 h-2 bg-white rounded-full"></div>
 //                                 </div>
 //                                 <div className="flex-1">
@@ -170,13 +170,13 @@ interface MentorDetailProps {
 //             {/* Hoạt động ngoại khóa */}
 //             {mentor.activities && mentor.activities.length > 0 && (
 //                 <div>
-//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+//                     <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
 //                         HOẠT ĐỘNG
 //                     </h3>
 //                     <div className="space-y-3">
 //                         {mentor.activities.map((act, idx) => (
 //                             <div key={idx} className="flex items-start gap-3">
-//                                 <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+//                                 <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
 //                                     <div className="w-2 h-2 bg-white rounded-full"></div>
 //                                 </div>
 //                                 <div className="flex-1">
@@ -227,7 +227,7 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
             {/* Giới thiệu bản thân */}
             {mentor.description && (
                 <div>
-                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
                         GIỚI THIỆU BẢN THÂN
                     </h3>
                     <p className="text-gray-700 text-sm leading-relaxed">{mentor.description}</p>
@@ -237,25 +237,32 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
             {/* Kỹ năng */}
             {mentor.skill && (
                 <div>
-                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
                         KỸ NĂNG
                     </h3>
-                    <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-sm font-medium">
-                        {mentor.skill}
-                    </span>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {mentor.skill.map((skill, idx) => (
+                            <span
+                                key={idx}
+                                className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-sm font-medium"
+                            >
+                                {skill}
+                            </span>
+                        ))}
+                    </div>
                 </div>
             )}
 
             {/* Kinh nghiệm làm việc */}
             {mentor.experience && mentor.experience.length > 0 && (
                 <div>
-                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
                         KINH NGHIỆM LÀM VIỆC
                     </h3>
                     <div className="space-y-3">
                         {mentor.experience.map((exp, idx) => (
                             <div key={exp.id || idx} className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                                <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                                     <div className="w-2 h-2 bg-white rounded-full"></div>
                                 </div>
                                 <div className="flex-1">
@@ -281,13 +288,13 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
             {/* Quá trình học tập */}
             {mentor.education && mentor.education.length > 0 && (
                 <div>
-                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
                         QUÁ TRÌNH HỌC TẬP
                     </h3>
                     <div className="space-y-3">
                         {mentor.education.map((edu, idx) => (
                             <div key={edu.id || idx} className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                                <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                                     <div className="w-2 h-2 bg-white rounded-full"></div>
                                 </div>
                                 <div className="flex-1">
@@ -313,13 +320,13 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
             {/* Hoạt động ngoại khóa */}
             {mentor.activities && mentor.activities.length > 0 && (
                 <div>
-                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-teal-600 pb-1 inline-block">
+                    <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide border-b-2 border-cyan-600 pb-1 inline-block">
                         HOẠT ĐỘNG
                     </h3>
                     <div className="space-y-3">
                         {mentor.activities.map((act, idx) => (
                             <div key={act.id || idx} className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                                <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                                     <div className="w-2 h-2 bg-white rounded-full"></div>
                                 </div>
                                 <div className="flex-1">
