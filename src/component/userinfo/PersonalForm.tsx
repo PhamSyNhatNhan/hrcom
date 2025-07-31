@@ -73,7 +73,7 @@ export const PersonalForm: React.FC<Props> = ({
     setPersonalInfo({
       name: 'Nguyễn Văn A',
       email: 'nguyenvana@example.com',
-      phone: '0123456789',
+      //phone: '0123456789',
       avatar: ''
     });
     setPreviewAvatar('');
@@ -151,20 +151,6 @@ export const PersonalForm: React.FC<Props> = ({
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">Email</label>
         <div className="px-4 py-3 bg-gray-100 border rounded-lg text-gray-500">{personalInfo.email}</div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">Số điện thoại</label>
-        {isEditing ? (
-          <input
-            type="tel"
-            value={personalInfo.phone}
-            onChange={(e) => handlePersonalInfoChange('phone', e.target.value)}
-            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          />
-        ) : (
-          <div className="px-4 py-3 bg-gray-50 border rounded-lg">{personalInfo.phone}</div>
-        )}
       </div>
 
       {isEditing && (
