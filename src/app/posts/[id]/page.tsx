@@ -245,9 +245,9 @@ const BlogDetailPage = () => {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Không tìm thấy bài viết</h2>
                     <p className="text-gray-600 mb-6">{error || 'Bài viết không tồn tại hoặc đã bị xóa'}</p>
-                    <Link href="/blog">
-                        <button className="px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors">
-                            Quay lại danh sách blog
+                    <Link href={post?.type === 'activity' ? '/news' : '/blog'}>
+                        <button className="px-5 py-2.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors text-sm">
+                            {post?.type === 'activity' ? 'Quay lại danh sách tin tức & sự kiện' : 'Quay lại danh sách blog'}
                         </button>
                     </Link>
                 </div>
@@ -270,18 +270,27 @@ const BlogDetailPage = () => {
                         <ol className="flex items-center justify-center space-x-2 text-sm text-gray-500">
                             <li><Link href="/" className="hover:text-cyan-600">Trang chủ</Link></li>
                             <li>/</li>
-                            <li><Link href="/blog" className="hover:text-cyan-600">Blog</Link></li>
+                            <li>
+                                <Link
+                                    href={`/${post?.type === 'activity' ? 'news' : 'blog'}`}
+                                    className="hover:text-cyan-600 capitalize"
+                                >
+                                    {post?.type === 'activity' ? 'Tin tức & Sự kiện' : 'Blog HR Companion'}
+                                </Link>
+                            </li>
                             <li>/</li>
                             <li className="text-gray-900 font-medium">Chi tiết bài viết</li>
                         </ol>
                     </nav>
 
+
                     {/* Category */}
                     <div className="mb-4">
                         <span className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
-                            BLOG HR COMPANION
+                            {post?.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION'}
                         </span>
                     </div>
+
 
                     {/* Title */}
                     <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
@@ -336,24 +345,6 @@ const BlogDetailPage = () => {
                                 {renderContent(post.content)}
                             </div>
 
-                            {/* Tags */}
-                            <div className="mt-12 pt-8 border-t border-gray-200">
-                                <div className="flex items-center gap-2 mb-6">
-                                    <Tag className="w-5 h-5 text-gray-500" />
-                                    <span className="text-gray-700 font-medium">Tags:</span>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full hover:bg-gray-200 transition-colors cursor-pointer">
-                                            HR Companion
-                                        </span>
-                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full hover:bg-gray-200 transition-colors cursor-pointer">
-                                            Blog
-                                        </span>
-                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full hover:bg-gray-200 transition-colors cursor-pointer">
-                                            Nhân sự
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
 
                             {/* Post Navigation */}
                             <div className="mt-12 pt-8 border-t border-gray-200">
@@ -463,20 +454,24 @@ const BlogDetailPage = () => {
                                     </div>
                                 </div>
 
-                                {/* Back to Blog */}
-                                <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-6 text-center">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-4">
+                                {/* Back to Blog or NEws*/}
+                                <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-4 text-center">
+                                    <h3 className="text-base font-semibold text-gray-800 mb-2">
                                         Khám phá thêm
                                     </h3>
-                                    <p className="text-gray-600 mb-6 text-sm">
-                                        Đọc thêm nhiều bài viết thú vị khác từ HR Companion
+                                    <p className="text-gray-600 mb-4 text-sm leading-snug">
+                                        {post?.type === 'activity'
+                                            ? 'Xem thêm những tin tức & sự kiện hấp dẫn từ HR Companion'
+                                            : 'Đọc thêm nhiều bài viết thú vị khác từ HR Companion'}
                                     </p>
-                                    <Link href="/blog">
-                                        <button className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
-                                            Xem tất cả blog
+                                    <Link href={post?.type === 'activity' ? '/news' : '/blog'}>
+                                        <button className="w-full px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-medium rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow">
+                                            {post?.type === 'activity' ? 'Xem tất cả tin tức & sự kiện' : 'Xem tất cả blog'}
                                         </button>
                                     </Link>
                                 </div>
+
+
                             </div>
                         </div>
                     </div>
