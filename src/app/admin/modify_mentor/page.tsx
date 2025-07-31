@@ -340,6 +340,7 @@ const ManagerMentor: React.FC = () => {
     const resetForm = () => {
         setShowForm(false);
         setEditingMentor(null);
+        setSkillInputValue('');
         setFormData({
             email: '',
             full_name: '',
@@ -353,6 +354,7 @@ const ManagerMentor: React.FC = () => {
             activities: []
         });
     };
+
 
     // Add new experience/education/activity
     const addWorkExperience = () => {
@@ -470,6 +472,40 @@ const ManagerMentor: React.FC = () => {
             </div>
         );
     }
+
+    // Skill Input
+    const [skillInputValue, setSkillInputValue] = useState('');
+
+    useEffect(() => {
+        if (editingMentor) {
+            // Sync skill input value
+            const skillString = editingMentor.skill
+                ? (Array.isArray(editingMentor.skill)
+                    ? editingMentor.skill.join(', ')
+                    : editingMentor.skill.toString())
+                : '';
+            setSkillInputValue(skillString);
+
+            // Set form data
+            setFormData({
+                email: editingMentor.email,
+                full_name: editingMentor.full_name,
+                avatar: editingMentor.avatar || '',
+                headline: editingMentor.headline || '',
+                description: editingMentor.description || '',
+                skill: editingMentor.skill || [],
+                published: editingMentor.published,
+                work_experiences: editingMentor.mentor_work_experiences || [],
+                educations: editingMentor.mentor_educations || [],
+                activities: editingMentor.mentor_activities || []
+            });
+            setShowForm(true);
+        } else {
+            // Reset skill input khi không edit
+            setSkillInputValue('');
+        }
+    }, [editingMentor]);
+
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -644,20 +680,51 @@ const ManagerMentor: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Skill Input */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Kỹ năng (nhập từng kỹ năng, cách nhau bởi dấu phẩy)
                                     </label>
                                     <input
                                         type="text"
-                                        value={formData.skill.join(', ')}
-                                        onChange={(e) => setFormData(prev => ({
-                                            ...prev,
-                                            skill: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                                        }))}
+                                        value={skillInputValue}
+                                        onChange={(e) => {
+                                            setSkillInputValue(e.target.value);
+                                        }}
+                                        onBlur={() => {
+                                            const skills = skillInputValue
+                                                .split(',')
+                                                .map(s => s.trim())
+                                                .filter(s => s.length > 0);
+
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                skill: skills
+                                            }));
+                                        }}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         placeholder="VD: Tuyển dụng, Quản trị nhân sự, Văn hóa doanh nghiệp"
                                     />
+
+                                    {formData.skill && formData.skill.length > 0 && (
+                                        <div className="mt-2">
+                                            <p className="text-xs text-gray-600 mb-1">Kỹ năng đã lưu:</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {(Array.isArray(formData.skill) ? formData.skill : [formData.skill]).map((skill, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                                                    >
+                                                        {skill}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Click ra ngoài để lưu kỹ năng
+                                    </p>
                                 </div>
 
                                 {/* Work Experiences */}

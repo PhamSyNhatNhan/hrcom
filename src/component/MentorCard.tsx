@@ -1,69 +1,18 @@
 'use client'
 import React from 'react';
-import { Star } from 'lucide-react';
+import { User } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
-// interface Mentor {
-//     id: number;
-//     name: string;
-//     role: string;
-//     company: string;
-//     sessions: number;
-//     image: string;
-//     specialties: string[];
-// }
-
-// interface MentorCardProps {
-//     mentor: Mentor;
-// }
-
-// export const MentorCard = ({ mentor }: MentorCardProps) => (
-//     <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group border border-gray-100 hover:border-cyan-200 hover:scale-105 transform">
-//         <div className="p-6">
-//             <div className="flex items-center space-x-4 mb-6">
-//                 <img
-//                     src={mentor.image}
-//                     alt={mentor.name}
-//                     className="w-16 h-16 rounded-xl object-cover ring-4 ring-cyan-100"
-//                 />
-//                 <div>
-//                     <h3 className="text-xl font-bold text-gray-900">{mentor.name}</h3>
-//                     <p className="text-cyan-600 font-medium">{mentor.role}</p>
-//                     <p className="text-gray-500 text-sm">{mentor.company}</p>
-//                 </div>
-//             </div>
-
-//             <div className="flex items-center justify-between mb-4">
-//                 <div className="flex items-center space-x-1">
-//                 </div>
-//             </div>
-
-//             <div className="flex flex-wrap gap-2 mb-6">
-//                 {mentor.specialties.map((specialty, index) => (
-//                     <span
-//                         key={index}
-//                         className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-sm font-medium"
-//                     >
-//             {specialty}
-//           </span>
-//                 ))}
-//             </div>
-//             <Link href={`/mentor/${mentor.id}`}>
-//                 <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 font-medium group-hover:shadow-lg">
-//                     Xem Hồ Sơ
-//                 </button>
-//             </Link>
-//         </div>
-//     </div>
-// );
 interface Mentor {
     id: string;
     full_name: string;
-    headline: string;
-    avatar: string;
-    skill: string; // chỉ là string
+    headline?: string;
+    avatar?: string;
+    skill?: string[];
     description?: string;
-    company?: string;
+    published?: boolean;
+    created_at?: string;
 }
 
 interface MentorCardProps {
@@ -71,36 +20,77 @@ interface MentorCardProps {
 }
 
 export const MentorCard = ({ mentor }: MentorCardProps) => {
+    // Safely handle skills array
+    const skills = Array.isArray(mentor.skill)
+        ? mentor.skill.filter(skill => skill && skill.trim())
+        : [];
+
     return (
-        <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group border border-gray-100 hover:border-cyan-200 hover:scale-105 transform">
-            <div className="p-6">
-                <div className="flex items-center space-x-4 mb-6">
-                    <img
-                        src={mentor.avatar}
-                        alt={mentor.full_name}
-                        className="w-16 h-16 rounded-xl object-cover ring-4 ring-cyan-100"
-                    />
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-900">{mentor.full_name}</h3>
-                        <p className="text-cyan-600 font-medium">{mentor.headline}</p>
-                        {mentor.company && (
-                            <p className="text-gray-500 text-sm">{mentor.company}</p>
-                        )}
+        <Link href={`/mentor/${mentor.id}`} className="block">
+            <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-cyan-300 cursor-pointer transform hover:-translate-y-1 hover:bg-gradient-to-br hover:from-white hover:to-cyan-50">
+                {/* Main Content */}
+                <div className="p-6 text-center">
+                    {/* Avatar - với viền và shadow */}
+                    <div className="flex justify-center mb-4">
+                        <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-white shadow-lg border-2 border-gray-100">
+                            {mentor.avatar ? (
+                                <Image
+                                    src={mentor.avatar}
+                                    alt={mentor.full_name}
+                                    width={112}
+                                    height={112}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                                    <User className="w-12 h-12 text-white" />
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <div className="mb-6">
-                    {mentor.skill && (
-                        <span className="bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full text-sm font-medium">
-                            {mentor.skill}
-                        </span>
+
+                    {/* Name */}
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1 hover:text-cyan-700 transition-colors duration-200">
+                        {mentor.full_name}
+                    </h3>
+
+                    {/* Headline */}
+                    {mentor.headline ? (
+                        <p className="text-sm text-cyan-600 mb-4 line-clamp-2 min-h-[2.5rem]">
+                            {mentor.headline}
+                        </p>
+                    ) : (
+                        <div className="h-10 mb-4"></div>
+                    )}
+
+                    {/* Skills */}
+                    {skills.length > 0 ? (
+                        <div className="min-h-[3rem] flex items-center justify-center">
+                            <div className="flex flex-wrap justify-center gap-1">
+                                {skills.slice(0, 3).map((skill, index) => (
+                                    <span
+                                        key={index}
+                                        className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md hover:bg-cyan-100 hover:text-cyan-700 transition-colors duration-200 border border-gray-200"
+                                    >
+                                        {skill}
+                                    </span>
+                                ))}
+                                {skills.length > 3 && (
+                                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md border border-gray-200">
+                                        +{skills.length - 3}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="min-h-[3rem] flex items-center justify-center">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-500 text-xs rounded-md border border-gray-200">
+                                Chưa cập nhật kỹ năng
+                            </span>
+                        </div>
                     )}
                 </div>
-                <Link href={`/mentor/${mentor.id}`}>
-                    <button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 font-medium group-hover:shadow-lg">
-                        Xem Hồ Sơ
-                    </button>
-                </Link>
             </div>
-        </div>
+        </Link>
     );
 };

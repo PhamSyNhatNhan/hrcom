@@ -3,10 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Calendar, Clock, User, Tag, ChevronLeft, ChevronRight, Share2, Bookmark, Heart, Eye } from 'lucide-react';
+import { Calendar, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { SectionHeader } from '@/component/SectionHeader';
 import { LastNewsCard } from '@/component/LastNewsCard';
-import { NewsCard } from '@/component/NewsCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
 import { postService } from '@/lib/posts';
 
@@ -24,7 +23,7 @@ interface BlogPost {
     };
 }
 
-const BlogDetailPage = () => {
+const PostDetailPage = () => {
     const params = useParams();
     const router = useRouter();
     const postId = params.id as string;
@@ -35,12 +34,14 @@ const BlogDetailPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [currentPostIndex, setCurrentPostIndex] = useState(-1);
 
-    // Load all blog posts for navigation and related posts
+    // Load all posts of the same type for navigation and related posts
+    const [relatedPostsType, setRelatedPostsType] = useState<'activity' | 'blog'>('blog');
+
     const {
-        posts: allBlogPosts,
+        posts: allRelatedPosts,
         loading: postsLoading
     } = usePublishedPosts({
-        type: 'blog',
+        type: relatedPostsType,
         limit: 50
     });
 
@@ -54,6 +55,8 @@ const BlogDetailPage = () => {
                 setError(null);
                 const postData = await postService.getPost(postId);
                 setPost(postData);
+                // Set the related posts type based on current post type
+                setRelatedPostsType(postData.type);
             } catch (err) {
                 console.error('Error loading post:', err);
                 setError('Không thể tải bài viết');
@@ -67,11 +70,11 @@ const BlogDetailPage = () => {
 
     // Find current post index for navigation
     useEffect(() => {
-        if (post && allBlogPosts.length > 0) {
-            const index = allBlogPosts.findIndex(p => p.id === post.id);
+        if (post && allRelatedPosts.length > 0) {
+            const index = allRelatedPosts.findIndex(p => p.id === post.id);
             setCurrentPostIndex(index);
         }
-    }, [post, allBlogPosts]);
+    }, [post, allRelatedPosts]);
 
     // Helper functions
     const formatDate = (dateString: string) => {
@@ -152,7 +155,7 @@ const BlogDetailPage = () => {
                             <div className="relative w-full rounded-xl overflow-hidden shadow-lg">
                                 <Image
                                     src={block.data.file.url}
-                                    alt={block.data.caption || 'Blog image'}
+                                    alt={block.data.caption || 'Post image'}
                                     width={1200}
                                     height={800}
                                     className="w-full h-auto"
@@ -202,32 +205,59 @@ const BlogDetailPage = () => {
             month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
             year: new Date(post.created_at).getFullYear().toString()
         },
-        image: post.thumbnail || '/news/default-blog.jpg',
+        image: post.thumbnail || (post.type === 'activity' ? '/news/default-activity.jpg' : '/news/default-blog.jpg'),
         title: post.title,
         excerpt: extractTextFromContent(post.content).substring(0, 200) + '...',
-        category: 'BLOG HR COMPANION',
+        category: post.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION',
         href: `/posts/${post.id}`
     });
 
     // Navigation functions
     const getPreviousPost = () => {
         if (currentPostIndex > 0) {
-            return allBlogPosts[currentPostIndex - 1];
+            return allRelatedPosts[currentPostIndex - 1];
         }
         return null;
     };
 
     const getNextPost = () => {
-        if (currentPostIndex >= 0 && currentPostIndex < allBlogPosts.length - 1) {
-            return allBlogPosts[currentPostIndex + 1];
+        if (currentPostIndex >= 0 && currentPostIndex < allRelatedPosts.length - 1) {
+            return allRelatedPosts[currentPostIndex + 1];
         }
         return null;
     };
 
     const getRelatedPosts = () => {
-        return allBlogPosts
+        return allRelatedPosts
             .filter(p => p.id !== postId)
             .slice(0, 3);
+    };
+
+    // Get back URL and labels based on post type
+    const getPostTypeInfo = (type: 'activity' | 'blog') => {
+        if (type === 'activity') {
+            return {
+                backUrl: '/news',
+                backLabel: 'tin tức & sự kiện',
+                categoryLabel: 'TIN TỨC & SỰ KIỆN',
+                pageTitle: 'Tin tức & Sự kiện',
+                latestTitle: 'TIN TỨC MỚI NHẤT',
+                exploreTitle: 'Khám phá thêm',
+                exploreDesc: 'Xem thêm những tin tức & sự kiện hấp dẫn từ HR Companion',
+                exploreButton: 'Xem tất cả tin tức & sự kiện'
+            };
+        } else {
+            return {
+                backUrl: '/blog',
+                backLabel: 'blog',
+                categoryLabel: 'BLOG HR COMPANION',
+                pageTitle: 'Blog HR Companion',
+                latestTitle: 'BÀI VIẾT MỚI NHẤT',
+                exploreTitle: 'Khám phá thêm',
+                exploreDesc: 'Đọc thêm nhiều bài viết thú vị khác từ HR Companion',
+                exploreButton: 'Xem tất cả blog'
+            };
+        }
     };
 
     if (loading) {
@@ -259,6 +289,7 @@ const BlogDetailPage = () => {
     const previousPost = getPreviousPost();
     const nextPost = getNextPost();
     const relatedPosts = getRelatedPosts();
+    const typeInfo = getPostTypeInfo(post.type);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
@@ -272,10 +303,10 @@ const BlogDetailPage = () => {
                             <li>/</li>
                             <li>
                                 <Link
-                                    href={`/${post?.type === 'activity' ? 'news' : 'blog'}`}
+                                    href={typeInfo.backUrl}
                                     className="hover:text-cyan-600 capitalize"
                                 >
-                                    {post?.type === 'activity' ? 'Tin tức & Sự kiện' : 'Blog HR Companion'}
+                                    {typeInfo.pageTitle}
                                 </Link>
                             </li>
                             <li>/</li>
@@ -283,14 +314,12 @@ const BlogDetailPage = () => {
                         </ol>
                     </nav>
 
-
                     {/* Category */}
                     <div className="mb-4">
                         <span className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
-                            {post?.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION'}
+                            {typeInfo.categoryLabel}
                         </span>
                     </div>
-
 
                     {/* Title */}
                     <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
@@ -308,7 +337,6 @@ const BlogDetailPage = () => {
                             <Clock className="w-5 h-5" />
                             <span>{readingTime} phút đọc</span>
                         </div>
-
                     </div>
 
                     {/* Author */}
@@ -344,7 +372,6 @@ const BlogDetailPage = () => {
                             <div className="prose prose-lg max-w-none">
                                 {renderContent(post.content)}
                             </div>
-
 
                             {/* Post Navigation */}
                             <div className="mt-12 pt-8 border-t border-gray-200">
@@ -385,16 +412,19 @@ const BlogDetailPage = () => {
                             {relatedPosts.length > 0 && (
                                 <div className="mt-16">
                                     <SectionHeader
-                                        title="BÀI VIẾT LIÊN QUAN"
-                                        subtitle="Khám phá thêm những bài viết thú vị khác"
+                                        title={post.type === 'activity' ? 'TIN TỨC LIÊN QUAN' : 'BÀI VIẾT LIÊN QUAN'}
+                                        subtitle={post.type === 'activity' ? 'Khám phá thêm những tin tức thú vị khác' : 'Khám phá thêm những bài viết thú vị khác'}
                                     />
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                                         {relatedPosts.map((relatedPost) => {
                                             const newsFormat = convertToNewsFormat(relatedPost);
                                             return (
-                                                <div key={relatedPost.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                                                    <div className="relative h-48">
+                                                <div
+                                                    key={relatedPost.id}
+                                                    className="bg-white rounded-xl shadow-lg overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-2xl"
+                                                >
+                                                    <div className="relative h-48 overflow-hidden">
                                                         <Image
                                                             src={newsFormat.image}
                                                             alt={newsFormat.title}
@@ -422,6 +452,7 @@ const BlogDetailPage = () => {
                                     </div>
                                 </div>
                             )}
+
                         </div>
 
                         {/* Sidebar - Right Side */}
@@ -430,11 +461,11 @@ const BlogDetailPage = () => {
                                 {/* Latest Posts */}
                                 <div className="bg-white rounded-2xl shadow-lg p-6">
                                     <h3 className="text-lg font-bold text-gray-800 mb-6 pb-3 border-b border-gray-200">
-                                        BÀI VIẾT MỚI NHẤT
+                                        {typeInfo.latestTitle}
                                     </h3>
 
                                     <div className="space-y-6">
-                                        {allBlogPosts.slice(0, 4).map((post) => {
+                                        {allRelatedPosts.slice(0, 4).map((post) => {
                                             const newsFormat = convertToNewsFormat(post);
                                             return (
                                                 <LastNewsCard
@@ -444,7 +475,7 @@ const BlogDetailPage = () => {
                                                         date: newsFormat.date,
                                                         href: newsFormat.href,
                                                         excerpt: newsFormat.excerpt.substring(0, 100) + '...',
-                                                        category: 'Blog',
+                                                        category: post.type === 'activity' ? 'Tin tức & Sự kiện' : 'Blog',
                                                         readTime: Math.ceil(newsFormat.excerpt.length / 200),
                                                         views: Math.floor(Math.random() * 300) + 50
                                                     }}
@@ -454,24 +485,20 @@ const BlogDetailPage = () => {
                                     </div>
                                 </div>
 
-                                {/* Back to Blog or NEws*/}
+                                {/* Back to List */}
                                 <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-2xl p-4 text-center">
                                     <h3 className="text-base font-semibold text-gray-800 mb-2">
-                                        Khám phá thêm
+                                        {typeInfo.exploreTitle}
                                     </h3>
                                     <p className="text-gray-600 mb-4 text-sm leading-snug">
-                                        {post?.type === 'activity'
-                                            ? 'Xem thêm những tin tức & sự kiện hấp dẫn từ HR Companion'
-                                            : 'Đọc thêm nhiều bài viết thú vị khác từ HR Companion'}
+                                        {typeInfo.exploreDesc}
                                     </p>
-                                    <Link href={post?.type === 'activity' ? '/news' : '/blog'}>
+                                    <Link href={typeInfo.backUrl}>
                                         <button className="w-full px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-medium rounded-xl hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow">
-                                            {post?.type === 'activity' ? 'Xem tất cả tin tức & sự kiện' : 'Xem tất cả blog'}
+                                            {typeInfo.exploreButton}
                                         </button>
                                     </Link>
                                 </div>
-
-
                             </div>
                         </div>
                     </div>
@@ -481,4 +508,4 @@ const BlogDetailPage = () => {
     );
 };
 
-export default BlogDetailPage;
+export default PostDetailPage;

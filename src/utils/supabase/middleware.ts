@@ -109,12 +109,14 @@ export async function updateSession(request: NextRequest) {
         }
 
         // Redirect admin từ home
+        /*
         if (isHomePage && (userRole === 'admin' || userRole === 'superadmin')) {
             console.log('Redirecting admin from home to admin panel')
             const url = request.nextUrl.clone()
-            url.pathname = '/admin'
+            url.pathname = '/'
             return NextResponse.redirect(url)
         }
+        */
 
         console.log('✅ Access granted')
         return supabaseResponse
