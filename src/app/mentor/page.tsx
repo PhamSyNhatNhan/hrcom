@@ -80,7 +80,7 @@ const MentorPage = () => {
             const allSkills = new Set<string>();
             mentorsData.forEach(mentor => {
                 if (mentor.skill && Array.isArray(mentor.skill)) {
-                    mentor.skill.forEach(skill => {
+                    mentor.skill.forEach((skill: string) => {
                         if (skill && skill.trim()) {
                             allSkills.add(skill.trim());
                         }
