@@ -15,11 +15,11 @@ interface BlogPost {
     thumbnail: string | null;
     content: any;
     type: 'activity' | 'blog';
-    published_at: string;
-    created_at: string;
-    profiles: {
-        full_name: string;
-        image_url?: string;
+    published_at: string | null;
+    created_at: string | null;
+    profiles?: {
+        full_name: string | null;
+        image_url?: string | null;
     };
 }
 
