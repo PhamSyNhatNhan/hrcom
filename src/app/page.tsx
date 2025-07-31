@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     UserCheck,
     BookOpenCheck,
@@ -15,7 +15,10 @@ import { ActivityCard} from '@/component/ActivityCard';
 import { PostCard } from '@/component/PostCard';
 import { PartnerCard } from '@/component/PartnerCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
+import { createClient } from '@/utils/supabase/client';
 import Link from "next/link";
+
+const supabase = createClient();
 
 const partners = [
     { imageSrc: '/partner/Logo-JobUp.jpg', href: '#' },
@@ -28,42 +31,6 @@ const partners = [
     { imageSrc: '/partner/Logo-DH-xaydung.jpg', href: '#' },
     { imageSrc: '/partner/Logo-HVTC.jpg', href: '#' },
     { imageSrc: '/partner/Logo-TMU.jpg', href: '#' },
-];
-
-const featuredMentors = [
-    {
-        id: 1,
-        name: 'Nhật Lệ',
-        role: 'HR Manager',
-        company: 'VinGroup',
-        rating: 4.9,
-        sessions: 120,
-        price: '600k',
-        image: '/4-400x400.png',
-        specialties: ['Tuyển dụng', 'Quản trị nhân sự', 'Văn hóa doanh nghiệp'],
-    },
-    {
-        id: 2,
-        name: 'Đông Dương',
-        role: 'People Partner',
-        company: 'FPT Software',
-        rating: 4.8,
-        sessions: 98,
-        price: '500k',
-        image: '5-400x400.png',
-        specialties: ['Phát triển năng lực', 'Đánh giá hiệu suất', 'Tổ chức công việc'],
-    },
-    {
-        id: 3,
-        name: 'Nguyễn Thu Hà',
-        role: 'Talent Acquisition Lead',
-        company: 'Techcombank',
-        rating: 4.7,
-        sessions: 85,
-        price: '550k',
-        image: '/6-400x400.png',
-        specialties: ['Tuyển dụng chiến lược', 'Phỏng vấn', 'Onboarding'],
-    },
 ];
 
 const stats = [
@@ -124,7 +91,17 @@ const activities = [
     },
 ];
 
-
+// Interface cho Mentor từ database
+interface MentorFromDB {
+    id: string;
+    full_name: string;
+    headline?: string;
+    avatar?: string;
+    skill?: string[];
+    description?: string;
+    published: boolean;
+    created_at: string;
+}
 
 const HomePage = () => {
     // Load featured posts from database
@@ -135,6 +112,41 @@ const HomePage = () => {
         type: 'blog',
         limit: 4
     });
+
+    // State for mentors
+    const [featuredMentors, setFeaturedMentors] = useState<MentorFromDB[]>([]);
+    const [mentorsLoading, setMentorsLoading] = useState(true);
+    const [mentorsError, setMentorsError] = useState<string | null>(null);
+
+    // Load featured mentors from database
+    useEffect(() => {
+        const loadFeaturedMentors = async () => {
+            try {
+                setMentorsLoading(true);
+                setMentorsError(null);
+
+                const { data, error } = await supabase
+                    .from('mentors')
+                    .select('*')
+                    .eq('published', true)
+                    .order('created_at', { ascending: false })
+                    .limit(4); // Chỉ lấy 3 mentor nổi bật
+
+                if (error) {
+                    throw error;
+                }
+
+                setFeaturedMentors(data || []);
+            } catch (err) {
+                console.error('Error loading featured mentors:', err);
+                setMentorsError('Không thể tải danh sách mentor');
+            } finally {
+                setMentorsLoading(false);
+            }
+        };
+
+        loadFeaturedMentors();
+    }, []);
 
     return (
         <div>
@@ -210,24 +222,48 @@ const HomePage = () => {
                 </div>
             </section>
 
-            {/* Mentor Section */}
+            {/* Mentor Section - Updated */}
             <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
                         title="CỐ VẤN CHUYÊN MÔN"
-                        subtitle="Mentor hay Cố vấn chuyên môn là chuyên gia cung cấp nhiều kiến thức chuyên môn và một loạt các kỹ năng đa dạng khi tuyển dụng, đảm bảo rằng bất kỳ hoạt động hàng ngày nào của công ty đều hoạt động trơn tru.."
+                        subtitle="Mentor hay Cố vấn chuyên môn là chuyên gia cung cấp nhiều kiến thức chuyên môn và một loạt các kỹ năng đa dạng khi tuyển dụng, đảm bảo rằng bất kỳ hoạt động hàng ngày nào của công ty đều hoạt động trơn tru."
                     />
 
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {featuredMentors.map((mentor) => (
-                            <MentorCard key={mentor.id} mentor={mentor} />
-                        ))}
-                    </div>
-                    <div className="text-center mt-12">
-                        <Link href="/mentor">
-                            <Button variant="secondary">ALL MENTOR HR COMPANION</Button>
-                        </Link>
-                    </div>
+                    {/* Mentor Loading State */}
+                    {mentorsLoading ? (
+                        <div className="flex justify-center items-center py-12">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
+                            <span className="ml-2 text-gray-600">Đang tải mentor...</span>
+                        </div>
+                    ) : mentorsError ? (
+                        <div className="text-center py-12">
+                            <p className="text-red-600 mb-4">{mentorsError}</p>
+                            <Link href="/mentor">
+                                <Button variant="secondary">Xem tất cả mentor</Button>
+                            </Link>
+                        </div>
+                    ) : featuredMentors.length > 0 ? (
+                        <>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                                {featuredMentors.map((mentor) => (
+                                    <MentorCard key={mentor.id} mentor={mentor} />
+                                ))}
+                            </div>
+                            <div className="text-center mt-12">
+                                <Link href="/mentor">
+                                    <Button variant="secondary">ALL MENTOR HR COMPANION</Button>
+                                </Link>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="text-center py-12">
+                            <p className="text-gray-600 mb-6">Chưa có mentor nào được xuất bản.</p>
+                            <Link href="/mentor">
+                                <Button variant="secondary">Khám phá Mentor</Button>
+                            </Link>
+                        </div>
+                    )}
                 </div>
             </section>
 
@@ -269,7 +305,6 @@ const HomePage = () => {
                                     <PostCard
                                         key={post.id}
                                         post={post}
-                                        variant="compact"
                                         showAuthor={false}
                                         showExcerpt={false}
                                     />
