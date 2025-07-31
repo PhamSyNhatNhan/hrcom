@@ -305,7 +305,7 @@ const HomePage = () => {
                                 Đăng Ký Miễn Phí
                             </Button>
                         </Link>
-                        <Link href="/mentor">
+                        <Link href="https://www.facebook.com/HRCompanion.vn/">
                             <Button variant="outline" size="lg" className="border-white text-white">
                                 Trở Thành Chuyên Gia
                             </Button>
