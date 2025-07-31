@@ -31,7 +31,7 @@ const RootLayout = ({ children }: LayoutProps) => {
             <div className="fixed right-2 md:right-4 top-1/2 -translate-y-1/2 z-40">
                 <div className="flex flex-col space-y-2">
                     {/* LinkedIn */}
-                    <a
+                    <Link
                         href="https://www.linkedin.com/company/hr-companion-vn/"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -41,10 +41,10 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
                             LinkedIn
                         </span>
-                    </a>
+                    </Link>
 
                     {/* Zalo */}
-                    <a
+                    <Link
                         href="https://zalo.me/0979334143"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -54,10 +54,10 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
                             Zalo
                         </span>
-                    </a>
+                    </Link>
 
                     {/* Facebook */}
-                    <a
+                    <Link
                         href="https://www.facebook.com/HRCompanion.vn/"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -67,10 +67,10 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
                             Facebook
                         </span>
-                    </a>
+                    </Link>
 
                     {/* Contact/Edit */}
-                    <a
+                    <Link
                         href="https://www.facebook.com/groups/hrcompanion"
                         className="w-10 h-10 md:w-12 md:h-12 bg-[#FF6B35] text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center transform hover:scale-110 hover:-translate-x-1 group"
                     >
@@ -78,7 +78,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
                             Liên hệ
                         </span>
-                    </a>
+                    </Link>
                 </div>
             </div>
         );
@@ -244,6 +244,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/mentor" className={navLinkClass('/mentor')}>Mentor</Link>
                                 <Link href="/news" className={navLinkClass('/news')}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={navLinkClass('/blog')}>Blog HR Companion</Link>
+                                <Link href="/mentor_booking" className={navLinkClass('/mentor_booking')}>Đặt lịch</Link>
                                 {(user?.role === 'admin' || user?.role === 'superadmin') && (
                                     <>
                                         <Link href="/admin/post" className={navLinkClass('/admin/post')}>Đăng bài</Link>
@@ -299,6 +300,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/mentor" className={`block py-2 pl-4 ${navLinkClass('/mentor')}`} onClick={handleNavLinkClick}>Mentor</Link>
                                 <Link href="/news" className={`block py-2 pl-4 ${navLinkClass('/news')}`} onClick={handleNavLinkClick}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={`block py-2 pl-4 ${navLinkClass('/blog')}`} onClick={handleNavLinkClick}>Blog HR Companion</Link>
+                                <Link href="/mentor_booking" className={`block py-2 pl-4 ${navLinkClass('/mentor_booking')}`} onClick={handleNavLinkClick}>Đặt lịch</Link>
                             </div>
 
                             {/* Auth Section */}
