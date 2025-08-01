@@ -44,6 +44,7 @@ interface Mentor {
     description?: string;
     experience?: Array<{
         id: string;
+        avatar?: string;
         company: string;
         position: string;
         start_date: string;
@@ -52,6 +53,7 @@ interface Mentor {
     }>;
     education?: Array<{
         id: string;
+        avatar?: string;
         school: string;
         degree: string;
         start_date: string;
@@ -60,6 +62,7 @@ interface Mentor {
     }>;
     activities?: Array<{
         id: string;
+        avatar?: string;
         organization: string;
         role: string;
         activity_name: string;
@@ -262,8 +265,20 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
                     <div className="space-y-3">
                         {mentor.experience.map((exp, idx) => (
                             <div key={exp.id || idx} className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1 bg-cyan-600 overflow-hidden">
+                                    {exp.avatar ? (
+                                        <img
+                                            src={exp.avatar}
+                                            alt={exp.company}
+                                            className="w-8 h-8 object-cover rounded-full"
+                                        />
+                                    ) : (
+                                        <img
+                                            src="/icon/work-svgrepo.svg"
+                                            alt="experience"
+                                            className="w-8 h-8 object-cover rounded-full"
+                                        />
+                                    )}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between">
@@ -294,8 +309,20 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
                     <div className="space-y-3">
                         {mentor.education.map((edu, idx) => (
                             <div key={edu.id || idx} className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1 bg-cyan-600 overflow-hidden">
+                                    {edu.avatar ? (
+                                        <img
+                                            src={edu.avatar}
+                                            alt={edu.school}
+                                            className="w-8 h-8 object-cover rounded-full"
+                                        />
+                                    ) : (
+                                        <img
+                                            src="/icon/user-graduate-svgrepo-com.svg"
+                                            alt="experience"
+                                            className="w-8 h-8 object-cover rounded-full"
+                                        />
+                                    )}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between">
@@ -326,8 +353,20 @@ export const MentorDetail: React.FC<MentorDetailProps> = ({ mentor }) => (
                     <div className="space-y-3">
                         {mentor.activities.map((act, idx) => (
                             <div key={act.id || idx} className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1 bg-cyan-600 overflow-hidden">
+                                    {act.avatar ? (
+                                        <img
+                                            src={act.avatar}
+                                            alt={act.activity_name}
+                                            className="w-8 h-8 object-cover rounded-full"
+                                        />
+                                    ) : (
+                                        <img
+                                            src="\icon\activity-svgrepo-com.svg"
+                                            alt="experience"
+                                            className="w-8 h-8 object-cover rounded-full"
+                                        />
+                                    )}
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between">
