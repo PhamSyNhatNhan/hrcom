@@ -244,11 +244,25 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/mentor" className={navLinkClass('/mentor')}>Mentor</Link>
                                 <Link href="/news" className={navLinkClass('/news')}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={navLinkClass('/blog')}>Blog HR Companion</Link>
-                                <Link href="/mentor_booking" className={navLinkClass('/mentor_booking')}>Đặt lịch</Link>
+                                {isMounted && (
+                                    isLoggedIn ? (
+                                        <Link href="/mentor_booking" className={navLinkClass('/mentor_booking')}>
+                                            Đặt lịch
+                                        </Link>
+                                    ) : (
+                                        <Link
+                                            href="/auth/login?redirectTo=/mentor_booking"
+                                            className={navLinkClass('/mentor_booking')}
+                                        >
+                                            Đặt lịch
+                                        </Link>
+                                    )
+                                )}
                                 {(user?.role === 'admin' || user?.role === 'superadmin') && (
                                     <>
                                         <Link href="/admin/post" className={navLinkClass('/admin/post')}>Đăng bài</Link>
                                         <Link href="/admin/modify_mentor" className={navLinkClass('/admin/modify_mentor')}>Chỉnh sửa mentor</Link>
+                                        <Link href="/admin/mentor_booking_modify" className={navLinkClass('/admin/mentor_booking_modify')}>Quản lý đặt lịch</Link>
                                     </>
                                 )}
                                 {(user?.role === 'superadmin') && (
@@ -300,7 +314,26 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/mentor" className={`block py-2 pl-4 ${navLinkClass('/mentor')}`} onClick={handleNavLinkClick}>Mentor</Link>
                                 <Link href="/news" className={`block py-2 pl-4 ${navLinkClass('/news')}`} onClick={handleNavLinkClick}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={`block py-2 pl-4 ${navLinkClass('/blog')}`} onClick={handleNavLinkClick}>Blog HR Companion</Link>
-                                <Link href="/mentor_booking" className={`block py-2 pl-4 ${navLinkClass('/mentor_booking')}`} onClick={handleNavLinkClick}>Đặt lịch</Link>
+                                {/* Mobile version - thay thế link hiện tại */}
+                                {isMounted && (
+                                    isLoggedIn ? (
+                                        <Link
+                                            href="/mentor_booking"
+                                            className={`block py-2 pl-4 ${navLinkClass('/mentor_booking')}`}
+                                            onClick={handleNavLinkClick}
+                                        >
+                                            Đặt lịch
+                                        </Link>
+                                    ) : (
+                                        <Link
+                                            href="/auth/login?redirectTo=/mentor_booking"
+                                            className={`block py-2 pl-4 ${navLinkClass('/mentor_booking')}`}
+                                            onClick={handleNavLinkClick}
+                                        >
+                                            Đặt lịch
+                                        </Link>
+                                    )
+                                )}
                             </div>
 
                             {/* Auth Section */}
