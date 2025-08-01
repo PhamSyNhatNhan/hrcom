@@ -1,16 +1,8 @@
-import { Suspense } from 'react';
-
-export default function AuthErrorPage() {
-    return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-600">Đang tải...</div>}>
-            <AuthErrorClient />
-        </Suspense>
-    );
-}
-
 'use client';
+import { Suspense, useEffect, useState  } from 'react';
 
-import { useEffect, useState } from 'react';
+
+
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -175,5 +167,13 @@ function AuthErrorClient() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function AuthErrorPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-600">Đang tải...</div>}>
+            <AuthErrorClient />
+        </Suspense>
     );
 }
