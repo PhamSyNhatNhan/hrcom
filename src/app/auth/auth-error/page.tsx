@@ -1,12 +1,22 @@
+import { Suspense } from 'react';
+
+export default function AuthErrorPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-600">Đang tải...</div>}>
+            <AuthErrorClient />
+        </Suspense>
+    );
+}
+
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from "next/image";
+import Image from 'next/image';
 import { AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 
-export default function AuthErrorPage() {
+function AuthErrorClient() {
     const searchParams = useSearchParams();
     const [error, setError] = useState('');
     const [errorDescription, setErrorDescription] = useState('');
@@ -15,12 +25,8 @@ export default function AuthErrorPage() {
         const errorParam = searchParams.get('error');
         const errorDescriptionParam = searchParams.get('error_description');
 
-        if (errorParam) {
-            setError(errorParam);
-        }
-        if (errorDescriptionParam) {
-            setErrorDescription(decodeURIComponent(errorDescriptionParam));
-        }
+        if (errorParam) setError(errorParam);
+        if (errorDescriptionParam) setErrorDescription(decodeURIComponent(errorDescriptionParam));
     }, [searchParams]);
 
     const getErrorInfo = () => {
@@ -115,19 +121,10 @@ export default function AuthErrorPage() {
                                     <AlertCircle className="w-8 h-8 text-red-600" />
                                 </div>
 
-                                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                                    {errorInfo.title}
-                                </h2>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4">{errorInfo.title}</h2>
+                                <p className="text-gray-600 mb-4 leading-relaxed">{errorInfo.message}</p>
+                                <p className="text-gray-500 text-sm mb-8">{errorInfo.suggestion}</p>
 
-                                <p className="text-gray-600 mb-4 leading-relaxed">
-                                    {errorInfo.message}
-                                </p>
-
-                                <p className="text-gray-500 text-sm mb-8">
-                                    {errorInfo.suggestion}
-                                </p>
-
-                                {/* Error Details (for debugging) */}
                                 {(error || errorDescription) && (
                                     <div className="mb-8 p-4 bg-gray-50 rounded-lg text-left">
                                         <p className="text-xs text-gray-500 font-medium mb-2">Chi tiết lỗi:</p>
