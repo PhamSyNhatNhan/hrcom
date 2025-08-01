@@ -198,7 +198,7 @@ export default function LoginPage() {
                                     </div>
 
                                     <Link
-                                        href=""
+                                        href="/auth/forgot-password"
                                         className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors duration-200"
                                     >
                                         Quên mật khẩu?

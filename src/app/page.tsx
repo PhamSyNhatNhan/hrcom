@@ -252,7 +252,7 @@ const HomePage = () => {
                             </div>
                             <div className="text-center mt-12">
                                 <Link href="/mentor">
-                                    <Button variant="secondary">ALL MENTOR HR COMPANION</Button>
+                                    <Button variant="secondary">TẤT CẢ MENTOR HR COMPANION</Button>
                                 </Link>
                             </div>
                         </>
