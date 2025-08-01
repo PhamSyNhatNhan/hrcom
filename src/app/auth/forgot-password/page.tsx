@@ -20,6 +20,7 @@ export default function ForgotPasswordPage() {
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
+        
         if (!email.trim()) {
             setError('Vui lòng nhập địa chỉ email');
             return;
