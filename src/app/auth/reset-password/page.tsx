@@ -24,31 +24,105 @@ export default function ResetPasswordPage() {
     // Check if we have the required tokens from the URL
     useEffect(() => {
         const checkToken = async () => {
-            const accessToken = searchParams.get('access_token');
-            const refreshToken = searchParams.get('refresh_token');
+            console.log('🔍 Checking URL params...');
+            console.log('Full URL:', window.location.href);
 
-            if (!accessToken || !refreshToken) {
+            // Log all URL parameters for debugging
+            const allParams = Object.fromEntries(searchParams.entries());
+            console.log('All URL params:', allParams);
+
+            // Get various possible parameters
+            const code = searchParams.get('code');
+            const access_token = searchParams.get('access_token');
+            const refresh_token = searchParams.get('refresh_token');
+            const token_hash = searchParams.get('token_hash');
+            const token = searchParams.get('token');
+            const type = searchParams.get('type');
+            const error_code = searchParams.get('error_code');
+            const error_description = searchParams.get('error_description');
+
+            console.log('Parameters found:', {
+                code: !!code,
+                access_token: !!access_token,
+                refresh_token: !!refresh_token,
+                token_hash: !!token_hash,
+                token: !!token,
+                type,
+                error_code,
+                error_description
+            });
+
+            // Check for error parameters first
+            if (error_code || error_description) {
                 setIsValidToken(false);
-                setError('Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
+                setError(error_description || 'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
+                return;
+            }
+
+            // If no parameters at all, show error
+            if (!code && !access_token && !token_hash && !token) {
+                console.log('❌ No authentication parameters found in URL');
+                setIsValidToken(false);
+                setError('Bạn cần truy cập trang này thông qua link trong email đặt lại mật khẩu.');
                 return;
             }
 
             try {
-                // Set the session with the tokens from URL
-                const { error } = await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken,
-                });
+                let authResult = null;
+
+                // Try different authentication methods based on available parameters
+                if (code) {
+                    console.log('🔄 Trying exchangeCodeForSession with code...');
+                    authResult = await supabase.auth.exchangeCodeForSession(code);
+                } else if (access_token && refresh_token) {
+                    console.log('🔄 Trying setSession with tokens...');
+                    authResult = await supabase.auth.setSession({
+                        access_token,
+                        refresh_token,
+                    });
+                } else if (token_hash) {
+                    console.log('🔄 Trying verifyOtp with token_hash...');
+                    // This might be an older format
+                    authResult = await supabase.auth.verifyOtp({
+                        token_hash,
+                        type: 'recovery'
+                    });
+                }
+
+                if (!authResult) {
+                    throw new Error('No valid authentication method found');
+                }
+
+                const { data, error } = authResult;
 
                 if (error) {
+                    console.error('❌ Authentication error:', error);
                     throw error;
                 }
 
+                if (!data.session && !data.user) {
+                    console.error('❌ No session or user returned');
+                    throw new Error('Failed to create session');
+                }
+
+                console.log('✅ Authentication successful');
                 setIsValidToken(true);
             } catch (err) {
-                console.error('Token validation error:', err);
+                console.error('❌ Token validation error:', err);
                 setIsValidToken(false);
-                setError('Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
+                if (err instanceof Error) {
+                    if (err.message.includes('expired') || err.message.includes('invalid_grant')) {
+                        setError('Link đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu link mới.');
+                    } else if (err.message.includes('invalid')) {
+                        setError('Link đặt lại mật khẩu không hợp lệ.');
+                    } else if (err.message.includes('session_not_found')) {
+                        setError('Phiên làm việc không tồn tại. Vui lòng yêu cầu link mới.');
+                    } else {
+                        setError(`Link đặt lại mật khẩu không hợp lệ: ${err.message}`);
+                    }
+                } else {
+                    setError('Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
+                }
             }
         };
 
@@ -85,14 +159,17 @@ export default function ResetPasswordPage() {
         setError('');
 
         try {
+            console.log('Updating password...');
             const { error } = await supabase.auth.updateUser({
                 password: newPassword
             });
 
             if (error) {
+                console.error('Update password error:', error);
                 throw error;
             }
 
+            console.log('Password updated successfully');
             setSuccess(true);
         } catch (err: unknown) {
             console.error('Reset password error:', err);
@@ -101,6 +178,9 @@ export default function ResetPasswordPage() {
                     setError('Mật khẩu mới phải khác với mật khẩu cũ');
                 } else if (err.message.includes('Password should be at least')) {
                     setError('Mật khẩu phải có ít nhất 6 ký tự');
+                } else if (err.message.includes('session_not_found')) {
+                    setError('Phiên làm việc đã hết hạn. Vui lòng yêu cầu link đặt lại mật khẩu mới.');
+                    setIsValidToken(false);
                 } else {
                     setError('Có lỗi xảy ra khi đặt lại mật khẩu. Vui lòng thử lại.');
                 }
@@ -154,8 +234,7 @@ export default function ResetPasswordPage() {
                                     </h2>
 
                                     <p className="text-gray-600 mb-6 leading-relaxed">
-                                        Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.
-                                        Vui lòng yêu cầu một link mới.
+                                        {error || 'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu một link mới.'}
                                     </p>
 
                                     <div className="space-y-4">
@@ -371,7 +450,7 @@ export default function ResetPasswordPage() {
                                         </>
                                     ) : (
                                         <>
-                                            <Lock className="w-5 h-5 mr-2" />
+                                            <Lock className="w-5 w-5 mr-2" />
                                             Đặt lại mật khẩu
                                         </>
                                     )}

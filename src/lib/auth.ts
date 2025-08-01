@@ -1,4 +1,3 @@
-// src/lib/auth.ts - Enhanced with forgot password functionality
 import { createClient } from '@/utils/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 
