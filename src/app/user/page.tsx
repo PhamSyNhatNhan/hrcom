@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Lock, Save, X, Edit3, Upload, Camera, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { createClient } from '@/utils/supabase/client';
+import Notification from '@/component/Notification';
+import { useNotificationWithUtils } from '@/hooks/useNotification';
 
 export type TabType = 'personal' | 'password';
 
@@ -27,23 +29,22 @@ export interface ShowPasswords {
   confirm: boolean;
 }
 
-export interface Notification {
-  id: string;
-  type: 'success' | 'error' | 'warning';
-  title: string;
-  message: string;
-}
-
 const AccountSettings: React.FC = () => {
   const { user, setUser } = useAuthStore();
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const {
+    notifications,
+    removeNotification,
+    showSuccess,
+    showError
+  } = useNotificationWithUtils();
+
   // State
   const [activeTab, setActiveTab] = useState<TabType>('personal');
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // Personal info state
   const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({
@@ -84,18 +85,6 @@ const AccountSettings: React.FC = () => {
     }
   }, [user]);
 
-  // Notification functions
-  const showNotification = (type: Notification['type'], title: string, message: string) => {
-    const id = Date.now().toString();
-    const newNotification: Notification = { id, type, title, message };
-    setNotifications((prev) => [...prev, newNotification]);
-    setTimeout(() => removeNotification(id), 5000);
-  };
-
-  const removeNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
   // Image upload function
   const uploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('User not authenticated');
@@ -129,12 +118,12 @@ const AccountSettings: React.FC = () => {
 
     // Validate file
     if (file.size > 5 * 1024 * 1024) {
-      showNotification('error', 'Lỗi tải file', 'Kích thước file không được vượt quá 5MB!');
+      showError('Lỗi tải file', 'Kích thước file không được vượt quá 5MB!');
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      showNotification('error', 'Lỗi định dạng', 'Vui lòng chọn file ảnh!');
+      showError('Lỗi định dạng', 'Vui lòng chọn file ảnh!');
       return;
     }
 
@@ -152,10 +141,10 @@ const AccountSettings: React.FC = () => {
       const imageUrl = await uploadImage(file);
       setPersonalInfo(prev => ({ ...prev, avatar: imageUrl }));
 
-      showNotification('success', 'Thành công', 'Ảnh đã được tải lên thành công!');
+      showSuccess('Thành công', 'Ảnh đã được tải lên thành công!');
     } catch (error) {
       console.error('Error uploading avatar:', error);
-      showNotification('error', 'Lỗi upload', 'Không thể tải ảnh lên. Vui lòng thử lại.');
+      showError('Lỗi upload', 'Không thể tải ảnh lên. Vui lòng thử lại.');
       setPreviewAvatar('');
     } finally {
       setUploading(false);
@@ -172,12 +161,12 @@ const AccountSettings: React.FC = () => {
   // Handle save personal info
   const handleSavePersonalInfo = async () => {
     if (!user) {
-      showNotification('error', 'Lỗi', 'Vui lòng đăng nhập lại!');
+      showError('Lỗi', 'Vui lòng đăng nhập lại!');
       return;
     }
 
     if (!personalInfo.name.trim()) {
-      showNotification('error', 'Lỗi validation', 'Vui lòng nhập họ và tên!');
+      showError('Lỗi validation', 'Vui lòng nhập họ và tên!');
       return;
     }
 
@@ -215,12 +204,12 @@ const AccountSettings: React.FC = () => {
         }
       });
 
-      showNotification('success', 'Thành công', 'Thông tin cá nhân đã được cập nhật!');
+      showSuccess('Thành công', 'Thông tin cá nhân đã được cập nhật!');
       setIsEditing(false);
       setPreviewAvatar('');
     } catch (error) {
       console.error('Error updating profile:', error);
-      showNotification('error', 'Lỗi', 'Không thể cập nhật thông tin. Vui lòng thử lại.');
+      showError('Lỗi', 'Không thể cập nhật thông tin. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -245,17 +234,17 @@ const AccountSettings: React.FC = () => {
   // Handle change password
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword.trim()) {
-      showNotification('error', 'Lỗi', 'Vui lòng nhập mật khẩu hiện tại!');
+      showError('Lỗi', 'Vui lòng nhập mật khẩu hiện tại!');
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showNotification('error', 'Lỗi', 'Mật khẩu mới và xác nhận không khớp!');
+      showError('Lỗi', 'Mật khẩu mới và xác nhận không khớp!');
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      showNotification('error', 'Lỗi', 'Mật khẩu mới phải có ít nhất 6 ký tự!');
+      showError('Lỗi', 'Mật khẩu mới phải có ít nhất 6 ký tự!');
       return;
     }
 
@@ -269,7 +258,7 @@ const AccountSettings: React.FC = () => {
       });
 
       if (signInError) {
-        showNotification('error', 'Lỗi', 'Mật khẩu hiện tại không đúng!');
+        showError('Lỗi', 'Mật khẩu hiện tại không đúng!');
         return;
       }
 
@@ -282,11 +271,11 @@ const AccountSettings: React.FC = () => {
         throw updateError;
       }
 
-      showNotification('success', 'Thành công', 'Mật khẩu đã được thay đổi!');
+      showSuccess('Thành công', 'Mật khẩu đã được thay đổi!');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
       console.error('Error changing password:', error);
-      showNotification('error', 'Lỗi', 'Không thể đổi mật khẩu. Vui lòng thử lại.');
+      showError('Lỗi', 'Không thể đổi mật khẩu. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -301,41 +290,13 @@ const AccountSettings: React.FC = () => {
 
   return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 py-6 sm:py-8">
-        {/* Notifications */}
-        <div className="fixed right-4 top-4 z-50 w-80 max-w-sm">
-          {notifications.map((notification) => (
-              <div key={notification.id} className={`mb-3 rounded-lg border p-4 shadow-lg ${
-                  notification.type === 'success' ? 'bg-green-50 border-green-200' :
-                      notification.type === 'error' ? 'bg-red-50 border-red-200' :
-                          'bg-yellow-50 border-yellow-200'
-              }`}>
-                <div className="flex items-start space-x-3">
-                  <div className="flex-grow">
-                    <h4 className={`text-sm font-semibold ${
-                        notification.type === 'success' ? 'text-green-800' :
-                            notification.type === 'error' ? 'text-red-800' :
-                                'text-yellow-800'
-                    }`}>
-                      {notification.title}
-                    </h4>
-                    <p className={`mt-1 text-sm ${
-                        notification.type === 'success' ? 'text-green-800' :
-                            notification.type === 'error' ? 'text-red-800' :
-                                'text-yellow-800'
-                    }`}>
-                      {notification.message}
-                    </p>
-                  </div>
-                  <button
-                      onClick={() => removeNotification(notification.id)}
-                      className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-          ))}
-        </div>
+
+        {/* Sử dụng Notification component mới */}
+        <Notification
+            notifications={notifications}
+            onRemove={removeNotification}
+            maxVisible={3}
+        />
 
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">

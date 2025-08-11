@@ -1,4 +1,3 @@
-// src/lib/auth.ts - Version đơn giản, ít lỗi
 import { createClient } from '@/utils/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
 
