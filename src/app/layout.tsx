@@ -258,9 +258,13 @@ const RootLayout = ({ children }: LayoutProps) => {
                                         </Link>
                                     )
                                 )}
-                                {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                {(user?.role === 'mentor' || user?.role === 'admin' || user?.role === 'superadmin') && (
                                     <>
                                         <Link href="/admin/post" className={navLinkClass('/admin/post')}>Đăng bài</Link>
+                                    </>
+                                )}
+                                {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                    <>
                                         <Link href="/admin/modify_mentor" className={navLinkClass('/admin/modify_mentor')}>Chỉnh sửa mentor</Link>
                                         <Link href="/admin/mentor_booking_modify" className={navLinkClass('/admin/mentor_booking_modify')}>Quản lý đặt lịch</Link>
                                     </>

@@ -9,13 +9,12 @@ export interface Profile {
     birthdate?: string
     created_at: string
     updated_at: string
-    // KHÔNG có role - role ở auth.users.user_metadata
 }
 
 export interface User {
     id: string
     email: string
-    role: 'user' | 'admin' | 'superadmin' // Role lấy từ auth.users.user_metadata
+    role: 'user' | 'mentor' | 'admin' | 'superadmin'
     profile?: Profile
 }
 
