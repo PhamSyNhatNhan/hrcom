@@ -100,6 +100,9 @@ const RootLayout = ({ children }: LayoutProps) => {
         const [lastScrollY, setLastScrollY] = useState(0);
         const [showHeader, setShowHeader] = useState(true);
         const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+        // New states for dropdown menus
+        const [isMentorMenuOpen, setIsMentorMenuOpen] = useState(false);
+        const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
         // Prevent hydration mismatch by ensuring user-specific UI renders only on the client
         const [isMounted, setIsMounted] = useState(false);
@@ -123,6 +126,8 @@ const RootLayout = ({ children }: LayoutProps) => {
 
         const handleNavLinkClick = () => {
             setIsMenuOpen(false);
+            setIsMentorMenuOpen(false);
+            setIsAdminMenuOpen(false);
         };
 
         const handleLogout = async () => {
@@ -139,11 +144,18 @@ const RootLayout = ({ children }: LayoutProps) => {
             }
         };
 
-        // Effect for handling click outside the user menu
+        // Effect for handling click outside the menus
         useEffect(() => {
             const handleClickOutside = (event: MouseEvent) => {
-                if (!(event.target as HTMLElement).closest('.user-menu-container')) {
+                const target = event.target as HTMLElement;
+                if (!target.closest('.user-menu-container')) {
                     setIsUserMenuOpen(false);
+                }
+                if (!target.closest('.mentor-menu-container')) {
+                    setIsMentorMenuOpen(false);
+                }
+                if (!target.closest('.admin-menu-container')) {
+                    setIsAdminMenuOpen(false);
                 }
             };
             document.addEventListener('mousedown', handleClickOutside);
@@ -171,12 +183,15 @@ const RootLayout = ({ children }: LayoutProps) => {
         const userName = user?.profile?.full_name || 'User';
         const userAvatar = user?.profile?.image_url;
 
+        // Check if any mentor/admin routes are active
+        const isMentorRouteActive = pathname.startsWith('/mentor_page');
+        const isAdminRouteActive = pathname.startsWith('/admin');
 
         return (
             <>
                 <nav
                     className={`bg-white/80 backdrop-blur-md shadow-lg sticky top-0 z-50 border-b border-cyan-100 transition-all duration-500 ease-in-out transform ${showHeader ? 'translate-y-0 scale-100' : '-translate-y-full scale-95'
-                        } ${isScrolled ? 'bg-white/95 shadow-xl' : ''}`}
+                    } ${isScrolled ? 'bg-white/95 shadow-xl' : ''}`}
                 >
                     {/* PC Layout */}
                     <div className="hidden lg:block">
@@ -244,6 +259,8 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/mentor" className={navLinkClass('/mentor')}>Mentor</Link>
                                 <Link href="/news" className={navLinkClass('/news')}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={navLinkClass('/blog')}>Blog HR Companion</Link>
+
+                                {/* Đặt lịch - only for regular users */}
                                 {isMounted && (user?.role === 'user' || !user?.role) && (
                                     isLoggedIn ? (
                                         <Link href="/mentor_booking" className={navLinkClass('/appointment')}>
@@ -258,25 +275,70 @@ const RootLayout = ({ children }: LayoutProps) => {
                                         </Link>
                                     )
                                 )}
-                                {(user?.role === 'mentor') && (
-                                    <>
-                                        <Link href="/mentor_page/booking_mentor" className={navLinkClass('/mentor_page/booking_mentor')}>Lịch hẹn</Link>
-                                        <Link href="/mentor_page/post_mentor" className={navLinkClass('/mentor_page/post_mentor')}>Đăng bài</Link>
-                                    </>
-                                )}
-                                {(user?.role === 'admin' || user?.role === 'superadmin') && (
-                                    <>
-                                        <Link href="/admin/daskboard_modify" className={navLinkClass('/admin/daskboard_modify')}>Chỉnh sửa Trang chủ</Link>
-                                        <Link href="/admin/modify_mentor" className={navLinkClass('/admin/modify_mentor')}>Chỉnh sửa mentor</Link>
-                                        <Link href="/admin/mentor_booking_modify" className={navLinkClass('/admin/mentor_booking_modify')}>Quản lý đặt lịch</Link>
-                                    </>
-                                )}
-                                {(user?.role === 'superadmin') && (
-                                    <>
-                                        <Link href="/admin/modify_user" className={navLinkClass('/admin/modify_user')}>Chỉnh sửa tài khoản</Link>
-                                    </>
+
+                                {/* Mentor Dropdown */}
+                                {user?.role === 'mentor' && (
+                                    <div className="relative mentor-menu-container">
+                                        <button
+                                            onClick={() => setIsMentorMenuOpen(!isMentorMenuOpen)}
+                                            className={`flex items-center gap-1 ${navLinkClass('/mentor_page')} ${isMentorRouteActive ? 'text-cyan-600 font-semibold' : ''}`}
+                                        >
+                                            Mentor Panel
+                                            <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isMentorMenuOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        <div className={`absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${isMentorMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'} transform origin-top`}>
+                                            <Link href="/mentor_page/booking_mentor" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-t-xl border-b border-gray-100 transition-colors duration-200">
+                                                Lịch hẹn
+                                            </Link>
+                                            <Link href="/mentor_page/post_mentor" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200">
+                                                Đăng bài
+                                            </Link>
+                                        </div>
+                                    </div>
                                 )}
 
+                                {/* Admin Dropdown */}
+                                {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                    <div className="relative admin-menu-container">
+                                        <button
+                                            onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
+                                            className={`flex items-center gap-1 ${navLinkClass('/admin')} ${isAdminRouteActive ? 'text-cyan-600 font-semibold' : ''}`}
+                                        >
+                                            Admin Panel
+                                            <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isAdminMenuOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        <div className={`absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${isAdminMenuOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'} transform origin-top`}>
+                                            <Link href="/admin/daskboard_modify" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-t-xl border-b border-gray-100 transition-colors duration-200">
+                                                Chỉnh sửa Trang chủ
+                                            </Link>
+                                            <Link href="/admin/modify_mentor" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100 transition-colors duration-200">
+                                                Chỉnh sửa mentor
+                                            </Link>
+                                            <Link href="/admin/mentor_booking_modify" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100 transition-colors duration-200">
+                                                Quản lý đặt lịch
+                                            </Link>
+                                            <Link href="/admin/post" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100 transition-colors duration-200">
+                                                Quản lý bài viết
+                                            </Link>
+
+                                            {/* Superadmin only */}
+                                            {user?.role === 'superadmin' && (
+                                                <Link href="/admin/modify_user" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200">
+                                                    Chỉnh sửa tài khoản
+                                                </Link>
+                                            )}
+
+                                            {/* Admin only (not superadmin) */}
+                                            {user?.role === 'admin' && (
+                                                <div className="px-4 py-3 text-sm text-gray-700 rounded-b-xl">
+                                                    {/* This ensures proper border radius when superadmin menu is not shown */}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -307,7 +369,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                 <div className={`lg:hidden fixed inset-0 z-40 transition-all duration-500 ease-in-out ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                     <div className="absolute inset-0 bg-black/20 backdrop-blur-sm"></div>
                     <div className={`absolute top-16 left-0 right-0 bg-white/95 backdrop-blur-md shadow-xl border-b border-gray-200 transition-all duration-500 ease-in-out transform ${isMenuOpen ? 'translate-y-0 scale-100' : '-translate-y-full scale-95'} origin-top`}>
-                        <div className="px-4 py-4 space-y-4">
+                        <div className="px-4 py-4 space-y-4 max-h-[calc(100vh-4rem)] overflow-y-auto">
                             {/* Search */}
                             <div className="relative border-b pb-4">
                                 <input type="text" placeholder="Tìm kiếm..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)} className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white/90 text-sm transition-all duration-300" />
@@ -320,8 +382,9 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/mentor" className={`block py-2 pl-4 ${navLinkClass('/mentor')}`} onClick={handleNavLinkClick}>Mentor</Link>
                                 <Link href="/news" className={`block py-2 pl-4 ${navLinkClass('/news')}`} onClick={handleNavLinkClick}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={`block py-2 pl-4 ${navLinkClass('/blog')}`} onClick={handleNavLinkClick}>Blog HR Companion</Link>
-                                {/* Mobile version - thay thế link hiện tại */}
-                                {isMounted && (
+
+                                {/* Đặt lịch - Mobile version */}
+                                {isMounted && (user?.role === 'user' || !user?.role) && (
                                     isLoggedIn ? (
                                         <Link
                                             href="/mentor_booking"
@@ -339,6 +402,45 @@ const RootLayout = ({ children }: LayoutProps) => {
                                             Đặt lịch
                                         </Link>
                                     )
+                                )}
+
+                                {/* Mentor Links - Mobile */}
+                                {user?.role === 'mentor' && (
+                                    <div className="border-t pt-3 mt-3">
+                                        <p className="px-4 py-2 text-sm font-semibold text-gray-900 bg-gray-50 rounded-lg mb-2">Mentor Panel</p>
+                                        <Link href="/mentor_page/booking_mentor" className={`block py-2 pl-8 ${navLinkClass('/mentor_page/booking_mentor')}`} onClick={handleNavLinkClick}>
+                                            Lịch hẹn
+                                        </Link>
+                                        <Link href="/mentor_page/post_mentor" className={`block py-2 pl-8 ${navLinkClass('/mentor_page/post_mentor')}`} onClick={handleNavLinkClick}>
+                                            Đăng bài
+                                        </Link>
+                                    </div>
+                                )}
+
+                                {/* Admin Links - Mobile */}
+                                {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                    <div className="border-t pt-3 mt-3">
+                                        <p className="px-4 py-2 text-sm font-semibold text-gray-900 bg-gray-50 rounded-lg mb-2">Admin Panel</p>
+                                        <Link href="/admin/daskboard_modify" className={`block py-2 pl-8 ${navLinkClass('/admin/daskboard_modify')}`} onClick={handleNavLinkClick}>
+                                            Chỉnh sửa Trang chủ
+                                        </Link>
+                                        <Link href="/admin/modify_mentor" className={`block py-2 pl-8 ${navLinkClass('/admin/modify_mentor')}`} onClick={handleNavLinkClick}>
+                                            Chỉnh sửa mentor
+                                        </Link>
+                                        <Link href="/admin/mentor_booking_modify" className={`block py-2 pl-8 ${navLinkClass('/admin/mentor_booking_modify')}`} onClick={handleNavLinkClick}>
+                                            Quản lý đặt lịch
+                                        </Link>
+                                        <Link href="/admin/post" className={`block py-2 pl-8 ${navLinkClass('/admin/post')}`} onClick={handleNavLinkClick}>
+                                            Quản lý bài viết
+                                        </Link>
+
+                                        {/* Superadmin only - Mobile */}
+                                        {user?.role === 'superadmin' && (
+                                            <Link href="/admin/modify_user" className={`block py-2 pl-8 ${navLinkClass('/admin/modify_user')}`} onClick={handleNavLinkClick}>
+                                                Chỉnh sửa tài khoản
+                                            </Link>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 
