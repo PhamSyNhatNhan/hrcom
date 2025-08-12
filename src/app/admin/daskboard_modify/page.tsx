@@ -92,6 +92,30 @@ interface Banner {
 type EditingItem = Statistic | Activity | Partner | Banner | null;
 type TableType = 'statistics' | 'activities' | 'partners' | 'banners';
 
+// Dùng một FormState chung cho modal (mọi field đều optional)
+type FormState = Partial<
+    Pick<
+        Statistic & Activity & Partner & Banner,
+        | 'id'
+        | 'name'
+        | 'icon'
+        | 'label'
+        | 'value'
+        | 'title'
+        | 'description'
+        | 'thumbnail'
+        | 'logo_url'
+        | 'website_url'
+        | 'image_url'
+        | 'link_url'
+        | 'open_new_tab'
+        | 'display_order'
+        | 'published'
+        | 'created_at'
+        | 'updated_at'
+    >
+>;
+
 const DashboardModifyPage = () => {
     const { user } = useAuthStore();
 
@@ -109,7 +133,7 @@ const DashboardModifyPage = () => {
     const [uploading, setUploading] = useState(false);
 
     // Form states
-    const [formData, setFormData] = useState<any>({});
+    const [formData, setFormData] = useState<FormState>({});
     const [notification, setNotification] = useState<{
         type: 'success' | 'error' | 'warning';
         message: string;
@@ -125,12 +149,7 @@ const DashboardModifyPage = () => {
     const loadAllData = async () => {
         try {
             setLoading(true);
-            await Promise.all([
-                loadStatistics(),
-                loadActivities(),
-                loadPartners(),
-                loadBanners()
-            ]);
+            await Promise.all([loadStatistics(), loadActivities(), loadPartners(), loadBanners()]);
         } catch (err: unknown) {
             console.error('Error loading data:', err);
             showNotification('error', 'Không thể tải dữ liệu: ' + getErrorMessage(err));
@@ -143,7 +162,7 @@ const DashboardModifyPage = () => {
         try {
             const { data, error } = await supabase.rpc('get_admin_statistics');
             if (error) throw error;
-            setStatistics(data || []);
+            setStatistics((data || []) as Statistic[]);
         } catch (err: unknown) {
             console.error('Error loading statistics:', err);
             showNotification('error', 'Không thể tải thống kê: ' + getErrorMessage(err));
@@ -154,7 +173,7 @@ const DashboardModifyPage = () => {
         try {
             const { data, error } = await supabase.rpc('get_admin_activities');
             if (error) throw error;
-            setActivities(data || []);
+            setActivities((data || []) as Activity[]);
         } catch (err: unknown) {
             console.error('Error loading activities:', err);
             showNotification('error', 'Không thể tải hoạt động: ' + getErrorMessage(err));
@@ -165,7 +184,7 @@ const DashboardModifyPage = () => {
         try {
             const { data, error } = await supabase.rpc('get_admin_partners');
             if (error) throw error;
-            setPartners(data || []);
+            setPartners((data || []) as Partner[]);
         } catch (err: unknown) {
             console.error('Error loading partners:', err);
             showNotification('error', 'Không thể tải đối tác: ' + getErrorMessage(err));
@@ -176,7 +195,7 @@ const DashboardModifyPage = () => {
         try {
             const { data, error } = await supabase.rpc('get_admin_banners');
             if (error) throw error;
-            setBanners(data || []);
+            setBanners((data || []) as Banner[]);
         } catch (err: unknown) {
             console.error('Error loading banners:', err);
             showNotification('error', 'Không thể tải banner: ' + getErrorMessage(err));
@@ -196,16 +215,10 @@ const DashboardModifyPage = () => {
             const fileName = Date.now() + '-' + Math.random() + '.' + fileExt;
             const filePath = 'dashboard/' + fileName;
 
-            const { data, error } = await supabase.storage
-                .from('images')
-                .upload(filePath, file);
-
+            const { data, error } = await supabase.storage.from('images').upload(filePath, file);
             if (error) throw error;
 
-            const { data: urlData } = supabase.storage
-                .from('images')
-                .getPublicUrl(filePath);
-
+            const { data: urlData } = supabase.storage.from('images').getPublicUrl(filePath);
             return urlData.publicUrl;
         } catch (err: unknown) {
             console.error('Error uploading image:', err);
@@ -243,42 +256,41 @@ const DashboardModifyPage = () => {
                 }
             }
 
-            // Prepare data for saving
-            const saveData = {
+            // Prepare data for saving (clone ra object có index signature)
+            const baseData: Record<string, unknown> = {
                 ...formData,
-                display_order: formData.display_order || 0,
-                published: formData.published || false
+                display_order: formData.display_order ?? 0,
+                published: formData.published ?? false
             };
 
             // Remove undefined values
-            Object.keys(saveData).forEach(key => {
-                if (saveData[key] === undefined) {
-                    delete saveData[key];
+            Object.keys(baseData).forEach((key) => {
+                if (baseData[key] === undefined) {
+                    delete baseData[key];
                 }
             });
 
-            let result;
+            let result:
+                | { error: any }
+                | { error: null }
+                | { data?: unknown; error?: unknown } = { error: null };
+
             if (editingItem) {
                 // Update existing item - remove id and timestamps
-                const { id, created_at, updated_at, ...updateData } = saveData;
-                result = await supabase
-                    .from(activeTab)
-                    .update(updateData)
-                    .eq('id', editingItem.id);
+                const { id, created_at, updated_at, ...updateData } = baseData;
+                result = await supabase.from(activeTab).update(updateData).eq('id', editingItem.id);
             } else {
                 // Create new item - remove id and timestamps for new items
-                const { id, created_at, updated_at, ...insertData } = saveData;
-                result = await supabase
-                    .from(activeTab)
-                    .insert([insertData]);
+                const { id, created_at, updated_at, ...insertData } = baseData;
+                result = await supabase.from(activeTab).insert([insertData]);
             }
 
+            // @ts-expect-error safe check
             if (result.error) throw result.error;
 
             showNotification('success', editingItem ? 'Cập nhật thành công' : 'Tạo mới thành công');
             resetForm();
             loadAllData();
-
         } catch (err: unknown) {
             console.error('Error saving item:', err);
             showNotification('error', 'Lỗi khi lưu dữ liệu: ' + getErrorMessage(err));
@@ -292,11 +304,7 @@ const DashboardModifyPage = () => {
         if (!confirm('Bạn có chắc chắn muốn xóa item này?')) return;
 
         try {
-            const { error } = await supabase
-                .from(activeTab)
-                .delete()
-                .eq('id', id);
-
+            const { error } = await supabase.from(activeTab).delete().eq('id', id);
             if (error) throw error;
 
             showNotification('success', 'Xóa thành công');
@@ -310,11 +318,7 @@ const DashboardModifyPage = () => {
     // Toggle publish status
     const togglePublishStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { error } = await supabase
-                .from(activeTab)
-                .update({ published: !currentStatus })
-                .eq('id', id);
-
+            const { error } = await supabase.from(activeTab).update({ published: !currentStatus }).eq('id', id);
             if (error) throw error;
 
             showNotification('success', 'Cập nhật trạng thái thành công');
@@ -328,11 +332,10 @@ const DashboardModifyPage = () => {
     // Edit item
     const editItem = (item: EditingItem) => {
         setEditingItem(item);
-        // Ensure all required fields are properly set
         setFormData({
-            ...item,
-            display_order: item?.display_order || 0,
-            published: item?.published || false
+            ...(item ?? {}),
+            display_order: item?.display_order ?? 0,
+            published: item?.published ?? false
         });
         setShowForm(true);
     };
@@ -350,37 +353,46 @@ const DashboardModifyPage = () => {
     // Get current data based on active tab
     const getCurrentData = () => {
         switch (activeTab) {
-            case 'statistics': return statistics;
-            case 'activities': return activities;
-            case 'partners': return partners;
-            case 'banners': return banners;
-            default: return [];
+            case 'statistics':
+                return statistics;
+            case 'activities':
+                return activities;
+            case 'partners':
+                return partners;
+            case 'banners':
+                return banners;
+            default:
+                return [];
         }
     };
 
     // Filter data based on search
     const filteredData = getCurrentData().filter((item: any) => {
-        const searchFields = activeTab === 'statistics'
-            ? [item.name, item.label]
-            : activeTab === 'activities'
-                ? [item.title, item.description]
-                : activeTab === 'partners'
-                    ? [item.name, item.description]
-                    : [item.name];
+        const searchFields =
+            activeTab === 'statistics'
+                ? [item.name, item.label]
+                : activeTab === 'activities'
+                    ? [item.title, item.description]
+                    : activeTab === 'partners'
+                        ? [item.name, item.description]
+                        : [item.name];
 
-        return searchFields.some(field =>
-            field?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        return searchFields.some((field) => field?.toLowerCase().includes(searchTerm.toLowerCase()));
     });
 
     // Get icon component
     const getIconComponent = (iconName: string) => {
         switch (iconName) {
-            case 'UserCheck': return <Users className="w-5 h-5" />;
-            case 'BookOpenCheck': return <BookOpen className="w-5 h-5" />;
-            case 'FileText': return <FileText className="w-5 h-5" />;
-            case 'Mic': return <Mic className="w-5 h-5" />;
-            default: return <AlertCircle className="w-5 h-5" />;
+            case 'UserCheck':
+                return <Users className="w-5 h-5" />;
+            case 'BookOpenCheck':
+                return <BookOpen className="w-5 h-5" />;
+            case 'FileText':
+                return <FileText className="w-5 h-5" />;
+            case 'Mic':
+                return <Mic className="w-5 h-5" />;
+            default:
+                return <AlertCircle className="w-5 h-5" />;
         }
     };
 
@@ -392,7 +404,14 @@ const DashboardModifyPage = () => {
                     <div className="p-6 border-b border-gray-200">
                         <div className="flex items-center justify-between">
                             <h3 className="text-xl font-bold">
-                                {editingItem ? 'Chỉnh sửa' : 'Tạo mới'} {activeTab === 'statistics' ? 'thống kê' : activeTab === 'activities' ? 'hoạt động' : activeTab === 'partners' ? 'đối tác' : 'banner'}
+                                {editingItem ? 'Chỉnh sửa' : 'Tạo mới'}{' '}
+                                {activeTab === 'statistics'
+                                    ? 'thống kê'
+                                    : activeTab === 'activities'
+                                        ? 'hoạt động'
+                                        : activeTab === 'partners'
+                                            ? 'đối tác'
+                                            : 'banner'}
                             </h3>
                             <button onClick={resetForm} className="text-gray-400 hover:text-gray-600">
                                 <X className="w-6 h-6" />
@@ -409,7 +428,7 @@ const DashboardModifyPage = () => {
                                         <input
                                             type="text"
                                             value={formData.name || ''}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, name: e.target.value }))}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -417,7 +436,7 @@ const DashboardModifyPage = () => {
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
                                         <select
                                             value={formData.icon || ''}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
+                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, icon: e.target.value }))}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         >
                                             <option value="">Chọn icon</option>
@@ -433,7 +452,7 @@ const DashboardModifyPage = () => {
                                     <input
                                         type="text"
                                         value={formData.label || ''}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, label: e.target.value }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, label: e.target.value }))}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
@@ -443,7 +462,7 @@ const DashboardModifyPage = () => {
                                         <input
                                             type="text"
                                             value={formData.value || ''}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
+                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, value: e.target.value }))}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -451,8 +470,10 @@ const DashboardModifyPage = () => {
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
                                         <input
                                             type="number"
-                                            value={formData.display_order || 0}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                                            value={formData.display_order ?? 0}
+                                            onChange={(e) =>
+                                                setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
+                                            }
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -467,7 +488,7 @@ const DashboardModifyPage = () => {
                                     <input
                                         type="text"
                                         value={formData.title || ''}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, title: e.target.value }))}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
@@ -475,7 +496,7 @@ const DashboardModifyPage = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
                                     <textarea
                                         value={formData.description || ''}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, description: e.target.value }))}
                                         rows={4}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
@@ -492,7 +513,7 @@ const DashboardModifyPage = () => {
                                                     try {
                                                         setUploading(true);
                                                         const imageUrl = await uploadImage(file);
-                                                        setFormData(prev => ({ ...prev, thumbnail: imageUrl }));
+                                                        setFormData((prev: FormState) => ({ ...prev, thumbnail: imageUrl }));
                                                     } catch (error) {
                                                         showNotification('error', 'Lỗi khi upload ảnh');
                                                     } finally {
@@ -503,7 +524,10 @@ const DashboardModifyPage = () => {
                                             className="hidden"
                                             id="activity-image"
                                         />
-                                        <label htmlFor="activity-image" className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <label
+                                            htmlFor="activity-image"
+                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                        >
                                             <Upload className="w-4 h-4" />
                                             Chọn ảnh
                                         </label>
@@ -518,8 +542,10 @@ const DashboardModifyPage = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
                                     <input
                                         type="number"
-                                        value={formData.display_order || 0}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                                        value={formData.display_order ?? 0}
+                                        onChange={(e) =>
+                                            setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
+                                        }
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
@@ -533,7 +559,7 @@ const DashboardModifyPage = () => {
                                     <input
                                         type="text"
                                         value={formData.name || ''}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, name: e.target.value }))}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
@@ -541,7 +567,7 @@ const DashboardModifyPage = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
                                     <textarea
                                         value={formData.description || ''}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, description: e.target.value }))}
                                         rows={3}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
@@ -558,7 +584,7 @@ const DashboardModifyPage = () => {
                                                     try {
                                                         setUploading(true);
                                                         const imageUrl = await uploadImage(file);
-                                                        setFormData(prev => ({ ...prev, logo_url: imageUrl }));
+                                                        setFormData((prev: FormState) => ({ ...prev, logo_url: imageUrl }));
                                                     } catch (error) {
                                                         showNotification('error', 'Lỗi khi upload ảnh');
                                                     } finally {
@@ -569,7 +595,10 @@ const DashboardModifyPage = () => {
                                             className="hidden"
                                             id="partner-logo"
                                         />
-                                        <label htmlFor="partner-logo" className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <label
+                                            htmlFor="partner-logo"
+                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                        >
                                             <Upload className="w-4 h-4" />
                                             Chọn logo
                                         </label>
@@ -586,7 +615,7 @@ const DashboardModifyPage = () => {
                                         <input
                                             type="url"
                                             value={formData.website_url || ''}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, website_url: e.target.value }))}
+                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, website_url: e.target.value }))}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -594,8 +623,10 @@ const DashboardModifyPage = () => {
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
                                         <input
                                             type="number"
-                                            value={formData.display_order || 0}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                                            value={formData.display_order ?? 0}
+                                            onChange={(e) =>
+                                                setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
+                                            }
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -610,7 +641,7 @@ const DashboardModifyPage = () => {
                                     <input
                                         type="text"
                                         value={formData.name || ''}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, name: e.target.value }))}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
@@ -624,9 +655,10 @@ const DashboardModifyPage = () => {
                                                 const file = e.target.files?.[0];
                                                 if (file) {
                                                     try {
+                                                        setUploading=true;
                                                         setUploading(true);
                                                         const imageUrl = await uploadImage(file);
-                                                        setFormData(prev => ({ ...prev, image_url: imageUrl }));
+                                                        setFormData((prev: FormState) => ({ ...prev, image_url: imageUrl }));
                                                     } catch (error) {
                                                         showNotification('error', 'Lỗi khi upload ảnh');
                                                     } finally {
@@ -637,7 +669,10 @@ const DashboardModifyPage = () => {
                                             className="hidden"
                                             id="banner-image"
                                         />
-                                        <label htmlFor="banner-image" className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <label
+                                            htmlFor="banner-image"
+                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                        >
                                             <Upload className="w-4 h-4" />
                                             Chọn ảnh
                                         </label>
@@ -654,7 +689,7 @@ const DashboardModifyPage = () => {
                                         <input
                                             type="url"
                                             value={formData.link_url || ''}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, link_url: e.target.value }))}
+                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, link_url: e.target.value }))}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -662,8 +697,10 @@ const DashboardModifyPage = () => {
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
                                         <input
                                             type="number"
-                                            value={formData.display_order || 0}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                                            value={formData.display_order ?? 0}
+                                            onChange={(e) =>
+                                                setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
+                                            }
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         />
                                     </div>
@@ -673,7 +710,7 @@ const DashboardModifyPage = () => {
                                         type="checkbox"
                                         id="open_new_tab"
                                         checked={formData.open_new_tab || false}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, open_new_tab: e.target.checked }))}
+                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, open_new_tab: e.target.checked }))}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                                     />
                                     <label htmlFor="open_new_tab" className="text-sm font-medium text-gray-700">
@@ -688,7 +725,7 @@ const DashboardModifyPage = () => {
                                 type="checkbox"
                                 id="published"
                                 checked={formData.published || false}
-                                onChange={(e) => setFormData(prev => ({ ...prev, published: e.target.checked }))}
+                                onChange={(e) => setFormData((prev: FormState) => ({ ...prev, published: e.target.checked }))}
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                             />
                             <label htmlFor="published" className="text-sm font-medium text-gray-700">
@@ -698,12 +735,10 @@ const DashboardModifyPage = () => {
                     </div>
 
                     <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
-                        <Button variant="outline" onClick={resetForm}>Hủy</Button>
-                        <Button
-                            onClick={saveItem}
-                            disabled={uploading}
-                            className="flex items-center gap-2"
-                        >
+                        <Button variant="outline" onClick={resetForm}>
+                            Hủy
+                        </Button>
+                        <Button onClick={saveItem} disabled={uploading} className="flex items-center gap-2">
                             {uploading ? (
                                 <>
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -737,11 +772,15 @@ const DashboardModifyPage = () => {
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
             {/* Notification */}
             {notification && (
-                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
-                    notification.type === 'success' ? 'bg-green-100 text-green-800' :
-                        notification.type === 'error' ? 'bg-red-100 text-red-800' :
-                            'bg-yellow-100 text-yellow-800'
-                }`}>
+                <div
+                    className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+                        notification.type === 'success'
+                            ? 'bg-green-100 text-green-800'
+                            : notification.type === 'error'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                    }`}
+                >
                     <div className="flex items-center">
                         {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2" />}
                         {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2" />}
@@ -754,10 +793,7 @@ const DashboardModifyPage = () => {
             )}
 
             <div className="max-w-7xl mx-auto">
-                <SectionHeader
-                    title="CHỈNH SỬA TRANG CHỦ"
-                    subtitle="Quản lý nội dung hiển thị trên trang chủ website"
-                />
+                <SectionHeader title="CHỈNH SỬA TRANG CHỦ" subtitle="Quản lý nội dung hiển thị trên trang chủ website" />
 
                 {/* Tabs */}
                 <div className="mb-8 bg-white rounded-xl shadow-sm">
@@ -802,12 +838,7 @@ const DashboardModifyPage = () => {
 
                             {/* Actions */}
                             <div className="flex gap-4">
-                                <Button
-                                    variant="outline"
-                                    onClick={loadAllData}
-                                    disabled={loading}
-                                    className="flex items-center gap-2"
-                                >
+                                <Button variant="outline" onClick={loadAllData} disabled={loading} className="flex items-center gap-2">
                                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                                     Tải lại
                                 </Button>
@@ -845,20 +876,29 @@ const DashboardModifyPage = () => {
                                 {activeTab === 'partners' && <Building className="w-12 h-12 mx-auto" />}
                                 {activeTab === 'banners' && <ImageIcon className="w-12 h-12 mx-auto" />}
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                Chưa có dữ liệu
-                            </h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Chưa có dữ liệu</h3>
                             <p className="text-gray-600 mb-4">
-                                Bắt đầu bằng cách tạo {activeTab === 'statistics' ? 'thống kê' : activeTab === 'activities' ? 'hoạt động' : activeTab === 'partners' ? 'đối tác' : 'banner'} đầu tiên
+                                Bắt đầu bằng cách tạo{' '}
+                                {activeTab === 'statistics'
+                                    ? 'thống kê'
+                                    : activeTab === 'activities'
+                                        ? 'hoạt động'
+                                        : activeTab === 'partners'
+                                            ? 'đối tác'
+                                            : 'banner'}{' '}
+                                đầu tiên
                             </p>
-                            <Button onClick={() => {
-                                setEditingItem(null);
-                                setFormData({
-                                    display_order: getCurrentData().length + 1,
-                                    published: false
-                                });
-                                setShowForm(true);
-                            }} className="flex items-center gap-2 mx-auto">
+                            <Button
+                                onClick={() => {
+                                    setEditingItem(null);
+                                    setFormData({
+                                        display_order: getCurrentData().length + 1,
+                                        published: false
+                                    });
+                                    setShowForm(true);
+                                }}
+                                className="flex items-center gap-2 mx-auto"
+                            >
                                 <Plus className="w-4 h-4" />
                                 Tạo mới
                             </Button>
@@ -873,38 +913,66 @@ const DashboardModifyPage = () => {
                                     </th>
                                     {activeTab === 'statistics' && (
                                         <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Icon</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhãn</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giá trị</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Icon
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Nhãn
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Giá trị
+                                            </th>
                                         </>
                                     )}
                                     {activeTab === 'activities' && (
                                         <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ảnh</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tiêu đề</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Ảnh
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Tiêu đề
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Mô tả
+                                            </th>
                                         </>
                                     )}
                                     {activeTab === 'partners' && (
                                         <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logo</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Website</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Logo
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Tên
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Website
+                                            </th>
                                         </>
                                     )}
                                     {activeTab === 'banners' && (
                                         <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ảnh</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Liên kết</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Ảnh
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Tên
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Liên kết
+                                            </th>
                                         </>
                                     )}
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Trạng thái
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Thao tác
+                                    </th>
                                 </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredData.map((item: any, index) => (
+                                {filteredData.map((item: any) => (
                                     <tr key={item.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center text-gray-400">
@@ -935,12 +1003,7 @@ const DashboardModifyPage = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {item.thumbnail && (
                                                         <div className="relative w-16 h-16">
-                                                            <Image
-                                                                src={item.thumbnail}
-                                                                alt={item.title}
-                                                                fill
-                                                                className="object-cover rounded-lg"
-                                                            />
+                                                            <Image src={item.thumbnail} alt={item.title} fill className="object-cover rounded-lg" />
                                                         </div>
                                                     )}
                                                 </td>
@@ -958,12 +1021,7 @@ const DashboardModifyPage = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {item.logo_url && (
                                                         <div className="relative w-16 h-16">
-                                                            <Image
-                                                                src={item.logo_url}
-                                                                alt={item.name}
-                                                                fill
-                                                                className="object-contain rounded-lg"
-                                                            />
+                                                            <Image src={item.logo_url} alt={item.name} fill className="object-contain rounded-lg" />
                                                         </div>
                                                     )}
                                                 </td>
@@ -994,12 +1052,7 @@ const DashboardModifyPage = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {item.image_url && (
                                                         <div className="relative w-20 h-12">
-                                                            <Image
-                                                                src={item.image_url}
-                                                                alt={item.name}
-                                                                fill
-                                                                className="object-cover rounded-lg"
-                                                            />
+                                                            <Image src={item.image_url} alt={item.name} fill className="object-cover rounded-lg" />
                                                         </div>
                                                     )}
                                                 </td>
@@ -1077,17 +1130,15 @@ const DashboardModifyPage = () => {
                 {/* Summary */}
                 <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[
-                        { label: 'Thống kê', count: statistics.length, published: statistics.filter(s => s.published).length },
-                        { label: 'Hoạt động', count: activities.length, published: activities.filter(a => a.published).length },
-                        { label: 'Đối tác', count: partners.length, published: partners.filter(p => p.published).length },
-                        { label: 'Banner', count: banners.length, published: banners.filter(b => b.published).length }
+                        { label: 'Thống kê', count: statistics.length, published: statistics.filter((s) => s.published).length },
+                        { label: 'Hoạt động', count: activities.length, published: activities.filter((a) => a.published).length },
+                        { label: 'Đối tác', count: partners.length, published: partners.filter((p) => p.published).length },
+                        { label: 'Banner', count: banners.length, published: banners.filter((b) => b.published).length }
                     ].map((stat, index) => (
                         <div key={index} className="bg-white rounded-xl shadow-sm p-6">
                             <div className="text-sm font-medium text-gray-500 mb-2">{stat.label}</div>
                             <div className="text-2xl font-bold text-gray-900 mb-1">{stat.count}</div>
-                            <div className="text-sm text-green-600">
-                                {stat.published} đã xuất bản
-                            </div>
+                            <div className="text-sm text-green-600">{stat.published} đã xuất bản</div>
                         </div>
                     ))}
                 </div>
