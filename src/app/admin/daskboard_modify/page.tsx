@@ -270,23 +270,19 @@ const DashboardModifyPage = () => {
                 }
             });
 
-            let result:
-                | { error: any }
-                | { error: null }
-                | { data?: unknown; error?: unknown } = { error: null };
+            let saveError: unknown = null;
 
             if (editingItem) {
-                // Update existing item - remove id and timestamps
                 const { id, created_at, updated_at, ...updateData } = baseData;
-                result = await supabase.from(activeTab).update(updateData).eq('id', editingItem.id);
+                const { error } = await supabase.from(activeTab).update(updateData).eq('id', editingItem.id);
+                saveError = error;
             } else {
-                // Create new item - remove id and timestamps for new items
                 const { id, created_at, updated_at, ...insertData } = baseData;
-                result = await supabase.from(activeTab).insert([insertData]);
+                const { error } = await supabase.from(activeTab).insert([insertData]);
+                saveError = error;
             }
 
-            // @ts-expect-error safe check
-            if (result.error) throw result.error;
+            if (saveError) throw saveError;
 
             showNotification('success', editingItem ? 'Cập nhật thành công' : 'Tạo mới thành công');
             resetForm();
@@ -655,7 +651,6 @@ const DashboardModifyPage = () => {
                                                 const file = e.target.files?.[0];
                                                 if (file) {
                                                     try {
-                                                        setUploading=true;
                                                         setUploading(true);
                                                         const imageUrl = await uploadImage(file);
                                                         setFormData((prev: FormState) => ({ ...prev, image_url: imageUrl }));
