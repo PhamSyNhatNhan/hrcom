@@ -31,6 +31,16 @@ import Image from 'next/image';
 
 const supabase = createClient();
 
+// Bắt lỗi
+function getErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'object' && err && 'message' in err) {
+        const m = (err as { message?: unknown }).message;
+        return typeof m === 'string' ? m : JSON.stringify(m);
+    }
+    return typeof err === 'string' ? err : JSON.stringify(err);
+}
+
 // Interfaces
 interface Statistic {
     id: string;
@@ -121,9 +131,9 @@ const DashboardModifyPage = () => {
                 loadPartners(),
                 loadBanners()
             ]);
-        } catch (error) {
-            console.error('Error loading data:', error);
-            showNotification('error', 'Không thể tải dữ liệu');
+        } catch (err: unknown) {
+            console.error('Error loading data:', err);
+            showNotification('error', 'Không thể tải dữ liệu: ' + getErrorMessage(err));
         } finally {
             setLoading(false);
         }
@@ -134,9 +144,9 @@ const DashboardModifyPage = () => {
             const { data, error } = await supabase.rpc('get_admin_statistics');
             if (error) throw error;
             setStatistics(data || []);
-        } catch (error) {
-            console.error('Error loading statistics:', error);
-            showNotification('error', 'Không thể tải thống kê');
+        } catch (err: unknown) {
+            console.error('Error loading statistics:', err);
+            showNotification('error', 'Không thể tải thống kê: ' + getErrorMessage(err));
         }
     };
 
@@ -145,9 +155,9 @@ const DashboardModifyPage = () => {
             const { data, error } = await supabase.rpc('get_admin_activities');
             if (error) throw error;
             setActivities(data || []);
-        } catch (error) {
-            console.error('Error loading activities:', error);
-            showNotification('error', 'Không thể tải hoạt động');
+        } catch (err: unknown) {
+            console.error('Error loading activities:', err);
+            showNotification('error', 'Không thể tải hoạt động: ' + getErrorMessage(err));
         }
     };
 
@@ -156,9 +166,9 @@ const DashboardModifyPage = () => {
             const { data, error } = await supabase.rpc('get_admin_partners');
             if (error) throw error;
             setPartners(data || []);
-        } catch (error) {
-            console.error('Error loading partners:', error);
-            showNotification('error', 'Không thể tải đối tác');
+        } catch (err: unknown) {
+            console.error('Error loading partners:', err);
+            showNotification('error', 'Không thể tải đối tác: ' + getErrorMessage(err));
         }
     };
 
@@ -167,9 +177,9 @@ const DashboardModifyPage = () => {
             const { data, error } = await supabase.rpc('get_admin_banners');
             if (error) throw error;
             setBanners(data || []);
-        } catch (error) {
-            console.error('Error loading banners:', error);
-            showNotification('error', 'Không thể tải banner');
+        } catch (err: unknown) {
+            console.error('Error loading banners:', err);
+            showNotification('error', 'Không thể tải banner: ' + getErrorMessage(err));
         }
     };
 
@@ -197,9 +207,9 @@ const DashboardModifyPage = () => {
                 .getPublicUrl(filePath);
 
             return urlData.publicUrl;
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            throw new Error('Không thể upload ảnh');
+        } catch (err: unknown) {
+            console.error('Error uploading image:', err);
+            throw new Error('Không thể upload ảnh: ' + getErrorMessage(err));
         }
     };
 
@@ -269,21 +279,9 @@ const DashboardModifyPage = () => {
             resetForm();
             loadAllData();
 
-        } catch (error) {
-            console.error('Error saving item:', error);
-            let errorMessage = 'Lỗi không xác định';
-
-            if (error && typeof error === 'object') {
-                if ('message' in error && error.message) {
-                    errorMessage = error.message;
-                } else if (error.toString && error.toString() !== '[object Object]') {
-                    errorMessage = error.toString();
-                }
-            } else if (typeof error === 'string') {
-                errorMessage = error;
-            }
-
-            showNotification('error', 'Lỗi khi lưu dữ liệu: ' + errorMessage);
+        } catch (err: unknown) {
+            console.error('Error saving item:', err);
+            showNotification('error', 'Lỗi khi lưu dữ liệu: ' + getErrorMessage(err));
         } finally {
             setUploading(false);
         }
@@ -303,9 +301,9 @@ const DashboardModifyPage = () => {
 
             showNotification('success', 'Xóa thành công');
             loadAllData();
-        } catch (error) {
-            console.error('Error deleting item:', error);
-            showNotification('error', 'Lỗi khi xóa');
+        } catch (err: unknown) {
+            console.error('Error deleting item:', err);
+            showNotification('error', 'Lỗi khi xóa: ' + getErrorMessage(err));
         }
     };
 
@@ -321,9 +319,9 @@ const DashboardModifyPage = () => {
 
             showNotification('success', 'Cập nhật trạng thái thành công');
             loadAllData();
-        } catch (error) {
-            console.error('Error updating status:', error);
-            showNotification('error', 'Lỗi khi cập nhật trạng thái');
+        } catch (err: unknown) {
+            console.error('Error updating status:', err);
+            showNotification('error', 'Lỗi khi cập nhật trạng thái: ' + getErrorMessage(err));
         }
     };
 
