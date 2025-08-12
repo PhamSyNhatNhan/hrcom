@@ -12,12 +12,30 @@ const HomePage = () => {
                 {/* Background Image Carousel - responsive aspect ratio */}
                 <div className="relative w-full aspect-[16/9] sm:h-[500px] z-0">
                     <ImageCarousel
-                        images={[
-                            '/Background/hr-companion-bannerB01.jpg',
-                            '/Background/hr-companion-bannerB02.jpg',
-                            '/Background/hr-companion-bannerB03.jpg',
+                        banners={[
+                            {
+                                id: '1',
+                                name: 'HR Companion Banner 1',
+                                image_url: '/Background/hr-companion-bannerB01.jpg',
+                                open_new_tab: false
+                            },
+                            {
+                                id: '2',
+                                name: 'HR Companion Banner 2',
+                                image_url: '/Background/hr-companion-bannerB02.jpg',
+                                open_new_tab: false
+                            },
+                            {
+                                id: '3',
+                                name: 'HR Companion Banner 3',
+                                image_url: '/Background/hr-companion-bannerB03.jpg',
+                                open_new_tab: false
+                            }
                         ]}
                         className="w-full h-full object-cover"
+                        showArrows={true}
+                        showDots={true}
+                        autoPlay={true}
                     />
                     <div className="absolute inset-0 bg-black/40 z-10" />
                 </div>
@@ -51,8 +69,6 @@ const HomePage = () => {
                     </div>
                 </div>
             </section>
-
-
 
         </div>
     );
