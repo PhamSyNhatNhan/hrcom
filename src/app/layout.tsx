@@ -28,7 +28,7 @@ interface LayoutProps {
 const RootLayout = ({ children }: LayoutProps) => {
     const FloatingMenu = () => {
         return (
-            <div className="fixed right-2 md:right-4 top-1/2 -translate-y-1/2 z-40">
+            <div className="fixed right-2 md:right-4 top-3/5 -translate-y-1/2 z-40">
                 <div className="flex flex-col space-y-2">
                     {/* LinkedIn */}
                     <Link

@@ -20,7 +20,15 @@ import Link from "next/link";
 
 const supabase = createClient();
 
-const partners = [
+// Fallback data cho trường hợp không có dữ liệu từ database
+const fallbackStats = [
+    {icon: UserCheck, value: '89', label: 'Mentor đồng hành',},
+    {icon: BookOpenCheck, value: '120', label: 'Hướng dẫn',},
+    {icon: FileText, value: '15000+', label: 'SV tham gia chỉnh sửa CV',},
+    {icon: Mic, value: '15000+', label: 'Đăng ký cuộc phỏng vấn',},
+];
+
+const fallbackPartners = [
     { imageSrc: '/partner/Logo-JobUp.jpg', href: '#' },
     { imageSrc: '/partner/logo-topcv.jpg', href: '#' },
     { imageSrc: '/partner/CareerBuilder_with-tagline-in-Vietnam.png', href: '#' },
@@ -33,14 +41,7 @@ const partners = [
     { imageSrc: '/partner/Logo-TMU.jpg', href: '#' },
 ];
 
-const stats = [
-    {icon: UserCheck, value: '89', label: 'Mentor đồng hành',},
-    {icon: BookOpenCheck, value: '120', label: 'Hướng dẫn',},
-    {icon: FileText, value: '15000+', label: 'SV tham gia chỉnh sửa CV',},
-    {icon: Mic, value: '15000+', label: 'Đăng ký cuộc phỏng vấn',},
-];
-
-const activities = [
+const fallbackActivities = [
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-1-900x540.jpg',
@@ -91,7 +92,67 @@ const activities = [
     },
 ];
 
-// Interface cho Mentor từ database
+// Fallback banners
+const fallbackBanners = [
+    {
+        id: 'fallback-1',
+        name: 'HR Companion Banner 1',
+        image_url: '/Background/hr-companion-bannerB01.jpg',
+        link_url: 'https://hrcompanion.vn',
+        open_new_tab: true
+    },
+    {
+        id: 'fallback-2',
+        name: 'HR Companion Banner 2',
+        image_url: '/Background/hr-companion-bannerB02.jpg',
+        link_url: 'https://hrcompanion.vn',
+        open_new_tab: true
+    },
+    {
+        id: 'fallback-3',
+        name: 'HR Companion Banner 3',
+        image_url: '/Background/hr-companion-bannerB03.jpg',
+        link_url: 'https://hrcompanion.vn',
+        open_new_tab: true
+    }
+];
+
+// Interfaces for database data
+interface StatisticFromDB {
+    id: string;
+    name: string;
+    icon: string;
+    label: string;
+    value: string;
+    display_order: number;
+}
+
+interface ActivityFromDB {
+    id: string;
+    title: string;
+    description: string;
+    thumbnail: string;
+    display_order: number;
+}
+
+interface PartnerFromDB {
+    id: string;
+    name: string;
+    description?: string;
+    logo_url: string;
+    website_url?: string;
+    display_order: number;
+}
+
+interface BannerFromDB {
+    id: string;
+    name: string;
+    image_url: string;
+    link_url?: string;
+    open_new_tab: boolean;
+    display_order: number;
+}
+
 interface MentorFromDB {
     id: string;
     full_name: string;
@@ -103,6 +164,30 @@ interface MentorFromDB {
     created_at: string;
 }
 
+// Homepage data structure
+interface HomepageData {
+    statistics: StatisticFromDB[];
+    activities: ActivityFromDB[];
+    partners: PartnerFromDB[];
+    banners: BannerFromDB[];
+}
+
+// Helper function to map icon names to components
+const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+        case 'UserCheck':
+            return UserCheck;
+        case 'BookOpenCheck':
+            return BookOpenCheck;
+        case 'FileText':
+            return FileText;
+        case 'Mic':
+            return Mic;
+        default:
+            return UserCheck;
+    }
+};
+
 const HomePage = () => {
     // Load featured posts from database
     const {
@@ -113,10 +198,57 @@ const HomePage = () => {
         limit: 4
     });
 
-    // State for mentors
+    // Homepage data states
+    const [homepageData, setHomepageData] = useState<HomepageData | null>(null);
+    const [homepageLoading, setHomepageLoading] = useState(true);
+    const [homepageError, setHomepageError] = useState<string | null>(null);
+
+    // Mentor states
     const [featuredMentors, setFeaturedMentors] = useState<MentorFromDB[]>([]);
     const [mentorsLoading, setMentorsLoading] = useState(true);
     const [mentorsError, setMentorsError] = useState<string | null>(null);
+
+    // Load homepage data using the SQL function
+    useEffect(() => {
+        const loadHomepageData = async () => {
+            try {
+                setHomepageLoading(true);
+                setHomepageError(null);
+
+                const { data, error } = await supabase.rpc('get_homepage_data');
+
+                if (error) {
+                    throw error;
+                }
+
+                if (data) {
+                    setHomepageData(data);
+                } else {
+                    // Use fallback data if no data from database
+                    setHomepageData({
+                        statistics: [],
+                        activities: [],
+                        partners: [],
+                        banners: []
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading homepage data:', err);
+                setHomepageError('Không thể tải dữ liệu trang chủ');
+                // Set fallback data on error
+                setHomepageData({
+                    statistics: [],
+                    activities: [],
+                    partners: [],
+                    banners: []
+                });
+            } finally {
+                setHomepageLoading(false);
+            }
+        };
+
+        loadHomepageData();
+    }, []);
 
     // Load featured mentors from database
     useEffect(() => {
@@ -130,7 +262,7 @@ const HomePage = () => {
                     .select('*')
                     .eq('published', true)
                     .order('created_at', { ascending: false })
-                    .limit(4); // Chỉ lấy 3 mentor nổi bật
+                    .limit(4);
 
                 if (error) {
                     throw error;
@@ -148,21 +280,60 @@ const HomePage = () => {
         loadFeaturedMentors();
     }, []);
 
+    // Get data with fallbacks
+    const stats = homepageData?.statistics?.length
+        ? homepageData.statistics.map(stat => ({
+            icon: getIconComponent(stat.icon),
+            value: stat.value,
+            label: stat.label
+        }))
+        : fallbackStats;
+
+    const activities = homepageData?.activities?.length
+        ? homepageData.activities.map(activity => ({
+            href: '/activity',
+            imageSrc: activity.thumbnail,
+            imageAlt: activity.title,
+            title: activity.title,
+            description: activity.description
+        }))
+        : fallbackActivities;
+
+    const partners = homepageData?.partners?.length
+        ? homepageData.partners.map(partner => ({
+            imageSrc: partner.logo_url,
+            href: partner.website_url || '#'
+        }))
+        : fallbackPartners;
+
+    const banners = homepageData?.banners?.length
+        ? homepageData.banners
+        : fallbackBanners;
+
     return (
         <div>
             {/* Intro Section */}
             <section className="relative bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
                 {/* Background Image Carousel - responsive aspect ratio */}
-                <div className="relative w-full aspect-[16/9] sm:h-[500px] z-0">
-                    <ImageCarousel
-                        images={[
-                            '/Background/hr-companion-bannerB01.jpg',
-                            '/Background/hr-companion-bannerB02.jpg',
-                            '/Background/hr-companion-bannerB03.jpg',
-                        ]}
-                        className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 z-10" />
+                <div className="relative w-full aspect-[16/9] sm:h-[500px]">
+                    {homepageLoading ? (
+                        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
+                            <span className="ml-2 text-gray-600">Đang tải banner...</span>
+                        </div>
+                    ) : (
+                        <ImageCarousel
+                            banners={banners}
+                            className="w-full h-full object-cover"
+                            showArrows={true}
+                            showDots={true}
+                            autoPlay={true}
+                            interval={4000}
+                        />
+                    )}
+
+                    {/* Overlay gradient - tạo nền xám nhẹ cho toàn bộ banner nhưng không chặn click */}
+                    <div className="absolute inset-0 bg-black/30 pointer-events-none" />
                 </div>
 
                 <div className="relative z-20 -mt-[80px] sm:-mt-[125px] px-4 sm:px-6 lg:px-8">
@@ -191,16 +362,28 @@ const HomePage = () => {
                             </div>
 
                             {/* Stats Section */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                                {stats.map((stat, index) => (
-                                    <StatCard
-                                        key={index}
-                                        icon={stat.icon}
-                                        value={stat.value}
-                                        label={stat.label}
-                                    />
-                                ))}
-                            </div>
+                            {homepageLoading ? (
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {[1, 2, 3, 4].map((i) => (
+                                        <div key={i} className="text-center animate-pulse">
+                                            <div className="w-16 h-16 bg-gray-200 rounded-2xl mx-auto mb-4"></div>
+                                            <div className="h-8 bg-gray-200 rounded mb-2"></div>
+                                            <div className="h-4 bg-gray-200 rounded"></div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                    {stats.map((stat, index) => (
+                                        <StatCard
+                                            key={index}
+                                            icon={stat.icon}
+                                            value={stat.value}
+                                            label={stat.label}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -214,15 +397,25 @@ const HomePage = () => {
                         subtitle="Kết nối – Tư vấn – Đồng hành cùng mentor nhân sự giàu kinh nghiệm"
                     />
 
-                    <div className="mt-16 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                        {activities.map((activity, index) => (
-                            <ActivityCard key={index} activity={activity} />
-                        ))}
-                    </div>
+                    {homepageLoading ? (
+                        <div className="mt-16 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <div key={i} className="animate-pulse">
+                                    <div className="relative h-72 sm:h-80 md:h-96 rounded-xl bg-gray-200"></div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="mt-16 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                            {activities.map((activity, index) => (
+                                <ActivityCard key={index} activity={activity} />
+                            ))}
+                        </div>
+                    )}
                 </div>
             </section>
 
-            {/* Mentor Section - Updated */}
+            {/* Mentor Section */}
             <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
@@ -275,13 +468,23 @@ const HomePage = () => {
                         subtitle="HR Companion tự hào hợp tác cùng các tổ chức, doanh nghiệp và chuyên gia để lan tỏa giá trị bền vững trong quản trị nhân sự."
                     />
 
-                    <div className="flex flex-wrap justify-center gap-6">
-                        {partners.map((partner, index) => (
-                            <div key={index} className="w-40 sm:w-48 md:w-52">
-                                <PartnerCard partner={partner} />
-                            </div>
-                        ))}
-                    </div>
+                    {homepageLoading ? (
+                        <div className="flex flex-wrap justify-center gap-6">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+                                <div key={i} className="w-40 sm:w-48 md:w-52 animate-pulse">
+                                    <div className="relative w-full h-24 sm:h-28 md:h-32 rounded-xl bg-gray-200"></div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap justify-center gap-6">
+                            {partners.map((partner, index) => (
+                                <div key={index} className="w-40 sm:w-48 md:w-52">
+                                    <PartnerCard partner={partner} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </section>
 
