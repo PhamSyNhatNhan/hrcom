@@ -392,11 +392,35 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Render form based on active tab
+    useEffect(() => {
+        if (showForm) {
+            // Lock body scroll khi modal mở
+            document.body.style.overflow = 'hidden';
+            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
+        } else {
+            // Unlock body scroll khi modal đóng
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        }
+
+        // Cleanup khi component unmount
+        return () => {
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        };
+    }, [showForm]);
+
+    // Render form based on active tab - với hiệu ứng blur
     const renderForm = () => {
         return (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div
+                    className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+                    onClick={resetForm}
+                />
+
+                <div className="relative bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
+                    {/* Modal Header */}
                     <div className="p-6 border-b border-gray-200">
                         <div className="flex items-center justify-between">
                             <h3 className="text-xl font-bold">
@@ -415,7 +439,9 @@ const DashboardModifyPage = () => {
                         </div>
                     </div>
 
+                    {/* Modal Body */}
                     <div className="p-6 space-y-4">
+                        {/* Statistics Form */}
                         {activeTab === 'statistics' && (
                             <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -477,6 +503,7 @@ const DashboardModifyPage = () => {
                             </>
                         )}
 
+                        {/* Activities Form */}
                         {activeTab === 'activities' && (
                             <>
                                 <div>
@@ -548,6 +575,7 @@ const DashboardModifyPage = () => {
                             </>
                         )}
 
+                        {/* Partners Form */}
                         {activeTab === 'partners' && (
                             <>
                                 <div>
@@ -630,6 +658,7 @@ const DashboardModifyPage = () => {
                             </>
                         )}
 
+                        {/* Banners Form */}
                         {activeTab === 'banners' && (
                             <>
                                 <div>
@@ -700,6 +729,7 @@ const DashboardModifyPage = () => {
                                         />
                                     </div>
                                 </div>
+                                {/* Checkbox cho "Mở ở tab mới" - chỉ có ở banners */}
                                 <div className="flex items-center gap-2">
                                     <input
                                         type="checkbox"
@@ -715,6 +745,7 @@ const DashboardModifyPage = () => {
                             </>
                         )}
 
+                        {/* Checkbox Published - cho tất cả các tab */}
                         <div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
@@ -729,6 +760,7 @@ const DashboardModifyPage = () => {
                         </div>
                     </div>
 
+                    {/* Modal Footer */}
                     <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
                         <Button variant="outline" onClick={resetForm}>
                             Hủy
@@ -765,22 +797,26 @@ const DashboardModifyPage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-            {/* Notification */}
+            {/* Notification - Z-index cao nhất */}
             {notification && (
                 <div
-                    className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+                    className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm w-full ${
                         notification.type === 'success'
-                            ? 'bg-green-100 text-green-800'
+                            ? 'bg-green-100 text-green-800 border border-green-200'
                             : notification.type === 'error'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
+                                ? 'bg-red-100 text-red-800 border border-red-200'
+                                : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
                     }`}
                 >
                     <div className="flex items-center">
-                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2" />}
-                        {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2" />}
-                        <span>{notification.message}</span>
-                        <button onClick={() => setNotification(null)} className="ml-4 text-gray-500 hover:text-gray-700">
+                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        <span className="flex-1">{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-4 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                        >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
