@@ -4,8 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from "next/image";
-import { createClient } from '@/utils/supabase/client';
 import { ArrowLeft, Lock, Check, AlertCircle } from 'lucide-react';
+import { supabase } from '@/utils/supabase/client';
 
 function ResetPasswordContent() {
     const [password, setPassword] = useState('');
@@ -20,7 +20,6 @@ function ResetPasswordContent() {
 
     const router = useRouter();
     const searchParams = useSearchParams();
-    const supabase = createClient();
 
     useEffect(() => {
         const handlePasswordReset = async () => {

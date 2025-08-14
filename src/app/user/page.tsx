@@ -3,9 +3,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Lock, Save, X, Edit3, Upload, Camera, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { createClient } from '@/utils/supabase/client';
 import Notification from '@/component/Notification';
 import { useNotificationWithUtils } from '@/hooks/useNotification';
+import { supabase } from '@/utils/supabase/client';
+
 
 export type TabType = 'personal' | 'password';
 
@@ -31,7 +32,6 @@ export interface ShowPasswords {
 
 const AccountSettings: React.FC = () => {
   const { user, setUser } = useAuthStore();
-  const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {

@@ -4,13 +4,12 @@
 import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { getCurrentUser } from '@/lib/auth'
-import { createClient } from '@/utils/supabase/client'
+import { supabase } from '@/utils/supabase/client';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
     const { setUser, setLoading } = useAuthStore()
 
     useEffect(() => {
-        const supabase = createClient()
 
         // Lấy user hiện tại khi component mount
         const getInitialUser = async () => {

@@ -15,10 +15,8 @@ import { ActivityCard} from '@/component/ActivityCard';
 import { PostCard } from '@/component/PostCard';
 import { PartnerCard } from '@/component/PartnerCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
-import { createClient } from '@/utils/supabase/client';
 import Link from "next/link";
-
-const supabase = createClient();
+import { supabase } from '@/utils/supabase/client';
 
 // Fallback data cho trường hợp không có dữ liệu từ database
 const fallbackStats = [

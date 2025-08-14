@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
 import { Button } from '@/component/Button';
@@ -28,8 +28,6 @@ import {
     Loader2
 } from 'lucide-react';
 import Image from 'next/image';
-
-const supabase = createClient();
 
 // Bắt lỗi
 function getErrorMessage(err: unknown): string {

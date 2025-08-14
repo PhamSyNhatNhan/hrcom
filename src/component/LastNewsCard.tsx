@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import Link from 'next/link';
-import { Clock, Eye, Calendar } from 'lucide-react';
+import { Clock, Calendar } from 'lucide-react';
 
 interface LastNews {
     title: string;

@@ -2,10 +2,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MentorCard } from '@/component/MentorCard';
 import { SectionHeader } from '@/component/SectionHeader';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/utils/supabase/client';
 import { Search, Filter, Users, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
-const supabase = createClient();
 const MENTORS_PER_PAGE = 12;
 
 interface Mentor {

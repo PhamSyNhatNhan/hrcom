@@ -1,9 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
 import { Button } from '@/component/Button';
+import { supabase } from '@/utils/supabase/client';
+
 import {
     Plus,
     Search,
@@ -90,7 +91,6 @@ interface MentorFormData {
 
 const ManagerMentor: React.FC = () => {
     const { user } = useAuthStore();
-    const supabase = createClient();
 
     // State management
     const [mentors, setMentors] = useState<Mentor[]>([]);

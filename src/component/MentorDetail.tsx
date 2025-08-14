@@ -1,40 +1,6 @@
 'use client';
 import React from 'react';
 
-// interface Experience {
-//     position: string;
-//     company: string;
-//     time: string;
-// }
-
-// interface Education {
-//     degree: string;
-//     school: string;
-//     year: string;
-// }
-
-// interface Activities {
-//     title: string;
-//     description: string;
-//     year: string;
-// }
-
-// interface Mentor {
-//     id: number;
-//     name: string;
-//     role: string;
-//     company: string;
-//     image: string;
-//     specialties: string[];
-//     bio?: string;
-//     experience?: Array<Experience>;
-//     education?: Array<Education>;
-//     activities?: Array<Activities>;
-// }
-
-// interface MentorDetailProps {
-//     mentor: Mentor;
-// }
 interface Mentor {
     id: string;
     full_name: string;

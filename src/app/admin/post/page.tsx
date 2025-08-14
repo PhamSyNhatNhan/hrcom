@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
+import { supabase } from '@/utils/supabase/client';
+
 import { Button } from '@/component/Button';
 import {
     Plus,
@@ -44,7 +45,6 @@ interface PostFormData {
 
 const PostPage: React.FC = () => {
     const { user } = useAuthStore();
-    const supabase = createClient();
     const editorRef = useRef<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 

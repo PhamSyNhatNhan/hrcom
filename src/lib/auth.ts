@@ -1,9 +1,8 @@
-import { createClient } from '@/utils/supabase/client'
 import { useAuthStore } from '@/stores/authStore'
+import { supabase } from '@/utils/supabase/client';
+
 
 export const signInWithEmail = async (email: string, password: string) => {
-    const supabase = createClient()
-
     try {
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
@@ -59,8 +58,6 @@ export const signInWithEmail = async (email: string, password: string) => {
 }
 
 export const getCurrentUser = async () => {
-    const supabase = createClient()
-
     try {
         const { data: { user }, error } = await supabase.auth.getUser()
 
@@ -116,8 +113,6 @@ export const getCurrentUser = async () => {
 }
 
 export const signOut = async () => {
-    const supabase = createClient()
-
     try {
         const { error } = await supabase.auth.signOut()
         if (error) throw error

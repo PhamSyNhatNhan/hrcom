@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
 import { Button } from '@/component/Button';
+import { supabase } from '@/utils/supabase/client';
 import {
     Calendar,
     Clock,
@@ -28,8 +28,6 @@ import {
     Trash2
 } from 'lucide-react';
 import Image from 'next/image';
-
-const supabase = createClient();
 
 // Interfaces
 interface Mentor {

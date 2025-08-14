@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/utils/supabase/client';
 
 export interface Post {
     id: string;
@@ -36,8 +36,6 @@ export interface UpdatePostData {
 }
 
 export class PostService {
-    private supabase = createClient();
-
     // Get all posts with pagination and filters (for admin)
     async getPosts(options: {
         page?: number;
@@ -57,7 +55,7 @@ export class PostService {
         } = options;
 
         try {
-            let query = this.supabase
+            let query = supabase
                 .from('posts')
                 .select(`
                     *,
@@ -112,7 +110,7 @@ export class PostService {
     // Get single post by ID
     async getPost(id: string): Promise<Post> {
         try {
-            const { data, error } = await this.supabase
+            const { data, error } = await supabase
                 .from('posts')
                 .select(`
                     *,
@@ -149,7 +147,7 @@ export class PostService {
         const { type = 'all', limit = 10, offset = 0 } = options;
 
         try {
-            let query = this.supabase
+            let query = supabase
                 .from('posts')
                 .select(`
                     *,
@@ -188,7 +186,7 @@ export class PostService {
         try {
             console.log('Creating post with data:', { ...postData, author_id: authorId });
 
-            const { data, error } = await this.supabase
+            const { data, error } = await supabase
                 .from('posts')
                 .insert([{
                     title: postData.title,
@@ -242,7 +240,7 @@ export class PostService {
 
             console.log('Updating post with data:', { id, updateData });
 
-            const { data, error } = await this.supabase
+            const { data, error } = await supabase
                 .from('posts')
                 .update(updateData)
                 .eq('id', id)
@@ -275,7 +273,7 @@ export class PostService {
     // Delete post
     async deletePost(id: string): Promise<void> {
         try {
-            const { error } = await this.supabase
+            const { error } = await supabase
                 .from('posts')
                 .delete()
                 .eq('id', id);
@@ -296,7 +294,7 @@ export class PostService {
     async togglePublishStatus(id: string): Promise<Post> {
         try {
             // First get current status
-            const { data: currentPost, error: fetchError } = await this.supabase
+            const { data: currentPost, error: fetchError } = await supabase
                 .from('posts')
                 .select('published, published_at')
                 .eq('id', id)
@@ -317,7 +315,7 @@ export class PostService {
                 published_at: newPublished ? new Date().toISOString() : null
             };
 
-            const { data, error } = await this.supabase
+            const { data, error } = await supabase
                 .from('posts')
                 .update(updateData)
                 .eq('id', id)
@@ -356,7 +354,7 @@ export class PostService {
 
             console.log('Uploading image:', { fileName, filePath, fileSize: file.size });
 
-            const { data, error } = await this.supabase.storage
+            const { data, error } = await supabase.storage
                 .from('images')
                 .upload(filePath, file, {
                     cacheControl: '3600',
@@ -368,7 +366,7 @@ export class PostService {
                 throw new Error(`Failed to upload image: ${error.message}`);
             }
 
-            const { data: urlData } = this.supabase.storage
+            const { data: urlData } = supabase.storage
                 .from('images')
                 .getPublicUrl(filePath);
 
@@ -392,7 +390,7 @@ export class PostService {
 
             const filePath = urlParts[1];
 
-            const { error } = await this.supabase.storage
+            const { error } = await supabase.storage
                 .from('images')
                 .remove([filePath]);
 
@@ -412,7 +410,7 @@ export class PostService {
     // Test connection method for debugging
     async testConnection(): Promise<boolean> {
         try {
-            const { data, error } = await this.supabase
+            const { data, error } = await supabase
                 .from('posts')
                 .select('count', { count: 'exact', head: true });
 

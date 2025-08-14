@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from "next/image";
-import { createClient } from '@/utils/supabase/client';
 import { ArrowLeft, Mail, Check, AlertCircle, Lock } from 'lucide-react';
+import { supabase } from '@/utils/supabase/client';
+
 
 type Step = 'email' | 'otp' | 'password' | 'success';
 
@@ -22,7 +23,6 @@ export default function ForgotPasswordPage() {
     const [message, setMessage] = useState('');
 
     const router = useRouter();
-    const supabase = createClient();
 
     const handleSendOTP = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();

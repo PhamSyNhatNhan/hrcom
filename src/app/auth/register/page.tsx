@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Listbox } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
-import {createClient} from '@/utils/supabase/client';
+import { supabase } from '@/utils/supabase/client';
 
 interface RegisterFormData {
     fullName: string;
@@ -17,7 +17,6 @@ interface RegisterFormData {
 }
 
 export default function RegisterPage() {
-    const supabase = createClient()
 
     const [formData, setFormData] = useState<RegisterFormData>({
         fullName: '',

@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
 import { Button } from '@/component/Button';
@@ -32,7 +32,6 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 
-const supabase = createClient();
 const BOOKINGS_PER_PAGE = 10;
 
 // Interfaces
