@@ -1,3 +1,4 @@
+// src/app/auth/login/page.tsx - SIMPLIFIED VERSION
 'use client';
 
 import { useState } from 'react';
@@ -47,7 +48,7 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const { user, error: signInError } = await signInWithEmail(
+            const { user, error: signInError, needsVerification } = await signInWithEmail(
                 formData.email,
                 formData.password
             );
@@ -61,13 +62,23 @@ export default function LoginPage() {
             }
 
             if (user) {
-                // Sau khi đăng nhập thành công
-                // Redirect based on role
-                if (user.role === 'admin' || user.role === 'superadmin') {
-                    router.push('/admin');
+                console.log('✅ Login successful, letting middleware handle routing')
+
+                // ✅ ĐỂ MIDDLEWARE XỬ LÝ REDIRECT
+                // Middleware sẽ tự động:
+                // - Kiểm tra email verification
+                // - Redirect dựa trên role
+                // - Xử lý các trường hợp đặc biệt
+
+                // Simple redirect - middleware will take over
+                if (needsVerification) {
+                    console.log('⚠️ User needs verification - middleware will redirect')
                 } else {
-                    router.push('/');
+                    console.log('✅ User verified - middleware will redirect based on role')
                 }
+
+                // Redirect đến home, middleware sẽ điều hướng đúng chỗ
+                router.push('/');
             }
         } catch (err: unknown) {
             setError('Đã xảy ra lỗi. Vui lòng thử lại.');
