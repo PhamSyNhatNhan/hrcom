@@ -1,4 +1,3 @@
-// src/app/auth/login/page.tsx - SIMPLIFIED VERSION
 'use client';
 
 import { useState } from 'react';
@@ -62,22 +61,17 @@ export default function LoginPage() {
             }
 
             if (user) {
-                console.log('✅ Login successful, letting middleware handle routing')
+                console.log('✅ Login successful')
 
-                // ✅ ĐỂ MIDDLEWARE XỬ LÝ REDIRECT
-                // Middleware sẽ tự động:
-                // - Kiểm tra email verification
-                // - Redirect dựa trên role
-                // - Xử lý các trường hợp đặc biệt
-
-                // Simple redirect - middleware will take over
+                // ✅ NếU EMAIL CHƯA ĐƯỢC XÁC NHẬN, CHUYỂN ĐẾN TRANG OTP
                 if (needsVerification) {
-                    console.log('⚠️ User needs verification - middleware will redirect')
-                } else {
-                    console.log('✅ User verified - middleware will redirect based on role')
+                    console.log('⚠️ User needs email verification - redirecting to OTP')
+                    router.push(`/auth/verify-otp?email=${encodeURIComponent(formData.email)}&type=verification`);
+                    return;
                 }
 
-                // Redirect đến home, middleware sẽ điều hướng đúng chỗ
+                // ✅ EMAIL ĐÃ XÁC NHẬN - REDIRECT THEO ROLE
+                console.log('✅ User verified - redirecting based on role')
                 router.push('/');
             }
         } catch (err: unknown) {

@@ -3,36 +3,43 @@ import { supabase } from '@/utils/supabase/client';
 
 export const signInWithEmail = async (email: string, password: string) => {
     try {
+        console.log('🔐 Attempting sign in for:', email);
+
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
         })
 
         if (error) {
-            console.error('Login error:', error)
+            console.error('❌ Login error:', error.message);
             throw error
         }
 
         if (data.user) {
-            console.log('✅ User logged in:', data.user.id)
+            console.log('✅ User authenticated:', data.user.id);
+            console.log('📧 Email confirmed:', data.user.email_confirmed_at ? 'Yes' : 'No');
 
-            // ✅ LẤY ROLE TỪ USER_METADATA (AN TOÀN)
+            // ✅ LẤY ROLE TỪ USER_METADATA
             const userRole = data.user.user_metadata?.role || 'user'
-            console.log('✅ User role from metadata:', userRole)
+            console.log('👥 User role:', userRole);
 
-            // Thử lấy profile
+            // Thử lấy profile từ database
             let profile = null
             try {
-                const { data: profileData } = await supabase
+                const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
                     .select('*')
                     .eq('id', data.user.id)
                     .single()
 
-                profile = profileData
-                console.log('Profile:', profile ? '✅ Found' : '❌ Not found')
+                if (!profileError && profileData) {
+                    profile = profileData
+                    console.log('👤 Profile loaded:', profile.full_name)
+                } else {
+                    console.log('⚠️ No profile found in database')
+                }
             } catch (profileError) {
-                console.warn('Profile fetch failed:', profileError)
+                console.warn('⚠️ Profile fetch failed:', profileError)
             }
 
             const user = {
@@ -42,11 +49,12 @@ export const signInWithEmail = async (email: string, password: string) => {
                 profile: profile || undefined,
             }
 
+            // ✅ CẬP NHẬT ZUSTAND STORE
             useAuthStore.getState().setUser(user)
 
-            // ✅ KIỂM TRA EMAIL VERIFICATION - MIDDLEWARE SẼ XỬ LÝ REDIRECT
+            // ✅ KIỂM TRA EMAIL VERIFICATION
             if (!data.user.email_confirmed_at) {
-                console.log('⚠️ Email not verified - middleware will handle redirect')
+                console.log('⚠️ Email not verified - middleware will redirect to OTP')
                 return {
                     user,
                     error: null,
@@ -54,12 +62,13 @@ export const signInWithEmail = async (email: string, password: string) => {
                 }
             }
 
+            console.log('✅ Login successful - user verified')
             return { user, error: null }
         }
 
         return { user: null, error: null }
     } catch (error: unknown) {
-        console.error('signInWithEmail error:', error)
+        console.error('❌ signInWithEmail error:', error)
         if (error instanceof Error) {
             return { user: null, error: error.message }
         }
@@ -69,33 +78,40 @@ export const signInWithEmail = async (email: string, password: string) => {
 
 export const getCurrentUser = async () => {
     try {
+        console.log('🔍 Getting current user...');
+
         const { data: { user }, error } = await supabase.auth.getUser()
 
         if (error) {
-            console.error('getCurrentUser auth error:', error)
+            console.error('❌ getCurrentUser auth error:', error)
             throw error
         }
 
         if (user) {
             console.log('✅ Current user found:', user.id)
+            console.log('📧 Email confirmed:', user.email_confirmed_at ? 'Yes' : 'No')
 
-            // ✅ LẤY ROLE TỪ USER_METADATA (AN TOÀN)
+            // ✅ LẤY ROLE TỪ USER_METADATA
             const userRole = user.user_metadata?.role || 'user'
-            console.log('✅ User role from metadata:', userRole)
+            console.log('👥 User role:', userRole)
 
-            // Thử lấy profile
+            // Thử lấy profile từ database
             let profile = null
             try {
-                const { data: profileData } = await supabase
+                const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
                     .select('*')
                     .eq('id', user.id)
                     .single()
 
-                profile = profileData
-                console.log('Profile:', profile ? '✅ Found' : '❌ Not found')
+                if (!profileError && profileData) {
+                    profile = profileData
+                    console.log('👤 Profile loaded:', profile.full_name)
+                } else {
+                    console.log('⚠️ No profile found')
+                }
             } catch (profileError) {
-                console.warn('Profile fetch failed:', profileError)
+                console.warn('⚠️ Profile fetch failed:', profileError)
             }
 
             const userWithProfile = {
@@ -105,6 +121,7 @@ export const getCurrentUser = async () => {
                 profile: profile || undefined,
             }
 
+            // ✅ CẬP NHẬT ZUSTAND STORE
             useAuthStore.getState().setUser(userWithProfile)
             return { user: userWithProfile, error: null }
         }
@@ -113,7 +130,7 @@ export const getCurrentUser = async () => {
         useAuthStore.getState().setUser(null)
         return { user: null, error: null }
     } catch (error: unknown) {
-        console.error('getCurrentUser error:', error)
+        console.error('❌ getCurrentUser error:', error)
         useAuthStore.getState().setUser(null)
         if (error instanceof Error) {
             return { user: null, error: error.message }
@@ -124,13 +141,19 @@ export const getCurrentUser = async () => {
 
 export const signOut = async () => {
     try {
-        const { error } = await supabase.auth.signOut()
-        if (error) throw error
+        console.log('🚪 Signing out user...');
 
+        const { error } = await supabase.auth.signOut()
+        if (error) {
+            console.error('❌ Sign out error:', error);
+            throw error
+        }
+
+        console.log('✅ Sign out successful');
         useAuthStore.getState().logout()
         return { error: null }
     } catch (error: unknown) {
-        console.error('signOut error:', error)
+        console.error('❌ signOut error:', error)
         if (error instanceof Error) {
             return { error: error.message }
         }
@@ -185,4 +208,39 @@ export const canAccessRoute = (routeType: 'admin' | 'mentor' | 'public') => {
         default:
             return false
     }
+}
+
+// ✅ FUNCTION HỖ TRỢ DEBUG AUTH STATE
+export const debugAuthState = async () => {
+    console.log('🔍 ==> DEBUG AUTH STATE <==');
+
+    try {
+        // Check Supabase session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        console.log('🔑 Supabase Session:', {
+            hasSession: !!session,
+            hasUser: !!session?.user,
+            emailConfirmed: session?.user?.email_confirmed_at ? 'Yes' : 'No',
+            error: sessionError?.message
+        });
+
+        // Check Zustand store
+        const storeUser = getUserFromStore()
+        console.log('🗄️ Zustand Store:', {
+            hasUser: !!storeUser,
+            userId: storeUser?.id,
+            userEmail: storeUser?.email,
+            userRole: storeUser?.role
+        });
+
+        // Check if they match
+        if (session?.user && storeUser) {
+            console.log('✅ Session and Store Match:', session.user.id === storeUser.id);
+        }
+
+    } catch (error) {
+        console.error('❌ Debug error:', error);
+    }
+
+    console.log('🔍 ==> END DEBUG <==');
 }

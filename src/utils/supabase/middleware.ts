@@ -36,143 +36,91 @@ export async function updateSession(request: NextRequest) {
     )
 
     const pathname = request.nextUrl.pathname
-    const isAuthRoute = pathname.startsWith('/auth')
     const isAdminRoute = pathname.startsWith('/admin')
     const isMentorRoute = pathname.startsWith('/mentor_page')
-    const isHomePage = pathname === '/'
 
     console.log('Middleware check:', {
         pathname,
-        isAuthRoute,
         isAdminRoute,
-        isMentorRoute,
-        isHomePage
+        isMentorRoute
     })
 
-    try {
-        // ✅ LẤY USER TỪ SUPABASE
-        const {
-            data: { user },
-            error
-        } = await supabase.auth.getUser()
+    // ✅ CHỈ KIỂM TRA KHI TRUY CẬP PROTECTED ROUTES
+    if (isAdminRoute || isMentorRoute) {
+        try {
+            // ✅ LẤY USER TỪ SUPABASE
+            const {
+                data: { user },
+                error
+            } = await supabase.auth.getUser()
 
-        console.log('User check:', {
-            hasUser: !!user,
-            error: !!error,
-            userId: user?.id,
-            emailConfirmed: user?.email_confirmed_at ? 'Yes' : 'No'
-        })
+            console.log('User check for protected route:', {
+                hasUser: !!user,
+                error: !!error,
+                userId: user?.id,
+                emailConfirmed: user?.email_confirmed_at ? 'Yes' : 'No'
+            })
 
-        // Nếu chưa đăng nhập
-        if (!user || error) {
-            console.log('❌ No authenticated user')
-
-            // Cho phép truy cập auth routes
-            if (isAuthRoute) {
-                console.log('✅ Allowing auth route for unauthenticated user')
-                return supabaseResponse
-            }
-
-            // Chặn protected routes
-            if (isAdminRoute || isMentorRoute) {
-                console.log('❌ Blocking protected route - redirecting to login')
+            // ✅ CHƯA ĐĂNG NHẬP - REDIRECT ĐẾN LOGIN
+            if (!user || error) {
+                console.log('❌ No authenticated user - blocking protected route')
                 const url = request.nextUrl.clone()
                 url.pathname = '/auth/login'
                 url.searchParams.set('redirectTo', pathname)
                 return NextResponse.redirect(url)
             }
 
-            // Cho phép các route public khác
-            console.log('✅ Allowing public route')
-            return supabaseResponse
-        }
-
-        // ✅ ĐÃ ĐĂNG NHẬP - KIỂM TRA EMAIL VERIFICATION
-        if (!user.email_confirmed_at) {
-            console.log('⚠️ User logged in but email not verified')
-
-            // Nếu chưa verify email và không ở trang verify, redirect đến verify
-            if (!pathname.startsWith('/auth/verify-email') && !pathname.startsWith('/auth/logout')) {
-                console.log('🔄 Redirecting to email verification')
+            // ✅ EMAIL CHƯA XÁC NHẬN - REDIRECT ĐẾN VERIFY-OTP
+            if (!user.email_confirmed_at) {
+                console.log('⚠️ User logged in but email not verified - blocking protected route')
                 const url = request.nextUrl.clone()
-                url.pathname = '/auth/verify-email'
+                url.pathname = '/auth/verify-otp'
                 url.searchParams.set('email', user.email || '')
+                url.searchParams.set('type', 'verification')
                 return NextResponse.redirect(url)
             }
 
-            // Cho phép ở lại trang verify hoặc logout
-            return supabaseResponse
-        }
+            // ✅ LẤY ROLE VÀ KIỂM TRA QUYỀN TRUY CẬP
+            const userRole = user.user_metadata?.role || 'user'
+            console.log('✅ User authenticated and verified:', {
+                email: user.email,
+                role: userRole
+            })
 
-        // ✅ LẤY ROLE TỪ USER_METADATA (AN TOÀN VỚI SUPABASE)
-        const userRole = user.user_metadata?.role || 'user'
-        console.log('✅ User authenticated and verified:', {
-            email: user.email,
-            role: userRole,
-            metadata: user.user_metadata
-        })
-
-        // ✅ KIỂM TRA QUYỀN TRUY CẬP ADMIN
-        if (isAdminRoute) {
-            if (userRole !== 'admin' && userRole !== 'superadmin') {
-                console.log(`❌ Access denied: User role '${userRole}' insufficient for admin route`)
-                const url = request.nextUrl.clone()
-                url.pathname = '/'
-                url.searchParams.set('error', 'insufficient_permissions')
-                return NextResponse.redirect(url)
-            }
-            console.log('✅ Admin access granted for role:', userRole)
-        }
-
-        // ✅ KIỂM TRA QUYỀN TRUY CẬP MENTOR
-        if (isMentorRoute) {
-            if (userRole !== 'mentor' && userRole !== 'admin' && userRole !== 'superadmin') {
-                console.log(`❌ Access denied: User role '${userRole}' insufficient for mentor route`)
-                const url = request.nextUrl.clone()
-                url.pathname = '/'
-                url.searchParams.set('error', 'insufficient_permissions')
-                return NextResponse.redirect(url)
-            }
-            console.log('✅ Mentor access granted for role:', userRole)
-        }
-
-        // ✅ REDIRECT TỪ AUTH ROUTES CHO USER ĐÃ ĐĂNG NHẬP VÀ VERIFIED
-        if (isAuthRoute && !pathname.startsWith('/auth/logout') && !pathname.startsWith('/auth/verify-email')) {
-            console.log('🔄 Redirecting verified user from auth route')
-            const url = request.nextUrl.clone()
-
-            // Redirect based on role
-            if (userRole === 'admin' || userRole === 'superadmin') {
-                url.pathname = '/admin'
-            } else {
-                url.pathname = '/'
+            // ✅ KIỂM TRA QUYỀN TRUY CẬP ADMIN
+            if (isAdminRoute) {
+                if (userRole !== 'admin' && userRole !== 'superadmin') {
+                    console.log(`❌ Access denied: User role '${userRole}' insufficient for admin route`)
+                    const url = request.nextUrl.clone()
+                    url.pathname = '/'
+                    url.searchParams.set('error', 'insufficient_permissions')
+                    return NextResponse.redirect(url)
+                }
+                console.log('✅ Admin access granted for role:', userRole)
             }
 
-            // Preserve any redirect parameter
-            const redirectTo = request.nextUrl.searchParams.get('redirectTo')
-            if (redirectTo && !redirectTo.startsWith('/auth')) {
-                url.pathname = redirectTo
+            // ✅ KIỂM TRA QUYỀN TRUY CẬP MENTOR
+            if (isMentorRoute) {
+                if (userRole !== 'mentor' && userRole !== 'admin' && userRole !== 'superadmin') {
+                    console.log(`❌ Access denied: User role '${userRole}' insufficient for mentor route`)
+                    const url = request.nextUrl.clone()
+                    url.pathname = '/'
+                    url.searchParams.set('error', 'insufficient_permissions')
+                    return NextResponse.redirect(url)
+                }
+                console.log('✅ Mentor access granted for role:', userRole)
             }
 
-            return NextResponse.redirect(url)
-        }
-
-        console.log('✅ Access granted to:', pathname)
-        return supabaseResponse
-
-    } catch (error) {
-        console.error('❌ Middleware error:', error)
-
-        // Nếu có lỗi và cố truy cập protected routes
-        if (isAdminRoute || isMentorRoute) {
-            console.log('❌ Error in middleware - redirecting to login')
+        } catch (error) {
+            console.error('❌ Middleware error on protected route:', error)
             const url = request.nextUrl.clone()
             url.pathname = '/auth/login'
             url.searchParams.set('error', 'auth_error')
             return NextResponse.redirect(url)
         }
-
-        // Cho phép truy cập các route khác nếu có lỗi
-        return supabaseResponse
     }
+
+    // ✅ CHO PHÉP TẤT CẢ ROUTES KHÁC (AUTH, PUBLIC, ONBOARDING, v.v.)
+    console.log('✅ Access granted to:', pathname)
+    return supabaseResponse
 }

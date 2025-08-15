@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Listbox } from "@headlessui/react";
 import { ChevronDownIcon } from "@heroicons/react/20/solid";
 import { supabase } from '@/utils/supabase/client';
@@ -17,6 +18,7 @@ interface RegisterFormData {
 }
 
 export default function RegisterPage() {
+    const router = useRouter();
 
     const [formData, setFormData] = useState<RegisterFormData>({
         fullName: '',
@@ -30,6 +32,7 @@ export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
 
     // Gender
     const genderOptions = [
@@ -46,6 +49,8 @@ export default function RegisterPage() {
             ...prev,
             [name]: value,
         }));
+        // Clear error when user starts typing
+        if (error) setError('');
     };
 
     const handleGenderChange = (gender: typeof genderOptions[0] | null) => {
@@ -59,31 +64,32 @@ export default function RegisterPage() {
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsLoading(true);
+        setError('');
 
         try {
             // Validation
             if (formData.password !== formData.confirmPassword) {
-                alert('Mật khẩu xác nhận không khớp!');
+                setError('Mật khẩu xác nhận không khớp!');
                 return;
             }
 
             if (!formData.email.includes('@gmail.com')) {
-                alert('Vui lòng sử dụng Gmail để đăng ký!');
+                setError('Vui lòng sử dụng Gmail để đăng ký!');
                 return;
             }
 
             if (!formData.gender) {
-                alert('Vui lòng chọn giới tính!');
+                setError('Vui lòng chọn giới tính!');
                 return;
             }
 
             if (!formData.birthDate) {
-                alert('Vui lòng chọn ngày sinh!');
+                setError('Vui lòng chọn ngày sinh!');
                 return;
             }
 
             if (formData.password.length < 6) {
-                alert('Mật khẩu phải có ít nhất 6 ký tự!');
+                setError('Mật khẩu phải có ít nhất 6 ký tự!');
                 return;
             }
 
@@ -94,9 +100,7 @@ export default function RegisterPage() {
                 birthDate: formData.birthDate
             });
 
-            console.log('Selected Gender:', selectedGender);
-            console.log('Form Data Gender:', formData.gender);
-
+            // ✅ ĐĂNG KÝ VỚI SUPABASE - SỬ DỤNG OTP THAY VÌ EMAIL CONFIRMATION LINK
             const { data, error } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
@@ -108,44 +112,44 @@ export default function RegisterPage() {
                         birthdate: formData.birthDate,
                         role: 'user'
                     },
-                    emailRedirectTo: `${window.location.origin}/auth/login`,
-                },
+                    // ✅ KHÔNG CẦN emailRedirectTo VÌ DÙNG OTP
+                }
             });
 
             console.log('Kết quả đăng ký:', { data, error });
 
             if (error) {
                 console.error('Lỗi đăng ký:', error);
-                alert(`Lỗi đăng ký: ${error.message}`);
+
+                // Handle specific error cases
+                if (error.message.includes('User already registered')) {
+                    setError('Email này đã được đăng ký. Vui lòng đăng nhập hoặc sử dụng email khác.');
+                } else if (error.message.includes('Invalid email')) {
+                    setError('Địa chỉ email không hợp lệ.');
+                } else if (error.message.includes('Password')) {
+                    setError('Mật khẩu không đủ mạnh. Vui lòng sử dụng mật khẩu có ít nhất 6 ký tự.');
+                } else {
+                    setError(`Lỗi đăng ký: ${error.message}`);
+                }
                 return;
             }
 
-            // Kiểm tra nếu email đã tồn tại
+            // ✅ KIỂM TRA TRẠNG THÁI ĐĂNG KÝ
             if (data?.user?.identities && data.user.identities.length === 0) {
-                alert('Email này đã được đăng ký. Vui lòng kiểm tra email để xác nhận hoặc đăng nhập.');
+                setError('Email này đã được đăng ký. Vui lòng kiểm tra email để xác nhận hoặc đăng nhập.');
                 return;
             }
 
             if (data?.user) {
-                alert('Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.');
-                setFormData({
-                    fullName: '',
-                    email: '',
-                    password: '',
-                    confirmPassword: '',
-                    gender: '',
-                    birthDate: '',
-                });
-                setSelectedGender(null);
+                console.log('✅ Registration successful, redirecting to OTP verification');
 
-                setTimeout(() => {
-                    window.location.href = '/auth/login';
-                }, 1000);
+                // ✅ CHUYỂN HƯỚNG ĐẾN TRANG NHẬP OTP
+                router.push(`/auth/verify-otp?email=${encodeURIComponent(formData.email)}&type=registration`);
             }
 
         } catch (err) {
             console.error('Lỗi không mong muốn:', err);
-            alert('Có lỗi xảy ra, vui lòng thử lại!');
+            setError('Có lỗi xảy ra, vui lòng thử lại!');
         } finally {
             setIsLoading(false);
         }
@@ -168,7 +172,25 @@ export default function RegisterPage() {
                                         className="h-auto w-auto"
                                     />
                                 </div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                                    Tạo tài khoản mới
+                                </h2>
+                                <p className="text-gray-600">
+                                    Tham gia cộng đồng HR Companion ngay hôm nay
+                                </p>
                             </div>
+
+                            {/* Error Message */}
+                            {error && (
+                                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                                    <div className="flex items-center">
+                                        <svg className="h-5 w-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span className="text-sm text-red-700">{error}</span>
+                                    </div>
+                                </div>
+                            )}
 
                             <form className="space-y-5" onSubmit={handleSubmit}>
                                 {/* Họ và tên */}
@@ -183,7 +205,8 @@ export default function RegisterPage() {
                                             name="fullName"
                                             autoComplete="name"
                                             required
-                                            className="block w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
+                                            disabled={isLoading}
+                                            className="block w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                                             placeholder="Nhập họ và tên của bạn"
                                             value={formData.fullName}
                                             onChange={handleChange}
@@ -208,7 +231,8 @@ export default function RegisterPage() {
                                             name="email"
                                             autoComplete="email"
                                             required
-                                            className="block w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
+                                            disabled={isLoading}
+                                            className="block w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                                             placeholder="example@gmail.com"
                                             value={formData.email}
                                             onChange={handleChange}
@@ -233,7 +257,8 @@ export default function RegisterPage() {
                                             type={showPassword ? "text" : "password"}
                                             autoComplete="new-password"
                                             required
-                                            className="block w-full pl-12 pr-12 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
+                                            disabled={isLoading}
+                                            className="block w-full pl-12 pr-12 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                                             placeholder="Tối thiểu 6 ký tự"
                                             value={formData.password}
                                             onChange={handleChange}
@@ -245,7 +270,8 @@ export default function RegisterPage() {
                                         </div>
                                         <button
                                             type="button"
-                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                                            disabled={isLoading}
+                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
                                             onClick={() => setShowPassword(!showPassword)}
                                         >
                                             {showPassword ? (
@@ -274,7 +300,8 @@ export default function RegisterPage() {
                                             type={showConfirmPassword ? "text" : "password"}
                                             autoComplete="new-password"
                                             required
-                                            className="block w-full pl-12 pr-12 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
+                                            disabled={isLoading}
+                                            className="block w-full pl-12 pr-12 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                                             placeholder="Nhập lại mật khẩu"
                                             value={formData.confirmPassword}
                                             onChange={handleChange}
@@ -286,7 +313,8 @@ export default function RegisterPage() {
                                         </div>
                                         <button
                                             type="button"
-                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                                            disabled={isLoading}
+                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
                                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                         >
                                             {showConfirmPassword ? (
@@ -310,9 +338,9 @@ export default function RegisterPage() {
                                         <label htmlFor="gender" className="block text-sm font-semibold text-gray-700 mb-2">
                                             Giới tính *
                                         </label>
-                                        <Listbox value={selectedGender} onChange={handleGenderChange}>
+                                        <Listbox value={selectedGender} onChange={handleGenderChange} disabled={isLoading}>
                                             <div className="relative">
-                                                <Listbox.Button className="flex justify-between items-center block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white text-left">
+                                                <Listbox.Button className="flex justify-between items-center block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white text-left disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <span className={selectedGender ? "text-gray-900" : "text-gray-400"}>
                                                         {selectedGender?.name || "Chọn giới tính"}
                                                     </span>
@@ -344,8 +372,9 @@ export default function RegisterPage() {
                                             type="date"
                                             name="birthDate"
                                             required
+                                            disabled={isLoading}
                                             max={new Date().toISOString().split('T')[0]} // Không cho chọn ngày tương lai
-                                            className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white"
+                                            className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                                             value={formData.birthDate}
                                             onChange={handleChange}
                                         />
