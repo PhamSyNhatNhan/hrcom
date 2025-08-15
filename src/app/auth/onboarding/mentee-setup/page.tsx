@@ -71,7 +71,7 @@ export default function MenteeSetupPage() {
 
     // Handle click outside to close dropdowns
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
+        const handleMouseDown = (event: MouseEvent) => {
             if (universityRef.current && !universityRef.current.contains(event.target as Node)) {
                 setShowUniversityDropdown(false);
             }
@@ -80,12 +80,21 @@ export default function MenteeSetupPage() {
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
+        const handleTouchStart = (event: TouchEvent) => {
+            if (universityRef.current && !universityRef.current.contains(event.target as Node)) {
+                setShowUniversityDropdown(false);
+            }
+            if (majorRef.current && !majorRef.current.contains(event.target as Node)) {
+                setShowMajorDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleMouseDown);
+        document.addEventListener('touchstart', handleTouchStart);
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('touchstart', handleClickOutside);
+            document.removeEventListener('mousedown', handleMouseDown);
+            document.removeEventListener('touchstart', handleTouchStart);
         };
     }, []);
 
