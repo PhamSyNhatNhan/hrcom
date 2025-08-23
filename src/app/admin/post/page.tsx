@@ -1056,7 +1056,7 @@ const PostPage: React.FC = () => {
                                             },
                                             media_live_embeds: true,
                                             // Nhúng YouTube/Vimeo đơn giản (dán link → <iframe>)
-                                            media_url_resolver: (data, resolve/*, reject*/) => {
+                                            media_url_resolver: (data: { url: string }, resolve: (result: any) => void) => {
                                                 const url = data.url;
                                                 const yt = /(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]+)/.exec(url);
                                                 if (yt) {
@@ -1065,8 +1065,9 @@ const PostPage: React.FC = () => {
                                                     });
                                                     return;
                                                 }
-                                                resolve({ html: '' }); // để Tiny xử lý mặc định
+                                                resolve({ url });
                                             },
+
 
                                             // Bảng
                                             table_header_type: 'sectionCells',
