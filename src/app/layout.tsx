@@ -543,11 +543,11 @@ const RootLayout = ({ children }: LayoutProps) => {
 
     return (
         <html lang="vi">
-            <body className="min-h-screen bg-gradient-to-br from-slate-50 to-cyan-50">
-                <Header />
-                <FloatingMenu />
+        <body className="min-h-screen bg-gradient-to-br from-slate-50 to-cyan-50">
+            <Header />
+            <FloatingMenu />
                 <main>{children}</main>
-                <Footer />
+            <Footer />
             </body>
         </html>
     );

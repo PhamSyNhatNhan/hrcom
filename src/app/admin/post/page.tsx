@@ -15,9 +15,29 @@ import {
     Upload,
     X,
     Save,
+    Check,
+    Clock,
+    XCircle,
+    AlertCircle,
+    CheckCircle,
+    Loader2,
+    RefreshCw,
+    MessageSquare,
+    User,
+    Filter
 } from 'lucide-react';
 import Image from 'next/image';
+import { Editor } from '@tinymce/tinymce-react';
 
+// Bắt lỗi
+function getErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'object' && err && 'message' in err) {
+        const m = (err as { message?: unknown }).message;
+        return typeof m === 'string' ? m : JSON.stringify(m);
+    }
+    return typeof err === 'string' ? err : JSON.stringify(err);
+}
 
 interface Post {
     id: string;
@@ -32,16 +52,40 @@ interface Post {
     updated_at: string;
     profiles: {
         full_name: string;
+        image_url?: string;
+    };
+}
+
+interface PostSubmission {
+    id: string;
+    post_id: string;
+    author_id: string;
+    status: 'pending' | 'approved' | 'rejected';
+    reviewed_by: string | null;
+    reviewed_at: string | null;
+    admin_notes: string | null;
+    submitted_at: string;
+    created_at: string;
+    updated_at: string;
+    posts: Post;
+    profiles: {
+        full_name: string;
+        image_url?: string;
+    };
+    reviewed_by_profile?: {
+        full_name: string;
     };
 }
 
 interface PostFormData {
     title: string;
     type: 'activity' | 'blog';
-    content: any;
+    content: string;
     thumbnail: File | null;
     published: boolean;
 }
+
+type TabType = 'posts' | 'submissions';
 
 const PostPage: React.FC = () => {
     const { user } = useAuthStore();
@@ -49,24 +93,43 @@ const PostPage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // State management
+    const [activeTab, setActiveTab] = useState<TabType>('posts');
     const [posts, setPosts] = useState<Post[]>([]);
+    const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [showReviewModal, setShowReviewModal] = useState(false);
     const [editingPost, setEditingPost] = useState<Post | null>(null);
+    const [reviewingSubmission, setReviewingSubmission] = useState<PostSubmission | null>(null);
+    const [adminNotes, setAdminNotes] = useState('');
+
+    // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'activity' | 'blog'>('all');
     const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'draft'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
     // Form state
     const [formData, setFormData] = useState<PostFormData>({
         title: '',
         type: 'activity',
-        content: null,
+        content: '',
         thumbnail: null,
         published: false
     });
     const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
     const [uploading, setUploading] = useState(false);
+
+    // Notification
+    const [notification, setNotification] = useState<{
+        type: 'success' | 'error' | 'warning';
+        message: string;
+    } | null>(null);
+
+    const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification(null), 5000);
+    };
 
     // Load posts
     const loadPosts = async () => {
@@ -75,67 +138,56 @@ const PostPage: React.FC = () => {
             const { data, error } = await supabase
                 .from('posts')
                 .select(`
-          *,
-          profiles (
-            full_name
-          )
-        `)
+                    *,
+                    profiles (
+                        full_name,
+                        image_url
+                    )
+                `)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
             setPosts(data || []);
         } catch (error) {
             console.error('Error loading posts:', error);
+            showNotification('error', 'Không thể tải bài viết: ' + getErrorMessage(error));
         } finally {
             setLoading(false);
         }
     };
 
-    // Initialize Editor.js
-    const initializeEditor = async (initialData?: any) => {
-        if (typeof window === 'undefined') return;
-
+    // Load post submissions
+    const loadSubmissions = async () => {
         try {
-            const EditorJS = (await import('@editorjs/editorjs')).default;
-            const Header = (await import('@editorjs/header')).default;
-            const List = (await import('@editorjs/list')).default;
-            const Quote = (await import('@editorjs/quote')).default;
-            const Delimiter = (await import('@editorjs/delimiter')).default;
-            const ImageTool = (await import('@editorjs/image')).default;
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('post_submissions')
+                .select(`
+                    *,
+                    posts (
+                        *,
+                        profiles (
+                            full_name,
+                            image_url
+                        )
+                    ),
+                    profiles!post_submissions_author_id_fkey (
+                        full_name,
+                        image_url
+                    ),
+                    reviewed_by_profile:profiles!post_submissions_reviewed_by_fkey (
+                        full_name
+                    )
+                `)
+                .order('submitted_at', { ascending: false });
 
-            if (editorRef.current) {
-                editorRef.current.destroy();
-            }
-
-            editorRef.current = new EditorJS({
-                holder: 'editorjs',
-                data: initialData || undefined,
-                tools: {
-                    header: Header,
-                    list: List,
-                    quote: Quote,
-                    delimiter: Delimiter,
-                    image: {
-                        class: ImageTool,
-                        config: {
-                            uploader: {
-                                uploadByFile: async (file: File) => {
-                                    const imageUrl = await uploadImage(file);
-                                    return {
-                                        success: 1,
-                                        file: {
-                                            url: imageUrl
-                                        }
-                                    };
-                                }
-                            }
-                        }
-                    }
-                },
-                placeholder: 'Bắt đầu viết nội dung bài viết...'
-            });
+            if (error) throw error;
+            setSubmissions(data || []);
         } catch (error) {
-            console.error('Error initializing editor:', error);
+            console.error('Error loading submissions:', error);
+            showNotification('error', 'Không thể tải danh sách duyệt bài: ' + getErrorMessage(error));
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -175,23 +227,23 @@ const PostPage: React.FC = () => {
 
     // Save post
     const savePost = async () => {
-        if (!user || !editorRef.current) return;
+        if (!user) return;
 
         try {
             setUploading(true);
-
-            // Get content from editor
-            const savedData = await editorRef.current.save();
 
             let thumbnailUrl = '';
             if (formData.thumbnail) {
                 thumbnailUrl = await uploadImage(formData.thumbnail);
             }
 
+            // Get content from TinyMCE
+            const content = editorRef.current?.getContent() || '';
+
             const postData = {
                 title: formData.title,
                 type: formData.type,
-                content: savedData,
+                content: content,
                 thumbnail: thumbnailUrl || null,
                 published: formData.published,
                 published_at: formData.published ? new Date().toISOString() : null,
@@ -214,13 +266,13 @@ const PostPage: React.FC = () => {
 
             if (result.error) throw result.error;
 
-            // Reset form and reload posts
+            showNotification('success', editingPost ? 'Cập nhật bài viết thành công' : 'Tạo bài viết thành công');
             resetForm();
             loadPosts();
 
         } catch (error) {
             console.error('Error saving post:', error);
-            alert('Lỗi khi lưu bài viết');
+            showNotification('error', 'Lỗi khi lưu bài viết: ' + getErrorMessage(error));
         } finally {
             setUploading(false);
         }
@@ -238,10 +290,11 @@ const PostPage: React.FC = () => {
 
             if (error) throw error;
 
+            showNotification('success', 'Xóa bài viết thành công');
             loadPosts();
         } catch (error) {
             console.error('Error deleting post:', error);
-            alert('Lỗi khi xóa bài viết');
+            showNotification('error', 'Lỗi khi xóa bài viết: ' + getErrorMessage(error));
         }
     };
 
@@ -258,9 +311,71 @@ const PostPage: React.FC = () => {
 
             if (error) throw error;
 
+            showNotification('success', 'Cập nhật trạng thái thành công');
             loadPosts();
         } catch (error) {
             console.error('Error updating publish status:', error);
+            showNotification('error', 'Lỗi khi cập nhật trạng thái: ' + getErrorMessage(error));
+        }
+    };
+
+    // Approve submission
+    const approveSubmission = async () => {
+        if (!reviewingSubmission || !user) return;
+
+        try {
+            setUploading(true);
+
+            const { error } = await supabase.rpc('approve_post_submission', {
+                submission_id: reviewingSubmission.id,
+                admin_note: adminNotes
+            });
+
+            if (error) throw error;
+
+            showNotification('success', 'Duyệt bài viết thành công');
+            setShowReviewModal(false);
+            setReviewingSubmission(null);
+            setAdminNotes('');
+            loadSubmissions();
+            if (activeTab === 'posts') loadPosts();
+
+        } catch (error) {
+            console.error('Error approving submission:', error);
+            showNotification('error', 'Lỗi khi duyệt bài viết: ' + getErrorMessage(error));
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    // Reject submission
+    const rejectSubmission = async () => {
+        if (!reviewingSubmission || !user || !adminNotes.trim()) {
+            showNotification('error', 'Vui lòng nhập lý do từ chối');
+            return;
+        }
+
+        try {
+            setUploading(true);
+
+            const { error } = await supabase.rpc('reject_post_submission', {
+                submission_id: reviewingSubmission.id,
+                reason: adminNotes
+            });
+
+            if (error) throw error;
+
+            showNotification('success', 'Từ chối bài viết thành công');
+            setShowReviewModal(false);
+            setReviewingSubmission(null);
+            setAdminNotes('');
+            loadSubmissions();
+
+        } catch (error) {
+            console.error('Error rejecting submission:', error);
+            showNotification('error', 'Lỗi khi từ chối bài viết: ' + getErrorMessage(error));
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -270,7 +385,7 @@ const PostPage: React.FC = () => {
         setFormData({
             title: post.title,
             type: post.type,
-            content: post.content,
+            content: '', // Will be set by TinyMCE
             thumbnail: null,
             published: post.published
         });
@@ -278,11 +393,6 @@ const PostPage: React.FC = () => {
             setThumbnailPreview(post.thumbnail);
         }
         setShowForm(true);
-
-        // Initialize editor with existing content
-        setTimeout(() => {
-            initializeEditor(post.content);
-        }, 100);
     };
 
     // Reset form
@@ -292,18 +402,17 @@ const PostPage: React.FC = () => {
         setFormData({
             title: '',
             type: 'activity',
-            content: null,
+            content: '',
             thumbnail: null,
             published: false
         });
         setThumbnailPreview('');
         if (editorRef.current) {
-            editorRef.current.destroy();
-            editorRef.current = null;
+            editorRef.current.setContent('');
         }
     };
 
-    // Filter posts
+    // Filter functions
     const filteredPosts = posts.filter(post => {
         const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesType = filterType === 'all' || post.type === filterType;
@@ -315,100 +424,451 @@ const PostPage: React.FC = () => {
         return matchesSearch && matchesType && matchesPublished;
     });
 
+    const filteredSubmissions = submissions.filter(submission => {
+        const matchesSearch = submission.posts?.title?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = filterType === 'all' || submission.posts?.type === filterType;
+        const matchesStatus = filterStatus === 'all' || submission.status === filterStatus;
+
+        return matchesSearch && matchesType && matchesStatus;
+    });
+
     // Effects
     useEffect(() => {
-        loadPosts();
-    }, []);
+        if (activeTab === 'posts') {
+            loadPosts();
+        } else {
+            loadSubmissions();
+        }
+    }, [activeTab]);
 
     useEffect(() => {
-        if (showForm && !editingPost) {
-            setTimeout(() => {
-                initializeEditor();
-            }, 100);
+        if (showForm) {
+            // Lock body scroll khi modal mở
+            document.body.style.overflow = 'hidden';
+            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
+        } else {
+            // Unlock body scroll khi modal đóng
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
         }
+
+        // Cleanup khi component unmount
+        return () => {
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        };
     }, [showForm]);
 
-    // Cleanup editor when component unmounts
-    useEffect(() => {
-        return () => {
-            if (editorRef.current) {
-                editorRef.current.destroy();
-            }
-        };
-    }, []);
+    // Get status badge
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'pending':
+                return (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                        <Clock className="w-3 h-3 mr-1" />
+                        Chờ duyệt
+                    </span>
+                );
+            case 'approved':
+                return (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Đã duyệt
+                    </span>
+                );
+            case 'rejected':
+                return (
+                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                        <XCircle className="w-3 h-3 mr-1" />
+                        Từ chối
+                    </span>
+                );
+            default:
+                return null;
+        }
+    };
 
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900">Không có quyền truy cập</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Không có quyền truy cập</h2>
                     <p className="text-gray-600">Bạn cần quyền admin để truy cập trang này.</p>
                 </div>
+                );
+
+                export default PostPage;
             </div>
         );
     }
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+            {/* Notification */}
+            {notification && (
+                <div
+                    className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm w-full ${
+                        notification.type === 'success'
+                            ? 'bg-green-100 text-green-800 border border-green-200'
+                            : notification.type === 'error'
+                                ? 'bg-red-100 text-red-800 border border-red-200'
+                                : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                    }`}
+                >
+                    <div className="flex items-center">
+                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        <span className="flex-1">{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-4 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto">
                 <SectionHeader
                     title="QUẢN LÝ BÀI VIẾT"
-                    subtitle="Tạo và quản lý các bài viết hoạt động và blog"
+                    subtitle="Tạo và quản lý các bài viết hoạt động và blog, duyệt bài viết của mentor"
                 />
 
-                {/* Controls */}
-                <div className="mb-8 bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-                        {/* Search */}
-                        <div className="relative flex-1 max-w-md">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm bài viết..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            />
-                        </div>
-
-                        {/* Filters */}
-                        <div className="flex gap-4">
-                            <select
-                                value={filterType}
-                                onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                {/* Tabs */}
+                <div className="mb-8 bg-white rounded-xl shadow-sm">
+                    <div className="border-b border-gray-200">
+                        <nav className="-mb-px flex space-x-8 px-6">
+                            <button
+                                onClick={() => setActiveTab('posts')}
+                                className={`${
+                                    activeTab === 'posts'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
                             >
-                                <option value="all">Tất cả loại</option>
-                                <option value="activity">Hoạt động</option>
-                                <option value="blog">Blog</option>
-                            </select>
-
-                            <select
-                                value={filterPublished}
-                                onChange={(e) => setFilterPublished(e.target.value as typeof filterPublished)}
-                                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                <Edit className="w-4 h-4" />
+                                Quản lý bài viết
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('submissions')}
+                                className={`${
+                                    activeTab === 'submissions'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
                             >
-                                <option value="all">Tất cả trạng thái</option>
-                                <option value="published">Đã xuất bản</option>
-                                <option value="draft">Bản nháp</option>
-                            </select>
-                        </div>
-
-                        {/* New Post Button */}
-                        <Button
-                            onClick={() => setShowForm(true)}
-                            className="flex items-center gap-2"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Bài viết mới
-                        </Button>
+                                <MessageSquare className="w-4 h-4" />
+                                Duyệt bài viết
+                                {submissions.filter(s => s.status === 'pending').length > 0 && (
+                                    <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
+                                        {submissions.filter(s => s.status === 'pending').length}
+                                    </span>
+                                )}
+                            </button>
+                        </nav>
                     </div>
+
+                    {/* Controls */}
+                    <div className="p-6">
+                        <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                            {/* Search */}
+                            <div className="relative flex-1 max-w-md">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                <input
+                                    type="text"
+                                    placeholder="Tìm kiếm bài viết..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                            </div>
+
+                            {/* Filters */}
+                            <div className="flex gap-4">
+                                <select
+                                    value={filterType}
+                                    onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="all">Tất cả loại</option>
+                                    <option value="activity">Hoạt động</option>
+                                    <option value="blog">Blog</option>
+                                </select>
+
+                                {activeTab === 'posts' ? (
+                                    <select
+                                        value={filterPublished}
+                                        onChange={(e) => setFilterPublished(e.target.value as typeof filterPublished)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="all">Tất cả trạng thái</option>
+                                        <option value="published">Đã xuất bản</option>
+                                        <option value="draft">Bản nháp</option>
+                                    </select>
+                                ) : (
+                                    <select
+                                        value={filterStatus}
+                                        onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+                                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="all">Tất cả trạng thái</option>
+                                        <option value="pending">Chờ duyệt</option>
+                                        <option value="approved">Đã duyệt</option>
+                                        <option value="rejected">Từ chối</option>
+                                    </select>
+                                )}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-4">
+                                <Button variant="outline" onClick={activeTab === 'posts' ? loadPosts : loadSubmissions} disabled={loading} className="flex items-center gap-2">
+                                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                                    Tải lại
+                                </Button>
+                                {activeTab === 'posts' && (
+                                    <Button
+                                        onClick={() => setShowForm(true)}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                        Bài viết mới
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                    {loading ? (
+                        <div className="p-8 text-center">
+                            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+                            <p className="text-gray-600">Đang tải dữ liệu...</p>
+                        </div>
+                    ) : activeTab === 'posts' ? (
+                        filteredPosts.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <p className="text-gray-600">Không có bài viết nào.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bài viết</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tác giả</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    {filteredPosts.map((post) => (
+                                        <tr key={post.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center">
+                                                    {post.thumbnail && (
+                                                        <div className="flex-shrink-0 h-10 w-10 mr-4">
+                                                            <Image
+                                                                src={post.thumbnail}
+                                                                alt=""
+                                                                width={40}
+                                                                height={40}
+                                                                className="h-10 w-10 rounded-lg object-cover"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                                                            {post.title}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        post.type === 'activity'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-blue-100 text-blue-800'
+                                                    }`}>
+                                                        {post.type === 'activity' ? 'Hoạt động' : 'Blog'}
+                                                    </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                {post.profiles?.full_name || 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <button
+                                                    onClick={() => togglePublishStatus(post.id, post.published)}
+                                                    className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        post.published
+                                                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                                                            : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                                                    }`}
+                                                >
+                                                    {post.published ? (
+                                                        <>
+                                                            <Eye className="w-3 h-3 mr-1" />
+                                                            Đã xuất bản
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <EyeOff className="w-3 h-3 mr-1" />
+                                                            Bản nháp
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {new Date(post.created_at).toLocaleDateString('vi-VN')}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => editPost(post)}
+                                                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                                                        title="Chỉnh sửa"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deletePost(post.id)}
+                                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                                                        title="Xóa"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )
+                    ) : (
+                        // Submissions tab
+                        filteredSubmissions.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <p className="text-gray-600">Không có bài viết nào cần duyệt.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bài viết</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày gửi</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    {filteredSubmissions.map((submission) => (
+                                        <tr key={submission.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center">
+                                                    {submission.posts?.thumbnail && (
+                                                        <div className="flex-shrink-0 h-10 w-10 mr-4">
+                                                            <Image
+                                                                src={submission.posts.thumbnail}
+                                                                alt=""
+                                                                width={40}
+                                                                height={40}
+                                                                className="h-10 w-10 rounded-lg object-cover"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                                                            {submission.posts?.title}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    {submission.profiles?.image_url ? (
+                                                        <Image
+                                                            src={submission.profiles.image_url}
+                                                            alt=""
+                                                            width={24}
+                                                            height={24}
+                                                            className="w-6 h-6 rounded-full mr-2"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center mr-2">
+                                                            <User className="w-3 h-3" />
+                                                        </div>
+                                                    )}
+                                                    <span className="text-sm text-gray-900">
+                                                            {submission.profiles?.full_name}
+                                                        </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        submission.posts?.type === 'activity'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : 'bg-blue-100 text-blue-800'
+                                                    }`}>
+                                                        {submission.posts?.type === 'activity' ? 'Hoạt động' : 'Blog'}
+                                                    </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                {getStatusBadge(submission.status)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {new Date(submission.submitted_at).toLocaleDateString('vi-VN')}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {submission.status === 'pending' && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setReviewingSubmission(submission);
+                                                                setAdminNotes('');
+                                                                setShowReviewModal(true);
+                                                            }}
+                                                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                                                            title="Duyệt bài viết"
+                                                        >
+                                                            <MessageSquare className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => window.open(`/posts/${submission.posts?.id}`, '_blank')}
+                                                        className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50"
+                                                        title="Xem bài viết"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )
+                    )}
                 </div>
 
                 {/* Post Form Modal */}
                 {showForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+                            onClick={resetForm}
+                        />
+
+                        <div className="relative bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
                             <div className="p-6 border-b border-gray-200">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xl font-bold">
@@ -492,11 +952,147 @@ const PostPage: React.FC = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Nội dung bài viết
                                     </label>
-                                    <div
-                                        id="editorjs"
-                                        className="border border-gray-300 rounded-lg min-h-[400px] p-4"
+                                    <Editor
+                                        tinymceScriptSrc="/tinymce/tinymce.min.js"
+                                        onInit={(evt, editor) => {
+                                            editorRef.current = editor;
+                                            if (editingPost?.content) editor.setContent(editingPost.content);
+                                        }}
+                                        init={{
+                                            // Self-host
+                                            base_url: '/tinymce',
+                                            suffix: '.min',
+                                            license_key: 'gpl',
+
+                                            height: 560,
+                                            // Menubar đầy đủ
+                                            menubar: 'file edit view insert format tools table help',
+
+                                            // Plugin cộng đồng (không cần Cloud)
+                                            plugins: [
+                                                'advlist', 'anchor', 'autolink', 'autosave', 'charmap', 'code', 'codesample',
+                                                'directionality', 'emoticons', 'fullscreen', 'help', 'image', 'importcss',
+                                                'insertdatetime', 'link', 'lists', 'media', 'nonbreaking', 'pagebreak',
+                                                'preview', 'quickbars', 'searchreplace', 'table', 'visualblocks',
+                                                'visualchars', 'wordcount'
+                                            ],
+
+                                            // Toolbar chi tiết (chia nhóm)
+                                            toolbar: [
+                                                // nhóm 1: undo/redo + xem trước + fullscreen
+                                                'undo redo | preview fullscreen | restoredraft',
+                                                // nhóm 2: định dạng văn bản
+                                                'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
+                                                // nhóm 3: canh lề + khoảng cách + RTL/LTR
+                                                'alignleft aligncenter alignright alignjustify | lineheight | ltr rtl',
+                                                // nhóm 4: danh sách + thụt lề
+                                                'bullist numlist outdent indent',
+                                                // nhóm 5: chèn nội dung
+                                                'link anchor | image media | table codesample charmap emoticons pagebreak nonbreaking insertdatetime',
+                                                // nhóm 6: công cụ
+                                                'searchreplace visualblocks visualchars code help'
+                                            ].join(' | '),
+
+                                            // Font + size + lineheight
+                                            font_family_formats:
+                                                'Inter=Inter,sans-serif;Arial=arial,helvetica,sans-serif;Georgia=georgia,serif;Courier New=courier new,courier,monospace',
+                                            fontsize_formats: '12px 14px 16px 18px 20px 24px 28px 32px',
+                                            line_height_formats: '1 1.15 1.33 1.5 1.75 2',
+
+                                            // Quickbars (menu nổi khi bôi đen / click ảnh)
+                                            quickbars_selection_toolbar:
+                                                'bold italic underline | forecolor backcolor | link | h2 h3 blockquote | bullist numlist',
+                                            quickbars_insert_toolbar: 'image media table | hr pagebreak',
+                                            quickbars_image_toolbar: 'alignleft aligncenter alignright | rotateleft rotateright | imageoptions',
+
+                                            // Định dạng nhanh trong menu Format
+                                            style_formats: [
+                                                { title: 'Tiêu đề phụ', block: 'h2' },
+                                                { title: 'Ghi chú', block: 'p', classes: 'note' },
+                                                { title: 'Đoạn trích', block: 'blockquote' },
+                                                { title: 'Mã nội tuyến', inline: 'code' }
+                                            ],
+                                            block_formats: 'Paragraph=p; Heading 2=h2; Heading 3=h3; Heading 4=h4',
+
+                                            // CSS trong vùng soạn thảo
+                                            content_style: `
+      body{font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.7}
+      .note{background:#FFFBEA;border-left:4px solid #FACC15;padding:.5rem .75rem;border-radius:.375rem}
+      table{border-collapse:collapse;width:100%}
+      table td,table th{border:1px solid #e5e7eb;padding:.5rem}
+      pre code{font-size:13px}
+      img{border-radius:8px}
+    `,
+
+                                            // Ảnh & Media
+                                            image_caption: true,
+                                            image_title: true,
+                                            image_dimensions: false,
+                                            file_picker_types: 'image media',
+                                            images_upload_handler: async (blobInfo, progress) => {
+                                                return new Promise(async (resolve, reject) => {
+                                                    try {
+                                                        const file = blobInfo.blob();
+                                                        const url = await uploadImage(file as File); // giữ nguyên hàm của bạn
+                                                        resolve(url);
+                                                    } catch (err) {
+                                                        reject('Lỗi upload ảnh: ' + err);
+                                                    }
+                                                });
+                                            },
+                                            file_picker_callback: (cb, value, meta) => {
+                                                const input = document.createElement('input');
+                                                input.type = 'file';
+                                                input.accept = meta.filetype === 'media' ? 'video/*,audio/*' : 'image/*';
+                                                input.onchange = async () => {
+                                                    const f = (input as HTMLInputElement).files?.[0];
+                                                    if (!f) return;
+                                                    try {
+                                                        const url = await uploadImage(f);
+                                                        cb(url, { title: f.name });
+                                                    } catch (e) { console.error(e); }
+                                                };
+                                                input.click();
+                                            },
+                                            media_live_embeds: true,
+                                            // Nhúng YouTube/Vimeo đơn giản (dán link → <iframe>)
+                                            media_url_resolver: (data, resolve/*, reject*/) => {
+                                                const url = data.url;
+                                                const yt = /(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]+)/.exec(url);
+                                                if (yt) {
+                                                    resolve({
+                                                        html: `<iframe width="560" height="315" src="https://www.youtube.com/embed/${yt[1]}" frameborder="0" allowfullscreen></iframe>`
+                                                    });
+                                                    return;
+                                                }
+                                                resolve({ html: '' }); // để Tiny xử lý mặc định
+                                            },
+
+                                            // Bảng
+                                            table_header_type: 'sectionCells',
+                                            table_toolbar: 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol | cellprops',
+                                            table_resize_bars: true,
+
+                                            // Autosave
+                                            autosave_ask_before_unload: true,
+                                            autosave_interval: '20s',
+                                            autosave_retention: '30m',
+
+                                            // Liên kết
+                                            link_default_target: '_blank',
+                                            link_assume_external_targets: true,
+
+                                            // Khác
+                                            branding: false,
+                                            promotion: false,
+                                            statusbar: true,
+                                            elementpath: false,
+                                            toolbar_mode: 'sliding',
+                                        }}
+                                        textareaProps={{ placeholder: 'Nhập nội dung bài viết của bạn…' }}
                                     />
                                 </div>
+
 
                                 {/* Publish Status */}
                                 <div className="flex items-center gap-2">
@@ -528,7 +1124,7 @@ const PostPage: React.FC = () => {
                                 >
                                     {uploading ? (
                                         <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
                                             Đang lưu...
                                         </>
                                     ) : (
@@ -543,125 +1139,122 @@ const PostPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Posts List */}
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    {loading ? (
-                        <div className="p-8 text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                            <p className="mt-2 text-gray-600">Đang tải...</p>
+                {/* Review Modal */}
+                {showReviewModal && reviewingSubmission && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+                            onClick={() => setShowReviewModal(false)}
+                        />
+
+                        <div className="relative bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
+                            <div className="p-6 border-b border-gray-200">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xl font-bold">
+                                        Duyệt bài viết
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowReviewModal(false)}
+                                        className="text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                {/* Post Info */}
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                    <h4 className="font-semibold text-gray-900 mb-2">
+                                        {reviewingSubmission.posts?.title}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 mb-3">
+                                        Tác giả: {reviewingSubmission.profiles?.full_name}
+                                    </p>
+                                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                                        <span>Loại: {reviewingSubmission.posts?.type === 'activity' ? 'Hoạt động' : 'Blog'}</span>
+                                        <span>Gửi lúc: {new Date(reviewingSubmission.submitted_at).toLocaleDateString('vi-VN')}</span>
+                                    </div>
+                                </div>
+
+                                {/* Admin Notes */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Ghi chú của admin
+                                    </label>
+                                    <textarea
+                                        value={adminNotes}
+                                        onChange={(e) => setAdminNotes(e.target.value)}
+                                        rows={4}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Nhập ghi chú hoặc lý do từ chối..."
+                                    />
+                                </div>
+
+                                {/* Previous Notes */}
+                                {reviewingSubmission.admin_notes && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Ghi chú trước đó
+                                        </label>
+                                        <div className="bg-gray-50 p-4 rounded-lg">
+                                            <p className="text-sm text-gray-700">{reviewingSubmission.admin_notes}</p>
+                                            {reviewingSubmission.reviewed_by_profile && (
+                                                <p className="text-xs text-gray-500 mt-2">
+                                                    Được duyệt bởi: {reviewingSubmission.reviewed_by_profile.full_name}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Review Actions */}
+                            <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowReviewModal(false)}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    onClick={rejectSubmission}
+                                    disabled={uploading}
+                                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700"
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Đang xử lý...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <XCircle className="w-4 h-4" />
+                                            Từ chối
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
+                                    onClick={approveSubmission}
+                                    disabled={uploading}
+                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Đang xử lý...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check className="w-4 h-4" />
+                                            Duyệt bài
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
-                    ) : filteredPosts.length === 0 ? (
-                        <div className="p-8 text-center">
-                            <p className="text-gray-600">Không có bài viết nào.</p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Bài viết
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Loại
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Tác giả
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Trạng thái
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Ngày tạo
-                                    </th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Thao tác
-                                    </th>
-                                </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredPosts.map((post) => (
-                                    <tr key={post.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center">
-                                                {post.thumbnail && (
-                                                    <div className="flex-shrink-0 h-10 w-10 mr-4">
-                                                        <Image
-                                                            src={post.thumbnail}
-                                                            alt=""
-                                                            width={40}
-                                                            height={40}
-                                                            className="h-10 w-10 rounded-lg object-cover"
-                                                        />
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-900 line-clamp-2">
-                                                        {post.title}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            post.type === 'activity'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {post.type === 'activity' ? 'Hoạt động' : 'Blog'}
-                        </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {post.profiles?.full_name || 'N/A'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <button
-                                                onClick={() => togglePublishStatus(post.id, post.published)}
-                                                className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                                                    post.published
-                                                        ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                                        : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                                }`}
-                                            >
-                                                {post.published ? (
-                                                    <>
-                                                        <Eye className="w-3 h-3 mr-1" />
-                                                        Đã xuất bản
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <EyeOff className="w-3 h-3 mr-1" />
-                                                        Bản nháp
-                                                    </>
-                                                )}
-                                            </button>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {new Date(post.created_at).toLocaleDateString('vi-VN')}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => editPost(post)}
-                                                    className="text-blue-600 hover:text-blue-900"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => deletePost(post.id)}
-                                                    className="text-red-600 hover:text-red-900"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );
