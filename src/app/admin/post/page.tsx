@@ -1016,13 +1016,13 @@ const PostPage: React.FC = () => {
 
                                             // CSS trong vùng soạn thảo
                                             content_style: `
-      body{font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.7}
-      .note{background:#FFFBEA;border-left:4px solid #FACC15;padding:.5rem .75rem;border-radius:.375rem}
-      table{border-collapse:collapse;width:100%}
-      table td,table th{border:1px solid #e5e7eb;padding:.5rem}
-      pre code{font-size:13px}
-      img{border-radius:8px}
-    `,
+                                              body{font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.7}
+                                              .note{background:#FFFBEA;border-left:4px solid #FACC15;padding:.5rem .75rem;border-radius:.375rem}
+                                              table{border-collapse:collapse;width:100%}
+                                              table td,table th{border:1px solid #e5e7eb;padding:.5rem}
+                                              pre code{font-size:13px}
+                                              img{border-radius:8px}
+                                            `,
 
                                             // Ảnh & Media
                                             image_caption: true,
@@ -1090,7 +1090,6 @@ const PostPage: React.FC = () => {
                                             elementpath: false,
                                             toolbar_mode: 'sliding',
                                         }}
-                                        textareaProps={{ placeholder: 'Nhập nội dung bài viết của bạn…' }}
                                     />
                                 </div>
 
