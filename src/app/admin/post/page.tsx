@@ -958,11 +958,11 @@ const PostPage: React.FC = () => {
                                             editorRef.current = editor;
                                             if (editingPost?.content) editor.setContent(editingPost.content);
                                         }}
+                                        licenseKey="gpl"
                                         init={{
                                             // Self-host
                                             base_url: '/tinymce',
                                             suffix: '.min',
-                                            license_key: 'gpl',
 
                                             height: 560,
                                             // Menubar đầy đủ
