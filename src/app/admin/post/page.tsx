@@ -232,7 +232,7 @@ const PostPage: React.FC = () => {
         try {
             setUploading(true);
 
-            let thumbnailUrl = '';
+            let thumbnailUrl = editingPost?.thumbnail || '';
             if (formData.thumbnail) {
                 thumbnailUrl = await uploadImage(formData.thumbnail);
             }
@@ -947,28 +947,30 @@ const PostPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Content Editor */}
+                                {/* Content Editor với Text Wrap Quickbar */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Nội dung bài viết
                                     </label>
+
                                     <Editor
+                                        key={editingPost ? editingPost.id : 'new'}
                                         tinymceScriptSrc="/tinymce/tinymce.min.js"
                                         onInit={(evt, editor) => {
                                             editorRef.current = editor;
-                                            if (editingPost?.content) editor.setContent(editingPost.content);
+                                            if (editingPost?.content) {
+                                                setTimeout(() => editor.setContent(editingPost.content), 100);
+                                            }
                                         }}
                                         licenseKey="gpl"
+                                        initialValue={editingPost?.content || ''}
+
                                         init={{
-                                            // Self-host
                                             base_url: '/tinymce',
                                             suffix: '.min',
-
                                             height: 560,
-                                            // Menubar đầy đủ
                                             menubar: 'file edit view insert format tools table help',
 
-                                            // Plugin cộng đồng (không cần Cloud)
                                             plugins: [
                                                 'advlist', 'anchor', 'autolink', 'autosave', 'charmap', 'code', 'codesample',
                                                 'directionality', 'emoticons', 'fullscreen', 'help', 'image', 'importcss',
@@ -977,70 +979,302 @@ const PostPage: React.FC = () => {
                                                 'visualchars', 'wordcount'
                                             ],
 
-                                            // Toolbar chi tiết (chia nhóm)
                                             toolbar: [
-                                                // nhóm 1: undo/redo + xem trước + fullscreen
                                                 'undo redo | preview fullscreen | restoredraft',
-                                                // nhóm 2: định dạng văn bản
                                                 'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
-                                                // nhóm 3: canh lề + khoảng cách + RTL/LTR
                                                 'alignleft aligncenter alignright alignjustify | lineheight | ltr rtl',
-                                                // nhóm 4: danh sách + thụt lề
                                                 'bullist numlist outdent indent',
-                                                // nhóm 5: chèn nội dung
                                                 'link anchor | image media | table codesample charmap emoticons pagebreak nonbreaking insertdatetime',
-                                                // nhóm 6: công cụ
                                                 'searchreplace visualblocks visualchars code help'
                                             ].join(' | '),
 
-                                            // Font + size + lineheight
                                             font_family_formats:
                                                 'Inter=Inter,sans-serif;Arial=arial,helvetica,sans-serif;Georgia=georgia,serif;Courier New=courier new,courier,monospace',
                                             fontsize_formats: '12px 14px 16px 18px 20px 24px 28px 32px',
                                             line_height_formats: '1 1.15 1.33 1.5 1.75 2',
 
-                                            // Quickbars (menu nổi khi bôi đen / click ảnh)
+                                            /* Quickbars configuration */
                                             quickbars_selection_toolbar:
                                                 'bold italic underline | forecolor backcolor | link | h2 h3 blockquote | bullist numlist',
                                             quickbars_insert_toolbar: 'image media table | hr pagebreak',
-                                            quickbars_image_toolbar: 'alignleft aligncenter alignright | rotateleft rotateright | imageoptions',
 
-                                            // Định dạng nhanh trong menu Format
-                                            style_formats: [
-                                                { title: 'Tiêu đề phụ', block: 'h2' },
-                                                { title: 'Ghi chú', block: 'p', classes: 'note' },
-                                                { title: 'Đoạn trích', block: 'blockquote' },
-                                                { title: 'Mã nội tuyến', inline: 'code' }
-                                            ],
-                                            block_formats: 'Paragraph=p; Heading 2=h2; Heading 3=h3; Heading 4=h4',
+                                            /* QUICKBAR CHO HÌNH ẢNH - 3 nút wrap + nút clear */
+                                            quickbars_image_toolbar: 'wrapleft wrapright wrapcenter | clearwrap',
 
-                                            // CSS trong vùng soạn thảo
-                                            content_style: `
-                                              body{font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.7}
-                                              .note{background:#FFFBEA;border-left:4px solid #FACC15;padding:.5rem .75rem;border-radius:.375rem}
-                                              table{border-collapse:collapse;width:100%}
-                                              table td,table th{border:1px solid #e5e7eb;padding:.5rem}
-                                              pre code{font-size:13px}
-                                              img{border-radius:8px}
-                                            `,
-
-                                            // Ảnh & Media
-                                            image_caption: true,
-                                            image_title: true,
+                                            image_advtab: true,
                                             image_dimensions: false,
+                                            image_title: true,
                                             file_picker_types: 'image media',
-                                            images_upload_handler: async (blobInfo, progress) => {
-                                                return new Promise(async (resolve, reject) => {
-                                                    try {
-                                                        const file = blobInfo.blob();
-                                                        const url = await uploadImage(file as File); // giữ nguyên hàm của bạn
-                                                        resolve(url);
-                                                    } catch (err) {
-                                                        reject('Lỗi upload ảnh: ' + err);
+
+                                            /* CSS chỉ cho text wrapping - KHÔNG thay đổi kích thước ảnh */
+                                            content_css: [
+                                                'data:text/css;charset=UTF-8,' + encodeURIComponent(`
+                                                    body {
+                                                        font-family: Inter, Arial, sans-serif;
+                                                        font-size: 14px;
+                                                        line-height: 1.7;
+                                                        padding: 1rem;
+                                                    }
+                                                    
+                                                    img {
+                                                        border-radius: 8px;
+                                                        height: auto;
+                                                    }
+                                
+                                                    /* Text wrapping classes - KHÔNG THAY ĐỔI KÍCH THƯỚC */
+                                                    .wrap-left {
+                                                        float: left !important;
+                                                        margin: 0 2rem 1rem 0 !important;
+                                                        clear: none !important;
+                                                    }
+                                
+                                                    .wrap-right {
+                                                        float: right !important;
+                                                        margin: 0 0 1rem 2rem !important;
+                                                        clear: none !important;
+                                                    }
+                                
+                                                    .wrap-center {
+                                                        display: block !important;
+                                                        float: none !important;
+                                                        margin: 2rem auto !important;
+                                                        clear: both !important;
+                                                    }
+                                
+                                                    /* Container fixes */
+                                                    p {
+                                                        margin-bottom: 1rem;
+                                                        overflow: visible !important;
+                                                    }
+                                
+                                                    p:has(.wrap-left),
+                                                    p:has(.wrap-right) {
+                                                        overflow: visible !important;
+                                                        min-height: 50px !important;
+                                                    }
+                                
+                                                    /* Clear utility */
+                                                    .clear-wrap {
+                                                        clear: both !important;
+                                                        height: 0 !important;
+                                                        margin: 1rem 0 !important;
+                                                        font-size: 0 !important;
+                                                        line-height: 0 !important;
+                                                    }
+                                
+                                                    table {
+                                                        border-collapse: collapse;
+                                                        width: 100%;
+                                                    }
+                                                    
+                                                    table td, table th {
+                                                        border: 1px solid #e5e7eb;
+                                                        padding: .5rem;
+                                                    }
+                                
+                                                    /* Responsive */
+                                                    @media (max-width: 768px) {
+                                                        .wrap-left,
+                                                        .wrap-right {
+                                                            float: none !important;
+                                                            display: block !important;
+                                                            margin: 1rem auto !important;
+                                                        }
+                                                    }
+                                                `)
+                                            ],
+
+                                            setup: function(editor) {
+                                                // Command: Wrap Left
+                                                editor.addCommand('WrapImageLeft', function() {
+                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                    if (img && img.tagName === 'IMG') {
+                                                        // Remove existing wrap classes
+                                                        img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+
+                                                        // Add wrap-left class
+                                                        img.classList.add('wrap-left');
+
+                                                        // Fix parent container
+                                                        const parent = img.parentNode as HTMLElement;
+                                                        if (parent && parent.tagName === 'P') {
+                                                            parent.style.overflow = 'visible';
+                                                        }
+
+                                                        editor.undoManager.add();
+                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                    }
+                                                });
+
+                                                // Command: Wrap Right
+                                                editor.addCommand('WrapImageRight', function() {
+                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                    if (img && img.tagName === 'IMG') {
+                                                        img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+                                                        img.classList.add('wrap-right');
+
+                                                        const parent = img.parentNode as HTMLElement;
+                                                        if (parent && parent.tagName === 'P') {
+                                                            parent.style.overflow = 'visible';
+                                                        }
+
+                                                        editor.undoManager.add();
+                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                    }
+                                                });
+
+                                                // Command: Wrap Center
+                                                editor.addCommand('WrapImageCenter', function() {
+                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                    if (img && img.tagName === 'IMG') {
+                                                        img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+                                                        img.classList.add('wrap-center');
+
+                                                        const parent = img.parentNode as HTMLElement;
+                                                        if (parent && parent.tagName === 'P') {
+                                                            (parent as HTMLElement).style.textAlign = 'center';
+                                                        }
+
+                                                        editor.undoManager.add();
+                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                    }
+                                                });
+
+                                                // Command: Clear Wrap (toggle function)
+                                                editor.addCommand('ClearImageWrap', function() {
+                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                    if (img && img.tagName === 'IMG') {
+                                                        // Kiểm tra xem ảnh có wrap class nào không
+                                                        const hasWrap = img.classList.contains('wrap-left') ||
+                                                            img.classList.contains('wrap-right') ||
+                                                            img.classList.contains('wrap-center');
+
+                                                        if (hasWrap) {
+                                                            // Clear tất cả wrap classes
+                                                            img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+
+                                                            const parent = img.parentNode as HTMLElement;
+                                                            if (parent && parent.tagName === 'P') {
+                                                                parent.removeAttribute('style');
+                                                            }
+                                                        }
+
+                                                        editor.undoManager.add();
+                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                    }
+                                                });
+
+                                                // Command: Insert Clear Div
+                                                editor.addCommand('InsertClearDiv', function() {
+                                                    editor.insertContent('<div class="clear-wrap">&nbsp;</div>');
+                                                });
+
+                                                // Register buttons cho quickbar (không dùng setActive)
+                                                editor.ui.registry.addButton('wrapleft', {
+                                                    icon: 'align-left',
+                                                    tooltip: 'Text wrap bên phải ảnh',
+                                                    onAction: function() {
+                                                        const img = editor.selection.getNode() as HTMLElement;
+                                                        if (img && img.tagName === 'IMG') {
+                                                            if (img.classList.contains('wrap-left')) {
+                                                                editor.execCommand('ClearImageWrap');
+                                                            } else {
+                                                                editor.execCommand('WrapImageLeft');
+                                                            }
+                                                        }
+                                                    }
+                                                });
+
+                                                editor.ui.registry.addButton('wrapright', {
+                                                    icon: 'align-right',
+                                                    tooltip: 'Text wrap bên trái ảnh',
+                                                    onAction: function() {
+                                                        const img = editor.selection.getNode() as HTMLElement;
+                                                        if (img && img.tagName === 'IMG') {
+                                                            if (img.classList.contains('wrap-right')) {
+                                                                editor.execCommand('ClearImageWrap');
+                                                            } else {
+                                                                editor.execCommand('WrapImageRight');
+                                                            }
+                                                        }
+                                                    }
+                                                });
+
+                                                editor.ui.registry.addButton('wrapcenter', {
+                                                    icon: 'align-center',
+                                                    tooltip: 'Căn giữa ảnh',
+                                                    onAction: function() {
+                                                        const img = editor.selection.getNode() as HTMLElement;
+                                                        if (img && img.tagName === 'IMG') {
+                                                            if (img.classList.contains('wrap-center')) {
+                                                                editor.execCommand('ClearImageWrap');
+                                                            } else {
+                                                                editor.execCommand('WrapImageCenter');
+                                                            }
+                                                        }
+                                                    }
+                                                });
+
+                                                editor.ui.registry.addButton('clearwrap', {
+                                                    icon: 'remove',
+                                                    tooltip: 'Xóa text wrap',
+                                                    onAction: function() {
+                                                        editor.execCommand('ClearImageWrap');
+                                                    }
+                                                });
+
+                                                // Optional: Thêm button vào toolbar chính
+                                                editor.ui.registry.addButton('insertclear', {
+                                                    icon: 'new-document',
+                                                    tooltip: 'Thêm dòng clear',
+                                                    onAction: function() {
+                                                        editor.execCommand('InsertClearDiv');
+                                                    }
+                                                });
+
+                                                // Auto-fix container khi có ảnh wrap
+                                                editor.on('NodeChange', function() {
+                                                    const wrappedImages = editor.dom.select('img.wrap-left, img.wrap-right');
+                                                    wrappedImages.forEach(img => {
+                                                        const parent = img.parentNode as HTMLElement;
+                                                        if (parent && parent.tagName === 'P') {
+                                                            parent.style.overflow = 'visible';
+                                                        }
+                                                    });
+                                                });
+
+                                                // Preserve classes when content changes
+                                                editor.on('PreProcess', function(e) {
+                                                    const images = e.node.querySelectorAll('img[class*="wrap-"]');
+                                                    images.forEach(img => {
+                                                        const classes = img.getAttribute('class');
+                                                        if (classes) {
+                                                            img.setAttribute('data-mce-classes', classes);
+                                                        }
+                                                    });
+                                                });
+
+                                                editor.on('PostProcess', function(e) {
+                                                    if (e.content) {
+                                                        e.content = e.content.replace(/data-mce-classes="([^"]*)"/g, 'class="$1"');
                                                     }
                                                 });
                                             },
-                                            file_picker_callback: (cb, value, meta) => {
+
+                                            /* Upload ảnh vào Supabase Storage */
+                                            images_upload_handler: async (blobInfo: any, progress?: (percent: number) => void) => {
+                                                return new Promise(async (resolve, reject) => {
+                                                    try {
+                                                        const file = blobInfo.blob() as File;
+                                                        const url = await uploadImage(file);
+                                                        resolve(url);
+                                                    } catch (err) {
+                                                        reject('Lỗi upload ảnh: ' + (err as any));
+                                                    }
+                                                });
+                                            },
+
+                                            file_picker_callback: (cb: any, value: any, meta: any) => {
                                                 const input = document.createElement('input');
                                                 input.type = 'file';
                                                 input.accept = meta.filetype === 'media' ? 'video/*,audio/*' : 'image/*';
@@ -1050,13 +1284,16 @@ const PostPage: React.FC = () => {
                                                     try {
                                                         const url = await uploadImage(f);
                                                         cb(url, { title: f.name });
-                                                    } catch (e) { console.error(e); }
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                    }
                                                 };
                                                 input.click();
                                             },
+
+                                            /* Media embedding */
                                             media_live_embeds: true,
-                                            // Nhúng YouTube/Vimeo đơn giản (dán link → <iframe>)
-                                            media_url_resolver: (data: { url: string }, resolve: (result: any) => void) => {
+                                            media_url_resolver: (data: any, resolve: any) => {
                                                 const url = data.url;
                                                 const yt = /(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]+)/.exec(url);
                                                 if (yt) {
@@ -1068,30 +1305,41 @@ const PostPage: React.FC = () => {
                                                 resolve({ url });
                                             },
 
-
-                                            // Bảng
+                                            /* Table settings */
                                             table_header_type: 'sectionCells',
-                                            table_toolbar: 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol | cellprops',
+                                            table_toolbar:
+                                                'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol | cellprops',
                                             table_resize_bars: true,
 
-                                            // Autosave
+                                            /* Autosave */
                                             autosave_ask_before_unload: true,
                                             autosave_interval: '20s',
                                             autosave_retention: '30m',
 
-                                            // Liên kết
+                                            /* Link settings */
                                             link_default_target: '_blank',
                                             link_assume_external_targets: true,
 
-                                            // Khác
+                                            /* UI settings */
                                             branding: false,
                                             promotion: false,
                                             statusbar: true,
                                             elementpath: false,
                                             toolbar_mode: 'sliding',
+
+                                            /* Preserve elements and classes */
+                                            extended_valid_elements: 'div[class|style],img[class|src|alt|title|width|height]',
+                                            keep_styles: false,
+
+                                            /* Context menu (backup) */
+                                            contextmenu: 'link image table spellchecker',
                                         }}
                                     />
                                 </div>
+
+
+
+
 
 
                                 {/* Publish Status */}
