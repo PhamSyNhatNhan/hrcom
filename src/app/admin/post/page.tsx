@@ -1084,96 +1084,88 @@ const PostPage: React.FC = () => {
                                                 `)
                                             ],
 
-                                            setup: function(editor) {
+                                            setup: function (editor) {
+                                                // Helper: báo TinyMCE là đối tượng "đã resize" (ép kiểu để TS không bắt lỗi)
+                                                const fireWrapChange = (img: HTMLElement) => {
+                                                    editor.fire('ObjectResized', { target: img } as any);
+                                                };
+
                                                 // Command: Wrap Left
-                                                editor.addCommand('WrapImageLeft', function() {
+                                                editor.addCommand('WrapImageLeft', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
-                                                        // Remove existing wrap classes
                                                         img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
-
-                                                        // Add wrap-left class
                                                         img.classList.add('wrap-left');
 
-                                                        // Fix parent container
                                                         const parent = img.parentNode as HTMLElement;
-                                                        if (parent && parent.tagName === 'P') {
-                                                            parent.style.overflow = 'visible';
-                                                        }
+                                                        if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
 
                                                         editor.undoManager.add();
-                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                        fireWrapChange(img); // <-- ép kiểu any
                                                     }
                                                 });
 
                                                 // Command: Wrap Right
-                                                editor.addCommand('WrapImageRight', function() {
+                                                editor.addCommand('WrapImageRight', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
                                                         img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
                                                         img.classList.add('wrap-right');
 
                                                         const parent = img.parentNode as HTMLElement;
-                                                        if (parent && parent.tagName === 'P') {
-                                                            parent.style.overflow = 'visible';
-                                                        }
+                                                        if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
 
                                                         editor.undoManager.add();
-                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                        fireWrapChange(img); // <-- ép kiểu any
                                                     }
                                                 });
 
                                                 // Command: Wrap Center
-                                                editor.addCommand('WrapImageCenter', function() {
+                                                editor.addCommand('WrapImageCenter', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
                                                         img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
                                                         img.classList.add('wrap-center');
 
                                                         const parent = img.parentNode as HTMLElement;
-                                                        if (parent && parent.tagName === 'P') {
-                                                            (parent as HTMLElement).style.textAlign = 'center';
-                                                        }
+                                                        if (parent && parent.tagName === 'P') (parent as HTMLElement).style.textAlign = 'center';
 
                                                         editor.undoManager.add();
-                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                        fireWrapChange(img); // <-- ép kiểu any
                                                     }
                                                 });
 
-                                                // Command: Clear Wrap (toggle function)
-                                                editor.addCommand('ClearImageWrap', function() {
+                                                // Command: Clear Wrap (toggle)
+                                                editor.addCommand('ClearImageWrap', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
-                                                        // Kiểm tra xem ảnh có wrap class nào không
-                                                        const hasWrap = img.classList.contains('wrap-left') ||
+                                                        const hasWrap =
+                                                            img.classList.contains('wrap-left') ||
                                                             img.classList.contains('wrap-right') ||
                                                             img.classList.contains('wrap-center');
 
                                                         if (hasWrap) {
-                                                            // Clear tất cả wrap classes
                                                             img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
 
                                                             const parent = img.parentNode as HTMLElement;
-                                                            if (parent && parent.tagName === 'P') {
-                                                                parent.removeAttribute('style');
-                                                            }
+                                                            if (parent && parent.tagName === 'P') parent.removeAttribute('style');
                                                         }
 
                                                         editor.undoManager.add();
-                                                        editor.fire('ObjectResized', { target: img as HTMLElement });
+                                                        fireWrapChange(img); // <-- ép kiểu any
                                                     }
                                                 });
 
                                                 // Command: Insert Clear Div
-                                                editor.addCommand('InsertClearDiv', function() {
+                                                editor.addCommand('InsertClearDiv', function () {
                                                     editor.insertContent('<div class="clear-wrap">&nbsp;</div>');
                                                 });
 
-                                                // Register buttons cho quickbar (không dùng setActive)
+                                                // Buttons cho quickbar
                                                 editor.ui.registry.addButton('wrapleft', {
                                                     icon: 'align-left',
                                                     tooltip: 'Text wrap bên phải ảnh',
-                                                    onAction: function() {
+                                                    onAction: function () {
                                                         const img = editor.selection.getNode() as HTMLElement;
                                                         if (img && img.tagName === 'IMG') {
                                                             if (img.classList.contains('wrap-left')) {
@@ -1188,7 +1180,7 @@ const PostPage: React.FC = () => {
                                                 editor.ui.registry.addButton('wrapright', {
                                                     icon: 'align-right',
                                                     tooltip: 'Text wrap bên trái ảnh',
-                                                    onAction: function() {
+                                                    onAction: function () {
                                                         const img = editor.selection.getNode() as HTMLElement;
                                                         if (img && img.tagName === 'IMG') {
                                                             if (img.classList.contains('wrap-right')) {
@@ -1203,7 +1195,7 @@ const PostPage: React.FC = () => {
                                                 editor.ui.registry.addButton('wrapcenter', {
                                                     icon: 'align-center',
                                                     tooltip: 'Căn giữa ảnh',
-                                                    onAction: function() {
+                                                    onAction: function () {
                                                         const img = editor.selection.getNode() as HTMLElement;
                                                         if (img && img.tagName === 'IMG') {
                                                             if (img.classList.contains('wrap-center')) {
@@ -1218,43 +1210,39 @@ const PostPage: React.FC = () => {
                                                 editor.ui.registry.addButton('clearwrap', {
                                                     icon: 'remove',
                                                     tooltip: 'Xóa text wrap',
-                                                    onAction: function() {
+                                                    onAction: function () {
                                                         editor.execCommand('ClearImageWrap');
                                                     }
                                                 });
 
-                                                // Optional: Thêm button vào toolbar chính
+                                                // Optional: thêm button vào toolbar chính
                                                 editor.ui.registry.addButton('insertclear', {
                                                     icon: 'new-document',
                                                     tooltip: 'Thêm dòng clear',
-                                                    onAction: function() {
+                                                    onAction: function () {
                                                         editor.execCommand('InsertClearDiv');
                                                     }
                                                 });
 
                                                 // Auto-fix container khi có ảnh wrap
-                                                editor.on('NodeChange', function() {
+                                                editor.on('NodeChange', function () {
                                                     const wrappedImages = editor.dom.select('img.wrap-left, img.wrap-right');
-                                                    wrappedImages.forEach(img => {
-                                                        const parent = img.parentNode as HTMLElement;
-                                                        if (parent && parent.tagName === 'P') {
-                                                            parent.style.overflow = 'visible';
-                                                        }
+                                                    wrappedImages.forEach((imgEl) => {
+                                                        const parent = imgEl.parentNode as HTMLElement;
+                                                        if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
                                                     });
                                                 });
 
-                                                // Preserve classes when content changes
-                                                editor.on('PreProcess', function(e) {
+                                                // Preserve classes khi preprocess/postprocess
+                                                editor.on('PreProcess', function (e) {
                                                     const images = e.node.querySelectorAll('img[class*="wrap-"]');
-                                                    images.forEach(img => {
-                                                        const classes = img.getAttribute('class');
-                                                        if (classes) {
-                                                            img.setAttribute('data-mce-classes', classes);
-                                                        }
+                                                    images.forEach((imgEl) => {
+                                                        const classes = imgEl.getAttribute('class');
+                                                        if (classes) imgEl.setAttribute('data-mce-classes', classes);
                                                     });
                                                 });
 
-                                                editor.on('PostProcess', function(e) {
+                                                editor.on('PostProcess', function (e) {
                                                     if (e.content) {
                                                         e.content = e.content.replace(/data-mce-classes="([^"]*)"/g, 'class="$1"');
                                                     }
