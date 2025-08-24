@@ -1,5 +1,5 @@
 'use client';
-import React, {JSX, useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -87,130 +87,45 @@ const PostDetailPage = () => {
         });
     };
 
-    const extractTextFromContent = (content: any): string => {
-        if (!content || !content.blocks) return '';
-        return content.blocks
-            .filter((block: any) => block.type === 'paragraph')
-            .map((block: any) => block.data?.text || '')
-            .join(' ')
-            .replace(/<[^>]*>/g, '');
+    const extractTextFromContent = (content: string): string => {
+        if (!content) return '';
+        // Remove HTML tags for excerpt
+        return content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
     };
 
-    const getReadingTime = (content: any): number => {
+    const getReadingTime = (content: string): number => {
         const text = extractTextFromContent(content);
         return Math.ceil(text.length / 200);
     };
 
-    const renderContent = (content: any) => {
-        if (!content || !content.blocks) return null;
+    const renderContent = (content: string) => {
+        if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
 
-        return content.blocks.map((block: any, index: number) => {
-            switch (block.type) {
-                case 'header':
-                    const HeaderTag = `h${block.data.level}` as keyof JSX.IntrinsicElements;
-                    return (
-                        <HeaderTag
-                            key={index}
-                            className={`font-bold text-gray-900 mb-4 ${
-                                block.data.level === 1 ? 'text-3xl' :
-                                    block.data.level === 2 ? 'text-2xl' :
-                                        block.data.level === 3 ? 'text-xl' : 'text-lg'
-                            }`}
-                        >
-                            {block.data.text}
-                        </HeaderTag>
-                    );
-
-                case 'paragraph':
-                    return (
-                        <p
-                            key={index}
-                            className="text-gray-700 leading-relaxed mb-6 text-lg"
-                            dangerouslySetInnerHTML={{ __html: block.data.text }}
-                        />
-                    );
-
-                case 'list':
-                    const ListTag = block.data.style === 'ordered' ? 'ol' : 'ul';
-                    return (
-                        <ListTag
-                            key={index}
-                            className={`mb-6 ${
-                                block.data.style === 'ordered'
-                                    ? 'list-decimal list-inside'
-                                    : 'list-disc list-inside'
-                            }`}
-                        >
-                            {block.data.items.map((item: string, itemIndex: number) => (
-                                <li key={itemIndex} className="text-gray-700 mb-2 leading-relaxed">
-                                    {item}
-                                </li>
-                            ))}
-                        </ListTag>
-                    );
-
-                case 'image':
-                    return (
-                        <div key={index} className="my-8">
-                            <div className="relative w-full rounded-xl overflow-hidden shadow-lg">
-                                <Image
-                                    src={block.data.file.url}
-                                    alt={block.data.caption || 'Post image'}
-                                    width={1200}
-                                    height={800}
-                                    className="w-full h-auto"
-                                />
-                            </div>
-                            {block.data.caption && (
-                                <p className="text-center text-gray-500 text-sm mt-3 italic">
-                                    {block.data.caption}
-                                </p>
-                            )}
-                        </div>
-                    );
-
-                case 'quote':
-                    return (
-                        <blockquote
-                            key={index}
-                            className="border-l-4 border-cyan-500 pl-6 py-4 my-6 bg-gray-50 rounded-r-lg"
-                        >
-                            <p className="text-lg italic text-gray-700 mb-2">
-                                "{block.data.text}"
-                            </p>
-                            {block.data.caption && (
-                                <cite className="text-sm text-gray-500">
-                                    — {block.data.caption}
-                                </cite>
-                            )}
-                        </blockquote>
-                    );
-
-                case 'delimiter':
-                    return (
-                        <div key={index} className="text-center my-8">
-                            <div className="text-gray-400 text-2xl">***</div>
-                        </div>
-                    );
-
-                default:
-                    return null;
-            }
-        });
+        return (
+            <div
+                className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
+                style={{ lineHeight: '1.7' }}
+                dangerouslySetInnerHTML={{ __html: content }}
+            />
+        );
     };
 
-    const convertToNewsFormat = (post: any) => ({
-        date: {
-            day: new Date(post.created_at).getDate().toString(),
-            month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
-            year: new Date(post.created_at).getFullYear().toString()
-        },
-        image: post.thumbnail || (post.type === 'activity' ? '/news/default-activity.jpg' : '/news/default-blog.jpg'),
-        title: post.title,
-        excerpt: extractTextFromContent(post.content).substring(0, 200) + '...',
-        category: post.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION',
-        href: `/posts/${post.id}`
-    });
+
+    const convertToNewsFormat = (post: any) => {
+        const excerpt = extractTextFromContent(post.content || '');
+        return {
+            date: {
+                day: new Date(post.created_at).getDate().toString(),
+                month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
+                year: new Date(post.created_at).getFullYear().toString()
+            },
+            image: post.thumbnail || (post.type === 'activity' ? '/images/default-activity.jpg' : '/images/default-blog.jpg'),
+            title: post.title,
+            excerpt: excerpt.substring(0, 200) + (excerpt.length > 200 ? '...' : ''),
+            category: post.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION',
+            href: `/posts/${post.id}`
+        };
+    };
 
     // Navigation functions
     const getPreviousPost = () => {
@@ -285,7 +200,7 @@ const PostDetailPage = () => {
         );
     }
 
-    const readingTime = getReadingTime(post.content);
+    const readingTime = getReadingTime(post.content || '');
     const previousPost = getPreviousPost();
     const nextPost = getNextPost();
     const relatedPosts = getRelatedPosts();
@@ -294,73 +209,76 @@ const PostDetailPage = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
             {/* Hero Section */}
-            <section className="relative py-20 px-4 sm:px-6 lg:px-8">
+            <section className="relative py-12 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-4xl mx-auto text-center">
                     {/* Breadcrumb */}
-                    <nav className="mb-8">
-                        <ol className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-                            <li><Link href="/" className="hover:text-cyan-600">Trang chủ</Link></li>
-                            <li>/</li>
+                    <nav className="mb-4">
+                        <ol className="flex items-center justify-center text-sm text-gray-500">
                             <li>
-                                <Link
-                                    href={typeInfo.backUrl}
-                                    className="hover:text-cyan-600 capitalize"
-                                >
+                                <Link href="/" className="hover:text-cyan-600">Trang chủ</Link>
+                            </li>
+                            <li className="px-2 text-gray-400">/</li>
+                            <li>
+                                <Link href={typeInfo.backUrl} className="hover:text-cyan-600 capitalize">
                                     {typeInfo.pageTitle}
                                 </Link>
                             </li>
-                            <li>/</li>
+                            <li className="px-2 text-gray-400">/</li>
                             <li className="text-gray-900 font-medium">Chi tiết bài viết</li>
                         </ol>
                     </nav>
 
                     {/* Category */}
-                    <div className="mb-4">
-                        <span className="inline-block px-4 py-2 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
-                            {typeInfo.categoryLabel}
-                        </span>
+                    <div className="mb-3">
+      <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
+        {typeInfo.categoryLabel}
+      </span>
                     </div>
 
                     {/* Title */}
-                    <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+                    <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 leading-tight">
                         {post.title}
                     </h1>
 
-                    {/* Meta Info */}
-                    <div className="flex flex-wrap items-center justify-center gap-6 text-gray-600 mb-8">
+                    {/* Meta + Author (giữ avatar & tên) */}
+                    <div className="flex flex-wrap items-center justify-center gap-5 text-gray-600 mb-6">
                         <div className="flex items-center gap-2">
                             <Calendar className="w-5 h-5" />
                             <span>{formatDate(post.published_at || post.created_at || "")}</span>
                         </div>
 
+                        <span className="hidden sm:inline text-gray-300">•</span>
+
                         <div className="flex items-center gap-2">
                             <Clock className="w-5 h-5" />
                             <span>{readingTime} phút đọc</span>
                         </div>
-                    </div>
 
-                    {/* Author */}
-                    <div className="flex items-center justify-center gap-4 mb-12">
-                        {post.profiles?.image_url ? (
-                            <Image
-                                src={post.profiles.image_url}
-                                alt={post.profiles.full_name ?? "Người dùng"}
-                                width={56}
-                                height={56}
-                                className="rounded-full object-cover ring-4 ring-cyan-100 shadow-lg"
-                            />
-                        ) : (
-                            <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg ring-4 ring-cyan-100">
-                                <User className="w-7 h-7 text-white" />
-                            </div>
-                        )}
-                        <div className="text-center">
-                            <p className="text-lg font-semibold text-gray-900">{post.profiles?.full_name}</p>
-                            <p className="text-sm text-gray-500 font-medium">Tác giả bài viết</p>
+                        <span className="hidden sm:inline text-gray-300">•</span>
+
+                        {/* Author */}
+                        <div className="flex items-center gap-3">
+                            {post.profiles?.image_url ? (
+                                <Image
+                                    src={post.profiles.image_url}
+                                    alt={post.profiles.full_name ?? "Người dùng"}
+                                    width={32}
+                                    height={32}
+                                    className="rounded-full object-cover ring-2 ring-cyan-100 shadow"
+                                />
+                            ) : (
+                                <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center ring-2 ring-cyan-100 shadow">
+                                    <User className="w-4 h-4 text-white" />
+                                </div>
+                            )}
+                            <span className="text-sm font-medium text-gray-800">
+                              {post.profiles?.full_name ?? "HR Companion"}
+                            </span>
                         </div>
                     </div>
                 </div>
             </section>
+
 
             {/* Main Content */}
             <section className="py-12 px-4 sm:px-6 lg:px-8">
@@ -369,8 +287,8 @@ const PostDetailPage = () => {
                         {/* Article Content - Left Side */}
                         <div className="lg:col-span-2">
                             {/* Article Body */}
-                            <div className="prose prose-lg max-w-none">
-                                {renderContent(post.content)}
+                            <div className="mb-12">
+                                {renderContent(post.content || '')}
                             </div>
 
                             {/* Post Navigation */}
@@ -465,18 +383,18 @@ const PostDetailPage = () => {
                                     </h3>
 
                                     <div className="space-y-6">
-                                        {allRelatedPosts.slice(0, 4).map((post) => {
-                                            const newsFormat = convertToNewsFormat(post);
+                                        {allRelatedPosts.slice(0, 4).map((relatedPost) => {
+                                            const newsFormat = convertToNewsFormat(relatedPost);
                                             return (
                                                 <LastNewsCard
-                                                    key={post.id}
+                                                    key={relatedPost.id}
                                                     article={{
                                                         title: newsFormat.title,
                                                         date: newsFormat.date,
                                                         href: newsFormat.href,
-                                                        excerpt: newsFormat.excerpt.substring(0, 100) + '...',
-                                                        category: post.type === 'activity' ? 'Tin tức & Sự kiện' : 'Blog',
-                                                        readTime: Math.ceil(newsFormat.excerpt.length / 200),
+                                                        excerpt: newsFormat.excerpt.substring(0, 100) + (newsFormat.excerpt.length > 100 ? '...' : ''),
+                                                        category: relatedPost.type === 'activity' ? 'Tin tức & Sự kiện' : 'Blog',
+                                                        readTime: Math.ceil(newsFormat.excerpt.length / 200) || 2,
                                                         views: Math.floor(Math.random() * 300) + 50
                                                     }}
                                                 />
@@ -504,6 +422,104 @@ const PostDetailPage = () => {
                     </div>
                 </div>
             </section>
+
+            <style jsx global>{`
+                /* TinyMCE Image Wrapping Styles (scoped) */
+                .tinymce-content .wrap-left {
+                    float: left !important;
+                    margin: 0 2rem 1rem 0 !important;
+                    clear: none !important;
+                }
+                .tinymce-content .wrap-right {
+                    float: right !important;
+                    margin: 0 0 1rem 2rem !important;
+                    clear: none !important;
+                }
+                .tinymce-content .wrap-center {
+                    display: block !important;
+                    float: none !important;
+                    margin: 2rem auto !important;
+                    clear: both !important;
+                }
+                .tinymce-content .clear-wrap {
+                    clear: both !important;
+                    height: 0 !important;
+                    margin: 1rem 0 !important;
+                    font-size: 0 !important;
+                    line-height: 0 !important;
+                }
+
+                /* Responsive */
+                @media (max-width: 768px) {
+                    .tinymce-content .wrap-left,
+                    .tinymce-content .wrap-right {
+                        float: none !important;
+                        display: block !important;
+                        margin: 1rem auto !important;
+                    }
+                }
+
+                /* Ensure proper spacing around floated images */
+                .tinymce-content p:has(.wrap-left),
+                .tinymce-content p:has(.wrap-right) {
+                    overflow: visible !important;
+                    min-height: 50px !important;
+                }
+
+                /* Embedded videos */
+                .tinymce-content iframe {
+                    max-width: 100%;
+                    height: auto;
+                    border-radius: 8px;
+                }
+
+                /* Table styling */
+                .tinymce-content table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 1.5rem 0;
+                }
+                .tinymce-content table td,
+                .tinymce-content table th {
+                    border: 1px solid #e5e7eb;
+                    padding: 0.75rem;
+                    text-align: left;
+                }
+                .tinymce-content table th {
+                    background-color: #f9fafb;
+                    font-weight: 600;
+                }
+
+                /* Lists */
+                .tinymce-content ul,
+                .tinymce-content ol {
+                    margin: 1.5rem 0;
+                    padding-left: 1.5rem;
+                }
+                .tinymce-content li {
+                    margin: 0.5rem 0;
+                }
+
+                /* Blockquote */
+                .tinymce-content blockquote {
+                    border-left: 4px solid #06b6d4;
+                    background: #f8fafc;
+                    padding: 1rem 1.5rem;
+                    margin: 2rem 0;
+                    border-radius: 0 8px 8px 0;
+                    font-style: italic;
+                }
+
+                /* Images (scoped, KHÔNG ảnh hưởng logo) */
+                .tinymce-content img {
+                    border-radius: 8px;
+                    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                    display: inline-block;          /* tránh khoảng trống baseline quá lớn trong nội dung */
+                    vertical-align: middle;
+                    max-width: 100%;
+                    height: auto;
+                }
+            `}</style>
         </div>
     );
 };
