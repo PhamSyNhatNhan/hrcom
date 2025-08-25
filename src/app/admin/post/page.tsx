@@ -40,6 +40,11 @@ function getErrorMessage(err: unknown): string {
     }
     return typeof err === 'string' ? err : JSON.stringify(err);
 }
+function getErrorCode(err: unknown): string | undefined {
+    return typeof err === 'object' && err !== null && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined;
+}
 
 interface Tag {
     id: string;
@@ -248,16 +253,18 @@ const PostPage: React.FC = () => {
             showNotification('success', 'Tạo tag thành công');
             resetTagForm();
             loadTags();
-        } catch (error) {
-            console.error('Error creating tag:', error);
-            if (error.code === '23505') {
+        } catch (err) {
+            console.error('Error creating tag:', err);
+            const code = getErrorCode(err);
+            if (code === '23505') {
                 showNotification('error', 'Tag với tên này đã tồn tại');
             } else {
-                showNotification('error', 'Lỗi khi tạo tag: ' + getErrorMessage(error));
+                showNotification('error', 'Lỗi khi tạo tag: ' + getErrorMessage(err));
             }
         } finally {
             setUploading(false);
         }
+
     };
 
     const updateTag = async () => {
@@ -282,12 +289,13 @@ const PostPage: React.FC = () => {
             showNotification('success', 'Cập nhật tag thành công');
             resetTagForm();
             loadTags();
-        } catch (error) {
-            console.error('Error updating tag:', error);
-            if (error.code === '23505') {
+        } catch (err) {
+            console.error('Error updating tag:', err);
+            const code = getErrorCode(err);
+            if (code === '23505') {
                 showNotification('error', 'Tag với tên này đã tồn tại');
             } else {
-                showNotification('error', 'Lỗi khi cập nhật tag: ' + getErrorMessage(error));
+                showNotification('error', 'Lỗi khi cập nhật tag: ' + getErrorMessage(err));
             }
         } finally {
             setUploading(false);
