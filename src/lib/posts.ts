@@ -1,8 +1,15 @@
 import { supabase } from '@/utils/supabase/client';
 
+export interface Tag {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 export interface Post {
     id: string;
     title: string;
+    description?: string;
     thumbnail: string | null;
     content: any;
     author_id: string;
@@ -15,10 +22,12 @@ export interface Post {
         full_name: string;
         image_url?: string;
     };
+    tags?: Tag[]; // Thêm tags field
 }
 
 export interface CreatePostData {
     title: string;
+    description?: string;
     type: 'activity' | 'blog';
     content: any;
     thumbnail?: string;
@@ -28,6 +37,7 @@ export interface CreatePostData {
 export interface UpdatePostData {
     id: string;
     title?: string;
+    description?: string;
     type?: 'activity' | 'blog';
     content?: any;
     thumbnail?: string;
@@ -62,6 +72,13 @@ export class PostService {
                     profiles (
                         full_name,
                         image_url
+                    ),
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
                     )
                 `, { count: 'exact' })
                 .order('created_at', { ascending: false });
@@ -76,7 +93,7 @@ export class PostService {
             }
 
             if (search) {
-                query = query.ilike('title', `%${search}%`);
+                query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
             }
 
             if (authorId) {
@@ -95,8 +112,14 @@ export class PostService {
                 throw new Error(`Failed to fetch posts: ${error.message}`);
             }
 
+            // Transform the data to include tags array
+            const postsWithTags = (data || []).map(post => ({
+                ...post,
+                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            }));
+
             return {
-                posts: data || [],
+                posts: postsWithTags,
                 totalCount: count || 0,
                 totalPages: Math.ceil((count || 0) / limit),
                 currentPage: page
@@ -117,6 +140,13 @@ export class PostService {
                     profiles (
                         full_name,
                         image_url
+                    ),
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
                     )
                 `)
                 .eq('id', id)
@@ -131,7 +161,13 @@ export class PostService {
                 throw new Error('Post not found');
             }
 
-            return data;
+            // Transform the data to include tags array
+            const postWithTags = {
+                ...data,
+                tags: data.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            };
+
+            return postWithTags;
         } catch (error) {
             console.error('PostService.getPost error:', error);
             throw error;
@@ -154,6 +190,13 @@ export class PostService {
                     profiles (
                         full_name,
                         image_url
+                    ),
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
                     )
                 `)
                 .eq('published', true)
@@ -174,7 +217,13 @@ export class PostService {
                 throw new Error(`Failed to fetch published posts: ${error.message}`);
             }
 
-            return data || [];
+            // Transform the data to include tags array
+            const postsWithTags = (data || []).map(post => ({
+                ...post,
+                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            }));
+
+            return postsWithTags;
         } catch (error) {
             console.error('PostService.getPublishedPosts error:', error);
             throw error;
@@ -190,6 +239,7 @@ export class PostService {
                 .from('posts')
                 .insert([{
                     title: postData.title,
+                    description: postData.description || null,
                     type: postData.type,
                     content: postData.content,
                     thumbnail: postData.thumbnail || null,
@@ -216,7 +266,7 @@ export class PostService {
             }
 
             console.log('Post created successfully:', data);
-            return data;
+            return { ...data, tags: [] }; // New posts start with no tags
         } catch (error) {
             console.error('PostService.createPost error:', error);
             throw error;
@@ -249,6 +299,13 @@ export class PostService {
                     profiles (
                         full_name,
                         image_url
+                    ),
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
                     )
                 `)
                 .single();
@@ -262,8 +319,14 @@ export class PostService {
                 throw new Error('No data returned after updating post');
             }
 
-            console.log('Post updated successfully:', data);
-            return data;
+            // Transform the data to include tags array
+            const postWithTags = {
+                ...data,
+                tags: data.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            };
+
+            console.log('Post updated successfully:', postWithTags);
+            return postWithTags;
         } catch (error) {
             console.error('PostService.updatePost error:', error);
             throw error;
@@ -324,6 +387,13 @@ export class PostService {
                     profiles (
                         full_name,
                         image_url
+                    ),
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
                     )
                 `)
                 .single();
@@ -337,8 +407,14 @@ export class PostService {
                 throw new Error('No data returned after toggling publish status');
             }
 
-            console.log('Post publish status toggled successfully:', data);
-            return data;
+            // Transform the data to include tags array
+            const postWithTags = {
+                ...data,
+                tags: data.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            };
+
+            console.log('Post publish status toggled successfully:', postWithTags);
+            return postWithTags;
         } catch (error) {
             console.error('PostService.togglePublishStatus error:', error);
             throw error;
@@ -424,6 +500,80 @@ export class PostService {
         } catch (error) {
             console.error('PostService.testConnection error:', error);
             return false;
+        }
+    }
+
+    async getPaginatedPublishedPosts(options: {
+        type?: 'activity' | 'blog' | 'all';
+        page?: number;
+        limit?: number;
+        search?: string;
+    } = {}): Promise<{
+        posts: Post[];
+        totalCount: number;
+        totalPages: number;
+        currentPage: number;
+    }> {
+        const { type = 'all', page = 1, limit = 6, search = '' } = options;
+
+        try {
+            let query = supabase
+                .from('posts')
+                .select(`
+                    *,
+                    profiles (
+                        full_name,
+                        image_url
+                    ),
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
+                    )
+                `, { count: 'exact' })
+                .eq('published', true)
+                .order('published_at', { ascending: false });
+
+            // Apply type filter
+            if (type !== 'all') {
+                query = query.eq('type', type);
+            }
+
+            // Apply search filter
+            if (search.trim()) {
+                query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+            }
+
+            // Apply pagination
+            const from = (page - 1) * limit;
+            const to = from + limit - 1;
+            query = query.range(from, to);
+
+            const { data, error, count } = await query;
+
+            if (error) {
+                console.error('Error fetching paginated published posts:', error);
+                throw new Error(`Failed to fetch posts: ${error.message}`);
+            }
+
+            // Transform the data to include tags array
+            const postsWithTags = (data || []).map(post => ({
+                ...post,
+                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            }));
+
+            return {
+                posts: postsWithTags,
+                totalCount: count || 0,
+                totalPages: Math.ceil((count || 0) / limit),
+                currentPage: page
+            };
+
+        } catch (error) {
+            console.error('PostService.getPaginatedPublishedPosts error:', error);
+            throw error;
         }
     }
 }

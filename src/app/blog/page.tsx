@@ -1,9 +1,9 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SectionHeader } from '@/component/SectionHeader';
 import { NewsCard } from '@/component/NewsCard';
 import { LastNewsCard } from '@/component/LastNewsCard';
-import { usePublishedPosts } from '@/hooks/usePosts';
+import { usePublishedPostsPaginated, usePublishedPosts } from '@/hooks/usePosts';
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
 const POSTS_PER_PAGE = 6;
@@ -19,43 +19,70 @@ const BlogsPage = () => {
         const timer = setTimeout(() => {
             setDebouncedSearchTerm(searchTerm);
             setCurrentPage(1); // Reset to first page when searching
-        }, 300);
+        }, 500); // Tăng thời gian debounce để giảm API calls
 
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    // Load all published blog posts
+    // Load paginated blog posts với server-side pagination
     const {
-        posts: allBlogPosts,
+        posts: currentPosts,
         loading,
-        error
-    } = usePublishedPosts({
+        error,
+        totalCount,
+        totalPages
+    } = usePublishedPostsPaginated({
         type: 'blog',
-        limit: 100 // Load more to handle client-side filtering
+        page: currentPage,
+        limit: POSTS_PER_PAGE,
+        search: debouncedSearchTerm
     });
 
-    // Filter posts based on search term
-    const filteredPosts = useMemo(() => {
-        if (!debouncedSearchTerm.trim()) {
-            return allBlogPosts;
-        }
+    // Load latest posts cho sidebar (chỉ 4 bài mới nhất)
+    const {
+        posts: latestPosts
+    } = usePublishedPosts({
+        type: 'blog',
+        limit: 4 // Chỉ load 4 bài cho sidebar
+    });
 
-        return allBlogPosts.filter(post =>
-            post.title.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-            (post.content?.blocks || [])
+    // Convert posts to NewsCard format - Ưu tiên description
+    const convertToNewsFormat = (post: any) => {
+        let excerpt = '';
+        if (post.description) {
+            excerpt = post.description;
+        } else if (post.content?.blocks) {
+            excerpt = post.content.blocks
                 .filter((block: any) => block.type === 'paragraph')
                 .map((block: any) => block.data?.text || '')
                 .join(' ')
-                .toLowerCase()
-                .includes(debouncedSearchTerm.toLowerCase())
-        );
-    }, [allBlogPosts, debouncedSearchTerm]);
+                .replace(/<[^>]*>/g, '');
+        }
 
-    // Calculate pagination
-    const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE);
-    const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
-    const endIndex = startIndex + POSTS_PER_PAGE;
-    const currentPosts = filteredPosts.slice(startIndex, endIndex);
+        return {
+            date: {
+                day: new Date(post.created_at).getDate().toString(),
+                month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
+                year: new Date(post.created_at).getFullYear().toString()
+            },
+            image: post.thumbnail || '/news/default-blog.jpg',
+            title: post.title,
+            excerpt: excerpt.substring(0, 200) + (excerpt.length > 200 ? '...' : '') || 'Nội dung bài viết...',
+            category: 'BLOG HR COMPANION',
+            href: `/posts/${post.id}`
+        };
+    };
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+    };
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
 
     // Generate page numbers for pagination
     const getPageNumbers = () => {
@@ -93,48 +120,8 @@ const BlogsPage = () => {
         return pages;
     };
 
-    // Convert posts to NewsCard format
-    const convertToNewsFormat = (post: any) => ({
-        date: {
-            day: new Date(post.created_at).getDate().toString(),
-            month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
-            year: new Date(post.created_at).getFullYear().toString()
-        },
-        image: post.thumbnail || '/news/default-blog.jpg',
-        title: post.title,
-        excerpt: post.content?.blocks
-            ?.filter((block: any) => block.type === 'paragraph')
-            ?.map((block: any) => block.data?.text || '')
-            ?.join(' ')
-            ?.replace(/<[^>]*>/g, '')
-            ?.substring(0, 200) + '...' || 'Nội dung bài viết...',
-        category: 'BLOG HR COMPANION',
-        href: `/posts/${post.id}`
-    });
-
-    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-    };
-
-    const handlePageChange = (page: number) => {
-        setCurrentPage(page);
-
-        // Multiple scroll methods to ensure it works
-        // Method 1: Scroll to top of page immediately
-        window.scrollTo(0, 0);
-
-        // Method 2: Smooth scroll with timeout to ensure it happens after state update
-        setTimeout(() => {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
-        }, 50);
-
-        // Method 3: Force scroll for different browsers
-        document.documentElement.scrollTop = 0;
-        document.body.scrollTop = 0;
-    };
+    const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
+    const endIndex = Math.min(startIndex + POSTS_PER_PAGE, totalCount);
 
     return (
         <div>
@@ -164,7 +151,7 @@ const BlogsPage = () => {
                                     {debouncedSearchTerm && (
                                         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                                             <p className="text-blue-800">
-                                                Tìm thấy <strong>{filteredPosts.length}</strong> bài viết cho từ khóa "{debouncedSearchTerm}"
+                                                Tìm thấy <strong>{totalCount}</strong> bài viết cho từ khóa "{debouncedSearchTerm}"
                                             </p>
                                         </div>
                                     )}
@@ -182,6 +169,7 @@ const BlogsPage = () => {
                                                     category={newsFormat.category}
                                                     date={newsFormat.date}
                                                     href={newsFormat.href}
+                                                    readTime={Math.ceil(newsFormat.excerpt.length / 200)}
                                                 />
                                             );
                                         })}
@@ -192,7 +180,7 @@ const BlogsPage = () => {
                                         <div className="mt-12 flex flex-col items-center space-y-4">
                                             {/* Pagination Info */}
                                             <div className="text-sm text-gray-600">
-                                                Hiển thị {startIndex + 1}-{Math.min(endIndex, filteredPosts.length)} trong {filteredPosts.length} bài viết
+                                                Hiển thị {startIndex + 1}-{endIndex} trong {totalCount} bài viết
                                             </div>
 
                                             {/* Pagination Controls */}
@@ -329,7 +317,7 @@ const BlogsPage = () => {
                                     </h3>
 
                                     <div className="space-y-6">
-                                        {allBlogPosts.slice(0, 4).map((post) => {
+                                        {latestPosts.slice(0, 4).map((post) => {
                                             const newsFormat = convertToNewsFormat(post);
                                             return (
                                                 <LastNewsCard
@@ -341,7 +329,7 @@ const BlogsPage = () => {
                                                         excerpt: newsFormat.excerpt.substring(0, 100) + '...',
                                                         category: 'Blog',
                                                         readTime: Math.ceil(newsFormat.excerpt.length / 200),
-                                                        views: Math.floor(Math.random() * 300) + 50
+                                                        image: newsFormat.image
                                                     }}
                                                 />
                                             );

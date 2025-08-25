@@ -3,15 +3,23 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Calendar, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, User, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import { SectionHeader } from '@/component/SectionHeader';
 import { LastNewsCard } from '@/component/LastNewsCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
 import { postService } from '@/lib/posts';
 
+// Thêm interface cho Tag
+interface Tag {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 interface BlogPost {
     id: string;
     title: string;
+    description?: string;
     thumbnail: string | null;
     content: any;
     type: 'activity' | 'blog';
@@ -21,6 +29,7 @@ interface BlogPost {
         full_name: string | null;
         image_url?: string | null;
     };
+    tags?: Tag[];
 }
 
 const PostDetailPage = () => {
@@ -95,7 +104,9 @@ const PostDetailPage = () => {
 
     const getReadingTime = (content: string): number => {
         const text = extractTextFromContent(content);
-        return Math.ceil(text.length / 200);
+        const wordsPerMinute = 200;
+        const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+        return Math.max(1, Math.ceil(wordCount / wordsPerMinute));
     };
 
     const renderContent = (content: string) => {
@@ -110,9 +121,10 @@ const PostDetailPage = () => {
         );
     };
 
-
+    // Sử dụng description thay vì content để tạo excerpt
     const convertToNewsFormat = (post: any) => {
-        const excerpt = extractTextFromContent(post.content || '');
+        // Ưu tiên description, nếu không có thì dùng content
+        const excerpt = post.description || extractTextFromContent(post.content || '');
         return {
             date: {
                 day: new Date(post.created_at).getDate().toString(),
@@ -206,6 +218,15 @@ const PostDetailPage = () => {
     const relatedPosts = getRelatedPosts();
     const typeInfo = getPostTypeInfo(post.type);
 
+    function subFormatDate(dateStr: string) {
+        if (!dateStr) return "";
+        return new Intl.DateTimeFormat("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+        }).format(new Date(dateStr));
+    }
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
@@ -231,9 +252,9 @@ const PostDetailPage = () => {
 
                     {/* Category */}
                     <div className="mb-3">
-                      <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
-                        {typeInfo.categoryLabel}
-                      </span>
+                        <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
+                            {typeInfo.categoryLabel}
+                        </span>
                     </div>
 
                     {/* Title */}
@@ -241,12 +262,35 @@ const PostDetailPage = () => {
                         {post.title}
                     </h1>
 
-                    {/* Meta + Author (giữ avatar & tên) */}
+                    {/* Description - Hiển thị description nếu có */}
+                    {post.description && (
+                        <p className="text-xl text-gray-600 mb-6 leading-relaxed max-w-3xl mx-auto">
+                            {post.description}
+                        </p>
+                    )}
+
+                    {/* Tags - Hiển thị tags nếu có */}
+                    {post.tags && post.tags.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+                            {post.tags.map((tag) => (
+                                <span
+                                    key={tag.id}
+                                    className="inline-flex items-center px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-50 hover:border-cyan-200 hover:text-cyan-700 transition-colors"
+                                >
+                                    <Tag className="w-3 h-3 mr-1.5" />
+                                    {tag.name}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Meta + Author */}
                     <div className="flex flex-wrap items-center justify-center gap-5 text-gray-600 mb-6">
                         <div className="flex items-center gap-2">
                             <Calendar className="w-5 h-5" />
-                            <span>{formatDate(post.published_at || post.created_at || "")}</span>
+                            <span>{subFormatDate(post.published_at || post.created_at || "")}</span>
                         </div>
+
 
                         <span className="hidden sm:inline text-gray-300">•</span>
 
@@ -273,13 +317,12 @@ const PostDetailPage = () => {
                                 </div>
                             )}
                             <span className="text-sm font-medium text-gray-800">
-                              {post.profiles?.full_name ?? "HR Companion"}
+                                {post.profiles?.full_name ?? "HR Companion"}
                             </span>
                         </div>
                     </div>
                 </div>
             </section>
-
 
             {/* Main Content */}
             <section className="py-12 px-4 sm:px-6 lg:px-8">
@@ -306,6 +349,12 @@ const PostDetailPage = () => {
                                                 <h3 className="text-lg font-semibold text-gray-900 group-hover:text-cyan-600 transition-colors line-clamp-2">
                                                     {previousPost.title}
                                                 </h3>
+                                                {/* Hiển thị description hoặc excerpt ngắn */}
+                                                {previousPost.description && (
+                                                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                                                        {previousPost.description}
+                                                    </p>
+                                                )}
                                             </div>
                                         </Link>
                                     )}
@@ -321,6 +370,12 @@ const PostDetailPage = () => {
                                                 <h3 className="text-lg font-semibold text-gray-900 group-hover:text-cyan-600 transition-colors line-clamp-2">
                                                     {nextPost.title}
                                                 </h3>
+                                                {/* Hiển thị description hoặc excerpt ngắn */}
+                                                {nextPost.description && (
+                                                    <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                                                        {nextPost.description}
+                                                    </p>
+                                                )}
                                             </div>
                                         </Link>
                                     )}
@@ -352,6 +407,26 @@ const PostDetailPage = () => {
                                                         />
                                                     </div>
                                                     <div className="p-6">
+                                                        {/* Tags của related post */}
+                                                        {relatedPost.tags && relatedPost.tags.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1 mb-3">
+                                                                {relatedPost.tags.slice(0, 2).map((tag) => (
+                                                                    <span
+                                                                        key={tag.id}
+                                                                        className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-700"
+                                                                    >
+                                                                        <Tag className="w-2 h-2 mr-1" />
+                                                                        {tag.name}
+                                                                    </span>
+                                                                ))}
+                                                                {relatedPost.tags.length > 2 && (
+                                                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-700">
+                                                                        +{relatedPost.tags.length - 2}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+
                                                         <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
                                                             <Calendar className="w-4 h-4" />
                                                             {newsFormat.date.day} {newsFormat.date.month}, {newsFormat.date.year}
@@ -371,7 +446,6 @@ const PostDetailPage = () => {
                                     </div>
                                 </div>
                             )}
-
                         </div>
 
                         {/* Sidebar - Right Side */}
@@ -386,6 +460,7 @@ const PostDetailPage = () => {
                                     <div className="space-y-6">
                                         {allRelatedPosts.slice(0, 4).map((relatedPost) => {
                                             const newsFormat = convertToNewsFormat(relatedPost);
+                                            const relatedPostReadTime = getReadingTime(relatedPost.content || '');
                                             return (
                                                 <LastNewsCard
                                                     key={relatedPost.id}
@@ -395,8 +470,8 @@ const PostDetailPage = () => {
                                                         href: newsFormat.href,
                                                         excerpt: newsFormat.excerpt.substring(0, 100) + (newsFormat.excerpt.length > 100 ? '...' : ''),
                                                         category: relatedPost.type === 'activity' ? 'Tin tức & Sự kiện' : 'Blog',
-                                                        readTime: Math.ceil(newsFormat.excerpt.length / 200) || 2,
-                                                        views: Math.floor(Math.random() * 300) + 50
+                                                        readTime: relatedPostReadTime,
+                                                        image: newsFormat.image
                                                     }}
                                                 />
                                             );
@@ -520,10 +595,9 @@ const PostDetailPage = () => {
                     vertical-align: middle;
                     max-width: 100%;
                     height: auto;
+                    margin-bottom: 15px;
                 }
             `}</style>
-
-
         </div>
     );
 };

@@ -1,7 +1,8 @@
 'use client';
 import React from 'react';
 import Link from 'next/link';
-import { Clock, Calendar } from 'lucide-react';
+import Image from 'next/image';
+import { Clock } from 'lucide-react';
 
 interface LastNews {
     title: string;
@@ -12,9 +13,9 @@ interface LastNews {
     };
     excerpt?: string;
     readTime?: number;
-    views?: number;
     category?: string;
     href?: string;
+    image?: string;
 }
 
 interface LastNewsCardProps {
@@ -22,60 +23,58 @@ interface LastNewsCardProps {
 }
 
 export const LastNewsCard = ({ article }: LastNewsCardProps) => {
-    const readTime = article.readTime || Math.ceil((article.excerpt?.length || 0) / 200) || 2;
-    const views = article.views || Math.floor(Math.random() * 500) + 50;
+    const readTime = article.readTime || 2;
 
     return (
         <div className="group">
             <Link href={article.href || '#'} className="block">
-                <div className="flex gap-4 p-3 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 transition-all duration-200">
-                    {/* Date Block */}
-                    <div className="flex-shrink-0 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 text-center px-3 py-2 rounded-lg group-hover:from-blue-100 group-hover:to-blue-200 transition-all duration-200 shadow-sm">
-                        <p className="text-lg font-bold text-blue-800 leading-none">
-                            {article.date.day}
-                        </p>
-                        <p className="text-xs text-blue-600 uppercase font-medium">
-                            {article.date.month}
-                        </p>
-                    </div>
-
-                    {/* Article Content */}
-                    <div className="flex-1 min-w-0">
-
-
-                        {/* Title */}
-                        <h4 className="text-sm font-semibold text-gray-800 group-hover:text-blue-600 transition-colors duration-200 line-clamp-2 mb-2 leading-tight">
-                            {article.title}
-                        </h4>
-
-                        {/* Excerpt */}
-                        {article.excerpt && (
-                            <p className="text-xs text-gray-600 line-clamp-2 mb-2 leading-relaxed">
-                                {article.excerpt}
-                            </p>
-                        )}
-
-                        {/* Meta Info */}
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                            <div className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                <span>{article.date.year || '2024'}</span>
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                <span>{readTime} phút đọc</span>
-                            </div>
-
+                <div className="relative p-3 bg-white border border-gray-100 rounded-lg hover:border-cyan-200 hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+                    <div className="flex gap-3">
+                        {/* Image Thumbnail */}
+                        <div className="flex-shrink-0 w-20 relative overflow-hidden rounded-lg bg-gray-50 flex">
+                            <Image
+                                src={article.image || '/images/default-blog.jpg'}
+                                alt={article.title}
+                                fill
+                                className="object-cover group-hover:scale-110 transition-transform duration-300"
+                            />
                         </div>
 
-                        {/* Read More Link */}
-                        <div className="mt-2">
-                            <span className="text-xs text-blue-600 group-hover:text-blue-700 font-medium opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center gap-1">
-                                Đọc thêm →
-                            </span>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                            {/* Title */}
+                            <h4 className="text-sm font-semibold text-gray-800 group-hover:text-cyan-700 transition-colors duration-200 line-clamp-2 leading-tight">
+                                {article.title}
+                            </h4>
+
+                            {/* Excerpt */}
+                            {article.excerpt && (
+                                <p className="text-xs text-gray-600 line-clamp-1 leading-relaxed">
+                                    {article.excerpt}
+                                </p>
+                            )}
+
+                            {/* Bottom row with category and read time */}
+                            <div className="flex items-center justify-between">
+                                {/* Category */}
+                                {article.category && (
+                                    <span className="px-2 py-1 bg-cyan-100 text-cyan-700 text-xs font-medium rounded group-hover:bg-cyan-200 transition-colors duration-200">
+                                        {article.category}
+                                    </span>
+                                )}
+
+                                {/* Read time */}
+                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                    <Clock className="w-3 h-3 text-cyan-500" />
+                                    <span>{readTime} phút</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Hover accent border */}
+                    <div className="absolute inset-0 border border-transparent group-hover:border-cyan-300/50 rounded-lg transition-colors duration-200" />
                 </div>
             </Link>
         </div>

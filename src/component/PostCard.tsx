@@ -21,7 +21,15 @@ export const PostCard: React.FC<PostCardProps> = ({
                                                       className = ''
                                                   }) => {
     const excerpt = extractTextFromContent(post.content);
-    const readingTime = Math.ceil(excerpt.length / 200);
+
+    const getReadingTime = (content: string): number => {
+        const text = extractTextFromContent(content);
+        const wordsPerMinute = 200;
+        const wordCount = text.trim().split(/\s+/).filter(word => word.length > 0).length;
+        return Math.max(1, Math.ceil(wordCount / wordsPerMinute));
+    };
+
+    const readingTime = getReadingTime(post.content || '');
 
     return (
         <Link href={`/posts/${post.id}`}>
@@ -116,16 +124,15 @@ export const PostCard: React.FC<PostCardProps> = ({
                                     <p className="text-sm font-medium text-white/95">
                                         {post.profiles.full_name}
                                     </p>
-                                    <p className="text-xs text-white/70">
-                                        Tác giả
-                                    </p>
+
                                 </div>
                             </div>
-
+                            {/*
                             <div className="flex items-center gap-2 text-xs text-white/80 group-hover:text-cyan-300 transition-colors font-medium">
-                                <span>Đọc thêm</span>
+                               <span>Đọc thêm</span>
                                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </div>
+                            */}
                         </div>
                     )}
                 </div>

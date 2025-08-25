@@ -150,7 +150,62 @@ export const usePosts = (options: UsePostsOptions = {}): UsePostsReturn => {
     };
 };
 
-// Hook for published posts (public facing)
+// Hook for published posts với server-side pagination (TỐI ƯU)
+export const usePublishedPostsPaginated = (options: {
+    type?: 'activity' | 'blog' | 'all';
+    page?: number;
+    limit?: number;
+    search?: string;
+} = {}) => {
+    const { type = 'all', page = 1, limit = 6, search = '' } = options;
+
+    const [posts, setPosts] = useState<Post[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [totalCount, setTotalCount] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+
+    const loadPosts = useCallback(async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            // Gọi API với server-side pagination
+            const result = await postService.getPaginatedPublishedPosts({
+                type,
+                page,
+                limit,
+                search
+            });
+
+            setPosts(result.posts);
+            setTotalCount(result.totalCount);
+            setTotalPages(result.totalPages);
+
+        } catch (err) {
+            console.error('Error loading paginated posts:', err);
+            setError('Không thể tải bài viết');
+        } finally {
+            setLoading(false);
+        }
+    }, [type, page, limit, search]);
+
+    useEffect(() => {
+        loadPosts();
+    }, [loadPosts]);
+
+    return {
+        posts,
+        loading,
+        error,
+        totalCount,
+        totalPages,
+        currentPage: page,
+        refreshPosts: loadPosts
+    };
+};
+
+// Hook for published posts (client-side, cho sidebar và các trường hợp nhỏ)
 export const usePublishedPosts = (options: {
     type?: 'activity' | 'blog' | 'all';
     limit?: number;

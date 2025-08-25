@@ -18,7 +18,6 @@ import { usePublishedPosts } from '@/hooks/usePosts';
 import Link from "next/link";
 import { supabase } from '@/utils/supabase/client';
 
-// Fallback data cho trường hợp không có dữ liệu từ database
 const fallbackStats = [
     {icon: UserCheck, value: '89', label: 'Mentor đồng hành',},
     {icon: BookOpenCheck, value: '120', label: 'Hướng dẫn',},
@@ -506,7 +505,7 @@ const HomePage = () => {
                                     <PostCard
                                         key={post.id}
                                         post={post}
-                                        showAuthor={false}
+                                        showAuthor={true}
                                         showExcerpt={false}
                                     />
                                 ))}
