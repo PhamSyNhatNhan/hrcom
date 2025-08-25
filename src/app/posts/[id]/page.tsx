@@ -206,6 +206,7 @@ const PostDetailPage = () => {
     const relatedPosts = getRelatedPosts();
     const typeInfo = getPostTypeInfo(post.type);
 
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
             {/* Hero Section */}
@@ -230,9 +231,9 @@ const PostDetailPage = () => {
 
                     {/* Category */}
                     <div className="mb-3">
-      <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
-        {typeInfo.categoryLabel}
-      </span>
+                      <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
+                        {typeInfo.categoryLabel}
+                      </span>
                     </div>
 
                     {/* Title */}
@@ -424,6 +425,9 @@ const PostDetailPage = () => {
             </section>
 
             <style jsx global>{`
+                /* Link vẫn có pointer */
+                .tinymce-content a { cursor: pointer; }
+
                 /* TinyMCE Image Wrapping Styles (scoped) */
                 .tinymce-content .wrap-left {
                     float: left !important;
@@ -449,7 +453,6 @@ const PostDetailPage = () => {
                     line-height: 0 !important;
                 }
 
-                /* Responsive */
                 @media (max-width: 768px) {
                     .tinymce-content .wrap-left,
                     .tinymce-content .wrap-right {
@@ -459,7 +462,6 @@ const PostDetailPage = () => {
                     }
                 }
 
-                /* Ensure proper spacing around floated images */
                 .tinymce-content p:has(.wrap-left),
                 .tinymce-content p:has(.wrap-right) {
                     overflow: visible !important;
@@ -473,7 +475,7 @@ const PostDetailPage = () => {
                     border-radius: 8px;
                 }
 
-                /* Table styling */
+                /* Table styling (layout, không ép màu/cỡ chữ) */
                 .tinymce-content table {
                     border-collapse: collapse;
                     width: 100%;
@@ -490,7 +492,7 @@ const PostDetailPage = () => {
                     font-weight: 600;
                 }
 
-                /* Lists */
+                /* Lists spacing */
                 .tinymce-content ul,
                 .tinymce-content ol {
                     margin: 1.5rem 0;
@@ -500,7 +502,7 @@ const PostDetailPage = () => {
                     margin: 0.5rem 0;
                 }
 
-                /* Blockquote */
+                /* Blockquote layout (không ép màu/cỡ chữ) */
                 .tinymce-content blockquote {
                     border-left: 4px solid #06b6d4;
                     background: #f8fafc;
@@ -510,16 +512,18 @@ const PostDetailPage = () => {
                     font-style: italic;
                 }
 
-                /* Images (scoped, KHÔNG ảnh hưởng logo) */
+                /* Images */
                 .tinymce-content img {
                     border-radius: 8px;
                     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-                    display: inline-block;          /* tránh khoảng trống baseline quá lớn trong nội dung */
+                    display: inline-block;
                     vertical-align: middle;
                     max-width: 100%;
                     height: auto;
                 }
             `}</style>
+
+
         </div>
     );
 };

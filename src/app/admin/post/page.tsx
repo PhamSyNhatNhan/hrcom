@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { Editor } from '@tinymce/tinymce-react';
+import { Tag, Settings } from 'lucide-react';
+import Link from 'next/link';
 
 // Bắt lỗi
 function getErrorMessage(err: unknown): string {
@@ -39,9 +41,19 @@ function getErrorMessage(err: unknown): string {
     return typeof err === 'string' ? err : JSON.stringify(err);
 }
 
+interface Tag {
+    id: string;
+    name: string;
+    description?: string;
+    created_at: string;
+    updated_at: string;
+    post_count?: number;
+}
+
 interface Post {
     id: string;
     title: string;
+    description?: string;
     thumbnail: string | null;
     content: any;
     author_id: string;
@@ -54,6 +66,7 @@ interface Post {
         full_name: string;
         image_url?: string;
     };
+    tags?: Tag[];
 }
 
 interface PostSubmission {
@@ -79,13 +92,15 @@ interface PostSubmission {
 
 interface PostFormData {
     title: string;
+    description: string;
     type: 'activity' | 'blog';
     content: string;
     thumbnail: File | null;
     published: boolean;
+    selectedTags: string[];
 }
 
-type TabType = 'posts' | 'submissions';
+type TabType = 'posts' | 'submissions' | 'tags';
 
 const PostPage: React.FC = () => {
     const { user } = useAuthStore();
@@ -102,20 +117,33 @@ const PostPage: React.FC = () => {
     const [editingPost, setEditingPost] = useState<Post | null>(null);
     const [reviewingSubmission, setReviewingSubmission] = useState<PostSubmission | null>(null);
     const [adminNotes, setAdminNotes] = useState('');
+    const [tags, setTags] = useState<Tag[]>([]);
+    const [tagSearch, setTagSearch] = useState('');
+    const [showTagDropdown, setShowTagDropdown] = useState(false);
+    const [showTagForm, setShowTagForm] = useState(false);
+    const [editingTag, setEditingTag] = useState<Tag | null>(null);
+    const [tagFormData, setTagFormData] = useState({
+        name: '',
+        description: ''
+    });
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'activity' | 'blog'>('all');
     const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'draft'>('all');
     const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+    const [filterTag, setFilterTag] = useState<string>('all');
+
 
     // Form state
     const [formData, setFormData] = useState<PostFormData>({
         title: '',
+        description: '',
         type: 'activity',
         content: '',
         thumbnail: null,
-        published: false
+        published: false,
+        selectedTags: []
     });
     const [thumbnailPreview, setThumbnailPreview] = useState<string>('');
     const [uploading, setUploading] = useState(false);
@@ -131,6 +159,34 @@ const PostPage: React.FC = () => {
         setTimeout(() => setNotification(null), 5000);
     };
 
+    // Load Tags
+    const loadTags = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('tags')
+                .select(`
+                *,
+                post_tags (
+                    id
+                )
+            `)
+                .order('name', { ascending: true });
+
+            if (error) throw error;
+
+            // Transform data to include post count
+            const tagsWithCount = (data || []).map(tag => ({
+                ...tag,
+                post_count: tag.post_tags?.length || 0
+            }));
+
+            setTags(tagsWithCount);
+        } catch (error) {
+            console.error('Error loading tags:', error);
+            showNotification('error', 'Không thể tải danh sách tag: ' + getErrorMessage(error));
+        }
+    };
+
     // Load posts
     const loadPosts = async () => {
         try {
@@ -138,22 +194,149 @@ const PostPage: React.FC = () => {
             const { data, error } = await supabase
                 .from('posts')
                 .select(`
-                    *,
-                    profiles (
-                        full_name,
-                        image_url
+                *,
+                profiles (
+                    full_name,
+                    image_url
+                ),
+                post_tags (
+                    tags (
+                        id,
+                        name,
+                        description
                     )
-                `)
+                )
+            `)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setPosts(data || []);
+
+            // Transform the data to include tags array
+            const postsWithTags = (data || []).map(post => ({
+                ...post,
+                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+            }));
+
+            setPosts(postsWithTags);
         } catch (error) {
             console.error('Error loading posts:', error);
             showNotification('error', 'Không thể tải bài viết: ' + getErrorMessage(error));
         } finally {
             setLoading(false);
         }
+    };
+
+    // 4. tag management functions
+    const createTag = async () => {
+        if (!tagFormData.name.trim()) {
+            showNotification('error', 'Tên tag không được để trống');
+            return;
+        }
+
+        try {
+            setUploading(true);
+
+            const { error } = await supabase
+                .from('tags')
+                .insert([{
+                    name: tagFormData.name.trim(),
+                    description: tagFormData.description.trim() || null
+                }]);
+
+            if (error) throw error;
+
+            showNotification('success', 'Tạo tag thành công');
+            resetTagForm();
+            loadTags();
+        } catch (error) {
+            console.error('Error creating tag:', error);
+            if (error.code === '23505') {
+                showNotification('error', 'Tag với tên này đã tồn tại');
+            } else {
+                showNotification('error', 'Lỗi khi tạo tag: ' + getErrorMessage(error));
+            }
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const updateTag = async () => {
+        if (!editingTag || !tagFormData.name.trim()) {
+            showNotification('error', 'Tên tag không được để trống');
+            return;
+        }
+
+        try {
+            setUploading(true);
+
+            const { error } = await supabase
+                .from('tags')
+                .update({
+                    name: tagFormData.name.trim(),
+                    description: tagFormData.description.trim() || null
+                })
+                .eq('id', editingTag.id);
+
+            if (error) throw error;
+
+            showNotification('success', 'Cập nhật tag thành công');
+            resetTagForm();
+            loadTags();
+        } catch (error) {
+            console.error('Error updating tag:', error);
+            if (error.code === '23505') {
+                showNotification('error', 'Tag với tên này đã tồn tại');
+            } else {
+                showNotification('error', 'Lỗi khi cập nhật tag: ' + getErrorMessage(error));
+            }
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const deleteTag = async (tag: Tag) => {
+        if (tag.post_count && tag.post_count > 0) {
+            if (!confirm(`Tag "${tag.name}" đang được sử dụng bởi ${tag.post_count} bài viết. Bạn có chắc chắn muốn xóa?`)) {
+                return;
+            }
+        } else {
+            if (!confirm(`Bạn có chắc chắn muốn xóa tag "${tag.name}"?`)) {
+                return;
+            }
+        }
+
+        try {
+            const { error } = await supabase
+                .from('tags')
+                .delete()
+                .eq('id', tag.id);
+
+            if (error) throw error;
+
+            showNotification('success', 'Xóa tag thành công');
+            loadTags();
+        } catch (error) {
+            console.error('Error deleting tag:', error);
+            showNotification('error', 'Lỗi khi xóa tag: ' + getErrorMessage(error));
+        }
+    };
+
+    const editTag = (tag: Tag) => {
+        setEditingTag(tag);
+        setTagFormData({
+            name: tag.name,
+            description: tag.description || ''
+        });
+        setShowTagForm(true);
+    };
+
+    const resetTagForm = () => {
+        setShowTagForm(false);
+        setEditingTag(null);
+        setTagFormData({
+            name: '',
+            description: ''
+        });
     };
 
     // Load post submissions
@@ -163,26 +346,43 @@ const PostPage: React.FC = () => {
             const { data, error } = await supabase
                 .from('post_submissions')
                 .select(`
+                *,
+                posts (
                     *,
-                    posts (
-                        *,
-                        profiles (
-                            full_name,
-                            image_url
-                        )
-                    ),
-                    profiles!post_submissions_author_id_fkey (
+                    profiles (
                         full_name,
                         image_url
                     ),
-                    reviewed_by_profile:profiles!post_submissions_reviewed_by_fkey (
-                        full_name
+                    post_tags (
+                        tags (
+                            id,
+                            name,
+                            description
+                        )
                     )
-                `)
+                ),
+                profiles!post_submissions_author_id_fkey (
+                    full_name,
+                    image_url
+                ),
+                reviewed_by_profile:profiles!post_submissions_reviewed_by_fkey (
+                    full_name
+                )
+            `)
                 .order('submitted_at', { ascending: false });
 
             if (error) throw error;
-            setSubmissions(data || []);
+
+            // Transform the data to include tags array
+            const submissionsWithTags = (data || []).map(submission => ({
+                ...submission,
+                posts: submission.posts ? {
+                    ...submission.posts,
+                    tags: submission.posts.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+                } : null
+            }));
+
+            setSubmissions(submissionsWithTags);
         } catch (error) {
             console.error('Error loading submissions:', error);
             showNotification('error', 'Không thể tải danh sách duyệt bài: ' + getErrorMessage(error));
@@ -225,6 +425,20 @@ const PostPage: React.FC = () => {
         }
     };
 
+    // Handle tags
+    const toggleTag = (tagId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            selectedTags: prev.selectedTags.includes(tagId)
+                ? prev.selectedTags.filter(id => id !== tagId)
+                : [...prev.selectedTags, tagId]
+        }));
+    };
+
+    const filteredTags = tags.filter(tag =>
+        tag.name.toLowerCase().includes(tagSearch.toLowerCase())
+    );
+
     // Save post
     const savePost = async () => {
         if (!user) return;
@@ -242,6 +456,7 @@ const PostPage: React.FC = () => {
 
             const postData = {
                 title: formData.title,
+                description: formData.description, // THÊM
                 type: formData.type,
                 content: content,
                 thumbnail: thumbnailUrl || null,
@@ -251,20 +466,50 @@ const PostPage: React.FC = () => {
             };
 
             let result;
+            let postId;
+
             if (editingPost) {
                 // Update existing post
                 result = await supabase
                     .from('posts')
                     .update(postData)
-                    .eq('id', editingPost.id);
+                    .eq('id', editingPost.id)
+                    .select('id')
+                    .single();
+
+                if (result.error) throw result.error;
+                postId = editingPost.id;
+
+                // Remove existing tags
+                await supabase
+                    .from('post_tags')
+                    .delete()
+                    .eq('post_id', postId);
             } else {
                 // Create new post
                 result = await supabase
                     .from('posts')
-                    .insert([postData]);
+                    .insert([postData])
+                    .select('id')
+                    .single();
+
+                if (result.error) throw result.error;
+                postId = result.data.id;
             }
 
-            if (result.error) throw result.error;
+            // Add selected tags
+            if (formData.selectedTags.length > 0) {
+                const tagInserts = formData.selectedTags.map(tagId => ({
+                    post_id: postId,
+                    tag_id: tagId
+                }));
+
+                const tagResult = await supabase
+                    .from('post_tags')
+                    .insert(tagInserts);
+
+                if (tagResult.error) throw tagResult.error;
+            }
 
             showNotification('success', editingPost ? 'Cập nhật bài viết thành công' : 'Tạo bài viết thành công');
             resetForm();
@@ -384,10 +629,12 @@ const PostPage: React.FC = () => {
         setEditingPost(post);
         setFormData({
             title: post.title,
+            description: post.description || '',
             type: post.type,
             content: '', // Will be set by TinyMCE
             thumbnail: null,
-            published: post.published
+            published: post.published,
+            selectedTags: post.tags?.map(tag => tag.id) || []
         });
         if (post.thumbnail) {
             setThumbnailPreview(post.thumbnail);
@@ -401,12 +648,16 @@ const PostPage: React.FC = () => {
         setEditingPost(null);
         setFormData({
             title: '',
+            description: '',
             type: 'activity',
             content: '',
             thumbnail: null,
-            published: false
+            published: false,
+            selectedTags: []
         });
         setThumbnailPreview('');
+        setTagSearch('');
+        setShowTagDropdown(false);
         if (editorRef.current) {
             editorRef.current.setContent('');
         }
@@ -414,30 +665,47 @@ const PostPage: React.FC = () => {
 
     // Filter functions
     const filteredPosts = posts.filter(post => {
-        const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (post.description && post.description.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesType = filterType === 'all' || post.type === filterType;
         const matchesPublished =
             filterPublished === 'all' ||
             (filterPublished === 'published' && post.published) ||
             (filterPublished === 'draft' && !post.published);
+        const matchesTag = filterTag === 'all' ||
+            (post.tags && post.tags.some(tag => tag.id === filterTag));
 
-        return matchesSearch && matchesType && matchesPublished;
+        return matchesSearch && matchesType && matchesPublished && matchesTag;
     });
 
     const filteredSubmissions = submissions.filter(submission => {
-        const matchesSearch = submission.posts?.title?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = submission.posts?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (submission.posts?.description && submission.posts.description.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesType = filterType === 'all' || submission.posts?.type === filterType;
         const matchesStatus = filterStatus === 'all' || submission.status === filterStatus;
+        const matchesTag = filterTag === 'all' ||
+            (submission.posts?.tags && submission.posts.tags.some(tag => tag.id === filterTag));
 
-        return matchesSearch && matchesType && matchesStatus;
+        return matchesSearch && matchesType && matchesStatus && matchesTag;
     });
+
+    const filteredTagsList = tags.filter(tag =>
+        tag.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (tag.description && tag.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
     // Effects
     useEffect(() => {
+        loadTags();
+    }, []);
+
+    useEffect(() => {
         if (activeTab === 'posts') {
             loadPosts();
-        } else {
+        } else if (activeTab === 'submissions') {
             loadSubmissions();
+        } else if (activeTab === 'tags') {
+            // Tags already loaded in initial useEffect
         }
     }, [activeTab]);
 
@@ -495,9 +763,6 @@ const PostPage: React.FC = () => {
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">Không có quyền truy cập</h2>
                     <p className="text-gray-600">Bạn cần quyền admin để truy cập trang này.</p>
                 </div>
-                );
-
-                export default PostPage;
             </div>
         );
     }
@@ -567,6 +832,17 @@ const PostPage: React.FC = () => {
                                     </span>
                                 )}
                             </button>
+                            <button
+                                onClick={() => setActiveTab('tags')}
+                                className={`${
+                                    activeTab === 'tags'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                            >
+                                <Tag className="w-4 h-4" />
+                                Quản lý Tag
+                            </button>
                         </nav>
                     </div>
 
@@ -597,6 +873,19 @@ const PostPage: React.FC = () => {
                                     <option value="blog">Blog</option>
                                 </select>
 
+                                <select
+                                    value={filterTag}
+                                    onChange={(e) => setFilterTag(e.target.value)}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="all">Tất cả tag</option>
+                                    {tags.map(tag => (
+                                        <option key={tag.id} value={tag.id}>
+                                            {tag.name} ({tag.post_count || 0})
+                                        </option>
+                                    ))}
+                                </select>
+
                                 {activeTab === 'posts' ? (
                                     <select
                                         value={filterPublished}
@@ -623,7 +912,11 @@ const PostPage: React.FC = () => {
 
                             {/* Actions */}
                             <div className="flex gap-4">
-                                <Button variant="outline" onClick={activeTab === 'posts' ? loadPosts : loadSubmissions} disabled={loading} className="flex items-center gap-2">
+                                <Button variant="outline" onClick={() => {
+                                    if (activeTab === 'posts') loadPosts();
+                                    else if (activeTab === 'submissions') loadSubmissions();
+                                    else if (activeTab === 'tags') loadTags();
+                                }} disabled={loading} className="flex items-center gap-2">
                                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                                     Tải lại
                                 </Button>
@@ -634,6 +927,15 @@ const PostPage: React.FC = () => {
                                     >
                                         <Plus className="w-5 h-5" />
                                         Bài viết mới
+                                    </Button>
+                                )}
+                                {activeTab === 'tags' && (
+                                    <Button
+                                        onClick={() => setShowTagForm(true)}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                        Tag mới
                                     </Button>
                                 )}
                             </div>
@@ -648,6 +950,71 @@ const PostPage: React.FC = () => {
                             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
                             <p className="text-gray-600">Đang tải dữ liệu...</p>
                         </div>
+                    ) : activeTab === 'tags' ? (
+                        filteredTagsList.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <p className="text-gray-600">Không có tag nào.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tag</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số bài viết</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
+                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                    {filteredTagsList.map((tag) => (
+                                        <tr key={tag.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <Tag className="w-4 h-4 text-gray-400 mr-2" />
+                                                    <span className="text-sm font-medium text-gray-900">
+                                    {tag.name}
+                                </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm text-gray-600">
+                                                    {tag.description || 'Chưa có mô tả'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                                    {tag.post_count || 0} bài viết
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {new Date(tag.created_at).toLocaleDateString('vi-VN')}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => editTag(tag)}
+                                                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                                                        title="Chỉnh sửa"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteTag(tag)}
+                                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                                                        title="Xóa"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )
                     ) : activeTab === 'posts' ? (
                         filteredPosts.length === 0 ? (
                             <div className="p-8 text-center">
@@ -660,6 +1027,7 @@ const PostPage: React.FC = () => {
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bài viết</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tác giả</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
@@ -683,9 +1051,14 @@ const PostPage: React.FC = () => {
                                                         </div>
                                                     )}
                                                     <div>
-                                                        <div className="text-sm font-medium text-gray-900 line-clamp-2">
+                                                        <div className="text-sm font-medium text-gray-900 line-clamp-1">
                                                             {post.title}
                                                         </div>
+                                                        {post.description && (
+                                                            <div className="text-xs text-gray-500 line-clamp-1 mt-1">
+                                                                {post.description}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </td>
@@ -697,6 +1070,28 @@ const PostPage: React.FC = () => {
                                                     }`}>
                                                         {post.type === 'activity' ? 'Hoạt động' : 'Blog'}
                                                     </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {post.tags && post.tags.length > 0 ? (
+                                                        post.tags.slice(0, 2).map((tag) => (
+                                                            <span
+                                                                key={tag.id}
+                                                                className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800"
+                                                            >
+                                                                <Tag className="w-3 h-3 mr-1" />
+                                                                {tag.name}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">Chưa có tag</span>
+                                                    )}
+                                                    {post.tags && post.tags.length > 2 && (
+                                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800">
+                                                            +{post.tags.length - 2}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 {post.profiles?.full_name || 'N/A'}
@@ -857,7 +1252,10 @@ const PostPage: React.FC = () => {
                                 </table>
                             </div>
                         )
-                    )}
+
+                    )
+
+                    }
                 </div>
 
                 {/* Post Form Modal */}
@@ -895,6 +1293,20 @@ const PostPage: React.FC = () => {
                                         onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         placeholder="Nhập tiêu đề bài viết..."
+                                    />
+                                </div>
+
+                                {/* Description */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mô tả bài viết
+                                    </label>
+                                    <textarea
+                                        value={formData.description}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                        rows={3}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Nhập mô tả ngắn về bài viết..."
                                     />
                                 </div>
 
@@ -943,6 +1355,88 @@ const PostPage: React.FC = () => {
                                                     className="object-cover rounded-lg"
                                                 />
                                             </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Tags
+                                    </label>
+
+                                    {/* Selected Tags */}
+                                    {formData.selectedTags.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mb-3">
+                                            {formData.selectedTags.map(tagId => {
+                                                const tag = tags.find(t => t.id === tagId);
+                                                return tag ? (
+                                                    <span
+                                                        key={tagId}
+                                                        className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-blue-100 text-blue-800"
+                                                    >
+                                                        <Tag className="w-3 h-3 mr-1" />
+                                                        {tag.name}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleTag(tagId)}
+                                                            className="ml-2 text-blue-600 hover:text-blue-800"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </span>
+                                                ) : null;
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* Tag Search & Dropdown */}
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={tagSearch}
+                                            onChange={(e) => setTagSearch(e.target.value)}
+                                            onFocus={() => setShowTagDropdown(true)}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Tìm kiếm và chọn tags..."
+                                        />
+
+                                        {showTagDropdown && (
+                                            <>
+                                                <div
+                                                    className="fixed inset-0 z-10"
+                                                    onClick={() => setShowTagDropdown(false)}
+                                                />
+                                                <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                                    {filteredTags.length > 0 ? (
+                                                        filteredTags.map(tag => (
+                                                            <button
+                                                                key={tag.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    toggleTag(tag.id);
+                                                                    setTagSearch('');
+                                                                    setShowTagDropdown(false);
+                                                                }}
+                                                                className={`w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2 ${
+                                                                    formData.selectedTags.includes(tag.id) ? 'bg-blue-50 text-blue-800' : ''
+                                                                }`}
+                                                            >
+                                                                <Tag className="w-3 h-3" />
+                                                                <span className="font-medium">{tag.name}</span>
+                                                                {tag.description && (
+                                                                    <span className="text-xs text-gray-500 ml-auto">
+                                                                        {tag.description}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        ))
+                                                    ) : (
+                                                        <div className="px-4 py-2 text-gray-500 text-sm">
+                                                            Không tìm thấy tag nào
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -1484,6 +1978,89 @@ const PostPage: React.FC = () => {
                                         <>
                                             <Check className="w-4 h-4" />
                                             Duyệt bài
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showTagForm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+                            onClick={resetTagForm}
+                        />
+
+                        <div className="relative bg-white rounded-xl max-w-md w-full shadow-2xl border border-gray-200">
+                            <div className="p-6 border-b border-gray-200">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xl font-bold">
+                                        {editingTag ? 'Chỉnh sửa Tag' : 'Tạo Tag Mới'}
+                                    </h3>
+                                    <button
+                                        onClick={resetTagForm}
+                                        className="text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                {/* Tag Name */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Tên tag *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={tagFormData.name}
+                                        onChange={(e) => setTagFormData(prev => ({ ...prev, name: e.target.value }))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Nhập tên tag..."
+                                        maxLength={50}
+                                    />
+                                </div>
+
+                                {/* Tag Description */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mô tả
+                                    </label>
+                                    <textarea
+                                        value={tagFormData.description}
+                                        onChange={(e) => setTagFormData(prev => ({ ...prev, description: e.target.value }))}
+                                        rows={3}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Nhập mô tả cho tag..."
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Form Actions */}
+                            <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
+                                <Button
+                                    variant="outline"
+                                    onClick={resetTagForm}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    onClick={editingTag ? updateTag : createTag}
+                                    disabled={uploading || !tagFormData.name.trim()}
+                                    className="flex items-center gap-2"
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            {editingTag ? 'Đang cập nhật...' : 'Đang tạo...'}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-4 h-4" />
+                                            {editingTag ? 'Cập nhật' : 'Tạo tag'}
                                         </>
                                     )}
                                 </Button>
