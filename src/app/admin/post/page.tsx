@@ -24,11 +24,13 @@ import {
     RefreshCw,
     MessageSquare,
     User,
-    Filter
+    Filter,
+    Settings,
+    Calendar
 } from 'lucide-react';
 import Image from 'next/image';
 import { Editor } from '@tinymce/tinymce-react';
-import { Tag, Settings } from 'lucide-react';
+import { Tag } from 'lucide-react';
 import Link from 'next/link';
 
 // Bắt lỗi
@@ -45,6 +47,25 @@ function getErrorCode(err: unknown): string | undefined {
         ? (err as { code?: string }).code
         : undefined;
 }
+
+// 4. THÊM FUNCTIONS XỬ LÝ PREVIEW (sau các helper functions khác)
+const renderPreviewContent = (content: string) => {
+    if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
+
+    return (
+        <div
+            className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
+            style={{
+                lineHeight: '1.7',
+                // Inline styles để thay thế global CSS
+                '--tw-prose-ul': 'disc',
+                '--tw-prose-ol': 'decimal',
+            }}
+            dangerouslySetInnerHTML={{ __html: content }}
+        />
+    );
+};
+
 
 interface Tag {
     id: string;
@@ -111,6 +132,7 @@ const PostPage: React.FC = () => {
     const { user } = useAuthStore();
     const editorRef = useRef<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const liveEditorRef = useRef<any>(null);
 
     // State management
     const [activeTab, setActiveTab] = useState<TabType>('posts');
@@ -158,6 +180,34 @@ const PostPage: React.FC = () => {
         type: 'success' | 'error' | 'warning';
         message: string;
     } | null>(null);
+
+    const [showPreview, setShowPreview] = useState(false);
+    const [showLivePreview, setShowLivePreview] = useState(false);
+    const [previewContent, setPreviewContent] = useState('');
+
+    const handlePreview = () => {
+        const content = editorRef.current?.getContent() || '';
+        setPreviewContent(content);
+        setShowPreview(true);
+    };
+
+    const handleLivePreview = () => {
+        const content = editorRef.current?.getContent() || '';
+        setPreviewContent(content);
+        setShowLivePreview(true);
+    };
+
+    const updateLivePreview = () => {
+        if (showLivePreview && liveEditorRef.current) {
+            const content = liveEditorRef.current.getContent();
+            setPreviewContent(content);
+            // Sync ngược lại main editor
+            if (editorRef.current) {
+                editorRef.current.setContent(content);
+            }
+        }
+    };
+
 
     const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
         setNotification({ type, message });
@@ -1455,6 +1505,29 @@ const PostPage: React.FC = () => {
                                         Nội dung bài viết
                                     </label>
 
+                                    {/* Preview Controls - Always visible */}
+                                    <div className="flex gap-4 mb-4">
+                                        <button
+                                            type="button"
+                                            onClick={handlePreview}
+                                            className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                        >
+                                            <Eye className="w-4 h-4" />
+                                            Preview
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleLivePreview}
+                                            className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        >
+                                            <Settings className="w-4 h-4" />
+                                            Live Preview
+                                        </button>
+
+                                    </div>
+
+
                                     <Editor
                                         key={editingPost ? editingPost.id : 'new'}
                                         tinymceScriptSrc="/tinymce/tinymce.min.js"
@@ -1482,7 +1555,7 @@ const PostPage: React.FC = () => {
                                             ],
 
                                             toolbar: [
-                                                'undo redo | preview fullscreen | restoredraft',
+                                                'undo redo | restoredraft', // Bỏ preview và fullscreen
                                                 'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
                                                 'alignleft aligncenter alignright alignjustify | lineheight | ltr rtl',
                                                 'bullist numlist outdent indent',
@@ -1591,6 +1664,10 @@ const PostPage: React.FC = () => {
                                                 const fireWrapChange = (img: HTMLElement) => {
                                                     editor.fire('ObjectResized', { target: img } as any);
                                                 };
+
+                                                editor.on('KeyUp Change', function() {
+                                                    setTimeout(updateLivePreview, 100);
+                                                });
 
                                                 // Command: Wrap Left
                                                 editor.addCommand('WrapImageLeft', function () {
@@ -1874,6 +1951,423 @@ const PostPage: React.FC = () => {
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Preview Modal */}
+                        {showPreview && (
+                            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                                <div
+                                    className="absolute inset-0 bg-gray-900/50"
+                                    onClick={() => setShowPreview(false)}
+                                />
+
+                                <div className="relative bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-200">
+                                    <div className="p-6 border-b border-gray-200">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-xl font-bold">Preview Bài Viết</h3>
+                                            <button
+                                                onClick={() => setShowPreview(false)}
+                                                className="text-gray-400 hover:text-gray-600"
+                                            >
+                                                <X className="w-6 h-6" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Scrollable Content với smooth scrolling */}
+                                    <div
+                                        className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] scroll-smooth"
+                                        style={{
+                                            scrollBehavior: 'smooth',
+                                            WebkitOverflowScrolling: 'touch',
+                                            transform: 'translateZ(0)',
+                                            backfaceVisibility: 'hidden',
+                                            perspective: 1000,
+                                        }}
+                                    >
+                                        {/* Post Header */}
+                                        <div className="mb-8 pb-6 border-b border-gray-200">
+                                            <div className="mb-3">
+                                                <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
+                                                    {formData.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION'}
+                                                </span>
+                                            </div>
+
+                                            <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 leading-tight">
+                                                {formData.title || 'Tiêu đề bài viết'}
+                                            </h1>
+
+                                            {formData.description && (
+                                                <p className="text-xl text-gray-600 mb-6 leading-relaxed">
+                                                    {formData.description}
+                                                </p>
+                                            )}
+
+                                            <div className="flex flex-wrap items-center gap-5 text-gray-600">
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar className="w-5 h-5" />
+                                                    <span>{new Date().toLocaleDateString('vi-VN')}</span>
+                                                </div>
+                                                <span className="hidden sm:inline text-gray-300">•</span>
+                                                <div className="flex items-center gap-2">
+                                                    <Clock className="w-5 h-5" />
+                                                    <span>5 phút đọc</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Content - Chỉ cần className, bỏ hết inline styles và styled-jsx */}
+                                        <div
+                                            className="preview-content tinymce-content prose prose-lg max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: previewContent }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Live Preview Modal */}
+                        {showLivePreview && (
+                            <div className="fixed inset-0 z-[60] bg-white">
+                                <div className="h-full flex flex-col">
+                                    {/* Header */}
+                                    <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+                                        <h3 className="text-lg font-bold">Live Preview - {formData.title || 'Bài viết mới'}</h3>
+                                        <button
+                                            onClick={() => setShowLivePreview(false)}
+                                            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                            Thoát
+                                        </button>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 flex overflow-hidden">
+                                        {/* Editor Side - GIỮ NGUYÊN */}
+                                        <div className="w-1/2 border-r border-gray-200 flex flex-col">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-200">
+                                                <h4 className="font-semibold text-gray-700">Editor</h4>
+                                            </div>
+                                            <div className="flex-1">
+                                                <Editor
+                                                    key={`live-editor-${editingPost?.id || 'new'}`}
+                                                    tinymceScriptSrc="/tinymce/tinymce.min.js"
+                                                    onInit={(evt, editor) => {
+                                                        liveEditorRef.current = editor;
+                                                        // Load content từ main editor hoặc editing post
+                                                        const currentContent = editorRef.current?.getContent() || editingPost?.content || '';
+                                                        if (currentContent) {
+                                                            setTimeout(() => {
+                                                                editor.setContent(currentContent);
+                                                                setPreviewContent(currentContent);
+                                                            }, 100);
+                                                        }
+                                                    }}
+                                                    licenseKey="gpl"
+                                                    init={{
+                                                        base_url: '/tinymce',
+                                                        suffix: '.min',
+                                                        height: 'calc(100vh - 140px)',
+                                                        menubar: 'file edit view insert format tools table help',
+
+                                                        branding: false,
+                                                        promotion: false,
+                                                        statusbar: false,
+
+                                                        plugins: [
+                                                            'advlist', 'anchor', 'autolink', 'autosave', 'charmap', 'code', 'codesample',
+                                                            'directionality', 'emoticons', 'fullscreen', 'help', 'image', 'importcss',
+                                                            'insertdatetime', 'link', 'lists', 'media', 'nonbreaking', 'pagebreak',
+                                                            'preview', 'quickbars', 'searchreplace', 'table', 'visualblocks',
+                                                            'visualchars', 'wordcount'
+                                                        ],
+
+                                                        toolbar: [
+                                                            'undo redo | restoredraft',
+                                                            'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
+                                                            'alignleft aligncenter alignright alignjustify | lineheight | ltr rtl',
+                                                            'bullist numlist outdent indent',
+                                                            'link anchor | image media | table codesample charmap emoticons pagebreak nonbreaking insertdatetime',
+                                                            'searchreplace visualblocks visualchars code help'
+                                                        ].join(' | '),
+
+                                                        font_family_formats:
+                                                            'Inter=Inter,sans-serif;Arial=arial,helvetica,sans-serif;Georgia=georgia,serif;Courier New=courier new,courier,monospace',
+                                                        fontsize_formats: '12px 14px 16px 18px 20px 24px 28px 32px',
+                                                        line_height_formats: '1 1.15 1.33 1.5 1.75 2',
+
+                                                        quickbars_selection_toolbar:
+                                                            'bold italic underline | forecolor backcolor | link | h2 h3 blockquote | bullist numlist',
+                                                        quickbars_insert_toolbar: 'image media table | hr pagebreak',
+                                                        quickbars_image_toolbar: 'wrapleft wrapright wrapcenter | clearwrap',
+
+                                                        image_advtab: true,
+                                                        image_dimensions: false,
+                                                        image_title: true,
+                                                        file_picker_types: 'image media',
+
+                                                        content_css: [
+                                                            'data:text/css;charset=UTF-8,' + encodeURIComponent(`
+                                        body {
+                                            font-family: Inter, Arial, sans-serif;
+                                            font-size: 14px;
+                                            line-height: 1.7;
+                                            padding: 1rem;
+                                        }
+                                        
+                                        img {
+                                            border-radius: 8px;
+                                            height: auto;
+                                        }
+        
+                                        .wrap-left {
+                                            float: left !important;
+                                            margin: 0 2rem 1rem 0 !important;
+                                            clear: none !important;
+                                        }
+        
+                                        .wrap-right {
+                                            float: right !important;
+                                            margin: 0 0 1rem 2rem !important;
+                                            clear: none !important;
+                                        }
+        
+                                        .wrap-center {
+                                            display: block !important;
+                                            float: none !important;
+                                            margin: 2rem auto !important;
+                                            clear: both !important;
+                                        }
+        
+                                        p {
+                                            margin-bottom: 1rem;
+                                            overflow: visible !important;
+                                        }
+        
+                                        p:has(.wrap-left),
+                                        p:has(.wrap-right) {
+                                            overflow: visible !important;
+                                            min-height: 50px !important;
+                                        }
+        
+                                        .clear-wrap {
+                                            clear: both !important;
+                                            height: 0 !important;
+                                            margin: 1rem 0 !important;
+                                            font-size: 0 !important;
+                                            line-height: 0 !important;
+                                        }
+        
+                                        table {
+                                            border-collapse: collapse;
+                                            width: 100%;
+                                        }
+                                        
+                                        table td, table th {
+                                            border: 1px solid #e5e7eb;
+                                            padding: .5rem;
+                                        }
+        
+                                        @media (max-width: 768px) {
+                                            .wrap-left,
+                                            .wrap-right {
+                                                float: none !important;
+                                                display: block !important;
+                                                margin: 1rem auto !important;
+                                            }
+                                        }
+                                    `)
+                                                        ],
+
+                                                        // Copy toàn bộ setup function từ editor chính
+                                                        setup: function(editor) {
+                                                            // Tất cả các commands và buttons từ editor chính
+                                                            const fireWrapChange = (img: HTMLElement) => {
+                                                                editor.fire('ObjectResized', { target: img } as any);
+                                                            };
+
+                                                            // Commands
+                                                            editor.addCommand('WrapImageLeft', function () {
+                                                                const img = editor.selection.getNode() as HTMLElement;
+                                                                if (img && img.tagName === 'IMG') {
+                                                                    img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+                                                                    img.classList.add('wrap-left');
+                                                                    const parent = img.parentNode as HTMLElement;
+                                                                    if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
+                                                                    editor.undoManager.add();
+                                                                    fireWrapChange(img);
+                                                                }
+                                                            });
+
+                                                            editor.addCommand('WrapImageRight', function () {
+                                                                const img = editor.selection.getNode() as HTMLElement;
+                                                                if (img && img.tagName === 'IMG') {
+                                                                    img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+                                                                    img.classList.add('wrap-right');
+                                                                    const parent = img.parentNode as HTMLElement;
+                                                                    if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
+                                                                    editor.undoManager.add();
+                                                                    fireWrapChange(img);
+                                                                }
+                                                            });
+
+                                                            editor.addCommand('WrapImageCenter', function () {
+                                                                const img = editor.selection.getNode() as HTMLElement;
+                                                                if (img && img.tagName === 'IMG') {
+                                                                    img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+                                                                    img.classList.add('wrap-center');
+                                                                    const parent = img.parentNode as HTMLElement;
+                                                                    if (parent && parent.tagName === 'P') (parent as HTMLElement).style.textAlign = 'center';
+                                                                    editor.undoManager.add();
+                                                                    fireWrapChange(img);
+                                                                }
+                                                            });
+
+                                                            editor.addCommand('ClearImageWrap', function () {
+                                                                const img = editor.selection.getNode() as HTMLElement;
+                                                                if (img && img.tagName === 'IMG') {
+                                                                    const hasWrap =
+                                                                        img.classList.contains('wrap-left') ||
+                                                                        img.classList.contains('wrap-right') ||
+                                                                        img.classList.contains('wrap-center');
+                                                                    if (hasWrap) {
+                                                                        img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
+                                                                        const parent = img.parentNode as HTMLElement;
+                                                                        if (parent && parent.tagName === 'P') parent.removeAttribute('style');
+                                                                    }
+                                                                    editor.undoManager.add();
+                                                                    fireWrapChange(img);
+                                                                }
+                                                            });
+
+                                                            // Buttons
+                                                            editor.ui.registry.addButton('wrapleft', {
+                                                                icon: 'align-left',
+                                                                tooltip: 'Text wrap bên phải ảnh',
+                                                                onAction: function () {
+                                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                                    if (img && img.tagName === 'IMG') {
+                                                                        if (img.classList.contains('wrap-left')) {
+                                                                            editor.execCommand('ClearImageWrap');
+                                                                        } else {
+                                                                            editor.execCommand('WrapImageLeft');
+                                                                        }
+                                                                    }
+                                                                }
+                                                            });
+
+                                                            editor.ui.registry.addButton('wrapright', {
+                                                                icon: 'align-right',
+                                                                tooltip: 'Text wrap bên trái ảnh',
+                                                                onAction: function () {
+                                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                                    if (img && img.tagName === 'IMG') {
+                                                                        if (img.classList.contains('wrap-right')) {
+                                                                            editor.execCommand('ClearImageWrap');
+                                                                        } else {
+                                                                            editor.execCommand('WrapImageRight');
+                                                                        }
+                                                                    }
+                                                                }
+                                                            });
+
+                                                            editor.ui.registry.addButton('wrapcenter', {
+                                                                icon: 'align-center',
+                                                                tooltip: 'Căn giữa ảnh',
+                                                                onAction: function () {
+                                                                    const img = editor.selection.getNode() as HTMLElement;
+                                                                    if (img && img.tagName === 'IMG') {
+                                                                        if (img.classList.contains('wrap-center')) {
+                                                                            editor.execCommand('ClearImageWrap');
+                                                                        } else {
+                                                                            editor.execCommand('WrapImageCenter');
+                                                                        }
+                                                                    }
+                                                                }
+                                                            });
+
+                                                            editor.ui.registry.addButton('clearwrap', {
+                                                                icon: 'remove',
+                                                                tooltip: 'Xóa text wrap',
+                                                                onAction: function () {
+                                                                    editor.execCommand('ClearImageWrap');
+                                                                }
+                                                            });
+
+                                                            // Real-time sync với throttling
+                                                            let updateTimeout: NodeJS.Timeout;
+                                                            editor.on('KeyUp Change', function() {
+                                                                clearTimeout(updateTimeout);
+                                                                updateTimeout = setTimeout(() => {
+                                                                    const content = editor.getContent();
+                                                                    setPreviewContent(content);
+                                                                    if (editorRef.current) {
+                                                                        editorRef.current.setContent(content);
+                                                                    }
+                                                                }, 300);
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="w-1/2 flex flex-col">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-200">
+                                                <h4 className="font-semibold text-gray-700">Preview</h4>
+                                            </div>
+                                            <div
+                                                className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white"
+                                                style={{
+                                                    scrollBehavior: 'smooth',
+                                                    WebkitOverflowScrolling: 'touch',
+                                                    transform: 'translateZ(0)',
+                                                }}
+                                            >
+                                                {/* Post Header giống PostDetailPage */}
+                                                <div className="mb-8 pb-6 border-b border-gray-200">
+                                                    <div className="mb-3">
+                                                        <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
+                                                            {formData.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION'}
+                                                        </span>
+                                                    </div>
+
+                                                    <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4 leading-tight">
+                                                        {formData.title || 'Tiêu đề bài viết'}
+                                                    </h1>
+
+                                                    {formData.description && (
+                                                        <p className="text-xl text-gray-600 mb-6 leading-relaxed">
+                                                            {formData.description}
+                                                        </p>
+                                                    )}
+
+                                                    <div className="flex flex-wrap items-center gap-5 text-gray-600">
+                                                        <div className="flex items-center gap-2">
+                                                            <Calendar className="w-5 h-5" />
+                                                            <span>{new Date().toLocaleDateString('vi-VN')}</span>
+                                                        </div>
+                                                        <span className="hidden sm:inline text-gray-300">•</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <Clock className="w-5 h-5" />
+                                                            <span>5 phút đọc</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Content - Chỉ cần className, bỏ hết inline styles và styled-jsx */}
+                                                <div
+                                                    className="live-preview-content tinymce-content prose prose-lg max-w-none"
+                                                    dangerouslySetInnerHTML={{ __html: previewContent }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+
                     </div>
                 )}
 
