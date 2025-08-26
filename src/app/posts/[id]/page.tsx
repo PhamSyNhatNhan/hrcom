@@ -131,7 +131,7 @@ const PostDetailPage = () => {
                 month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
                 year: new Date(post.created_at).getFullYear().toString()
             },
-            image: post.thumbnail || (post.type === 'activity' ? '/images/default-activity.jpg' : '/images/default-blog.jpg'),
+            image: post.thumbnail || '/Image-not-found.png',
             title: post.title,
             excerpt: excerpt.substring(0, 200) + (excerpt.length > 200 ? '...' : ''),
             category: post.type === 'activity' ? 'TIN TỨC & SỰ KIỆN' : 'BLOG HR COMPANION',
@@ -567,14 +567,22 @@ const PostDetailPage = () => {
                     font-weight: 600;
                 }
 
-                /* Lists spacing */
-                .tinymce-content ul,
+                /* Lists spacing + dấu chấm/số */
+                .tinymce-content ul {
+                    list-style-type: disc !important;
+                    list-style-position: inside !important;
+                    margin: 1.5rem 0 1.5rem 1.5rem !important;
+                    padding-left: 0 !important;
+                }
                 .tinymce-content ol {
-                    margin: 1.5rem 0;
-                    padding-left: 1.5rem;
+                    list-style-type: decimal !important;
+                    list-style-position: inside !important;
+                    margin: 1.5rem 0 1.5rem 1.5rem !important;
+                    padding-left: 0 !important;
                 }
                 .tinymce-content li {
-                    margin: 0.5rem 0;
+                    margin: 0.5rem 0 !important;
+                    padding-left: 0.25rem !important;
                 }
 
                 /* Blockquote layout (không ép màu/cỡ chữ) */
@@ -598,6 +606,7 @@ const PostDetailPage = () => {
                     margin-bottom: 15px;
                 }
             `}</style>
+
         </div>
     );
 };

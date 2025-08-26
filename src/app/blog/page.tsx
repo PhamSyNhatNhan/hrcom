@@ -65,7 +65,7 @@ const BlogsPage = () => {
                 month: new Date(post.created_at).toLocaleDateString('vi-VN', { month: 'short' }),
                 year: new Date(post.created_at).getFullYear().toString()
             },
-            image: post.thumbnail || '/news/default-blog.jpg',
+            image: post.thumbnail || '/Image-not-found.png',
             title: post.title,
             excerpt: excerpt.substring(0, 200) + (excerpt.length > 200 ? '...' : '') || 'Nội dung bài viết...',
             category: 'BLOG HR COMPANION',
