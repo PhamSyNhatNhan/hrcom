@@ -7,6 +7,7 @@ export interface Profile {
     image_url?: string
     gender?: 'Nam' | 'Nữ' | 'Khác'
     birthdate?: string
+    phone_number?: string
     created_at: string
     updated_at: string
 }

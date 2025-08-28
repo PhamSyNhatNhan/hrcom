@@ -1,19 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Lock, FileText, GraduationCap } from 'lucide-react';
+import { User, Lock, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import Notification from '@/component/Notification';
 import { useNotificationWithUtils } from '@/hooks/useNotification';
 import { supabase } from '@/utils/supabase/client';
 
 // Import tab components
-import PersonalInfoTab from '@/component/PersonalInfoTab';
-import SubProfileTab from '@/component/SubProfileTab';
+import CombinedProfileTab from '@/component/CombinedProfileTab';
 import MentorTab from '@/component/MentorTab';
 import PasswordTab from '@/component/PasswordTab';
 
-export type TabType = 'personal' | 'subprofile' | 'mentor' | 'password';
+export type TabType = 'profile' | 'mentor' | 'password';
 
 export interface PersonalInfo {
   name: string;
@@ -74,7 +73,7 @@ const AccountSettings: React.FC = () => {
   } = useNotificationWithUtils();
 
   // State
-  const [activeTab, setActiveTab] = useState<TabType>('personal');
+  const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -406,7 +405,6 @@ const AccountSettings: React.FC = () => {
       });
 
       showSuccess('Thành công', 'Thông tin cá nhân đã được cập nhật!');
-      setIsEditing(false);
       setPreviewAvatar('');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -459,7 +457,6 @@ const AccountSettings: React.FC = () => {
       }
 
       showSuccess('Thành công', 'Thông tin bổ sung đã được cập nhật!');
-      setIsEditing(false);
     } catch (error) {
       console.error('Error updating sub profile:', error);
       showError('Lỗi', 'Không thể cập nhật thông tin bổ sung. Vui lòng thử lại.');
@@ -563,7 +560,7 @@ const AccountSettings: React.FC = () => {
     setIsEditing(false);
 
     // Reload data based on current tab
-    if (activeTab === 'subprofile') {
+    if (activeTab === 'profile') {
       loadSubProfile();
     } else if (activeTab === 'mentor') {
       loadMentorInfo();
@@ -578,8 +575,7 @@ const AccountSettings: React.FC = () => {
   // Get available tabs based on user role
   const getAvailableTabs = () => {
     const tabs = [
-      { id: 'personal' as TabType, label: 'Thông tin cá nhân', icon: User },
-      { id: 'subprofile' as TabType, label: 'Thông tin bổ sung', icon: FileText }
+      { id: 'profile' as TabType, label: 'Thông tin cá nhân', icon: User }
     ];
 
     if (user?.role === 'mentor') {
@@ -633,26 +629,11 @@ const AccountSettings: React.FC = () => {
 
             {/* Content */}
             <div className="p-6 lg:p-8">
-              {/* Personal Tab */}
-              {activeTab === 'personal' && (
-                  <PersonalInfoTab
+              {/* Combined Profile Tab */}
+              {activeTab === 'profile' && (
+                  <CombinedProfileTab
                       personalInfo={personalInfo}
                       setPersonalInfo={setPersonalInfo}
-                      isEditing={isEditing}
-                      setIsEditing={setIsEditing}
-                      isLoading={isLoading}
-                      previewAvatar={previewAvatar}
-                      uploading={uploading}
-                      onAvatarUpload={handleAvatarUpload}
-                      onRemoveAvatar={handleRemoveAvatar}
-                      onSave={handleSavePersonalInfo}
-                      onCancel={handleCancelEdit}
-                  />
-              )}
-
-              {/* SubProfile Tab */}
-              {activeTab === 'subprofile' && (
-                  <SubProfileTab
                       subProfileInfo={subProfileInfo}
                       setSubProfileInfo={setSubProfileInfo}
                       hasSubProfile={hasSubProfile}
@@ -660,7 +641,12 @@ const AccountSettings: React.FC = () => {
                       isEditing={isEditing}
                       setIsEditing={setIsEditing}
                       isLoading={isLoading}
-                      onSave={handleSaveSubProfile}
+                      previewAvatar={previewAvatar}
+                      uploading={uploading}
+                      onAvatarUpload={handleAvatarUpload}
+                      onRemoveAvatar={handleRemoveAvatar}
+                      onSavePersonalInfo={handleSavePersonalInfo}
+                      onSaveSubProfile={handleSaveSubProfile}
                       onCancel={handleCancelEdit}
                   />
               )}
