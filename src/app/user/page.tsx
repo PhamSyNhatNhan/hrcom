@@ -1,14 +1,19 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { User, Lock, Save, X, Edit3, Upload, Camera, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Lock, FileText, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import Notification from '@/component/Notification';
 import { useNotificationWithUtils } from '@/hooks/useNotification';
 import { supabase } from '@/utils/supabase/client';
 
+// Import tab components
+import PersonalInfoTab from '@/component/PersonalInfoTab';
+import SubProfileTab from '@/component/SubProfileTab';
+import MentorTab from '@/component/MentorTab';
+import PasswordTab from '@/component/PasswordTab';
 
-export type TabType = 'personal' | 'password';
+export type TabType = 'personal' | 'subprofile' | 'mentor' | 'password';
 
 export interface PersonalInfo {
   name: string;
@@ -16,6 +21,34 @@ export interface PersonalInfo {
   avatar: string;
   gender?: string;
   birthdate?: string;
+  phone_number?: string;
+}
+
+export interface SubProfileInfo {
+  university_major_id?: string;
+  cv?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  portfolio_url?: string;
+  description?: string;
+}
+
+export interface MentorInfo {
+  headline?: string;
+  description?: string;
+  skill?: string[];
+  published?: boolean;
+}
+
+export interface UniversityMajor {
+  id: string;
+  university: {
+    name: string;
+    code: string;
+  };
+  major: {
+    name: string;
+  };
 }
 
 export interface PasswordData {
@@ -32,7 +65,6 @@ export interface ShowPasswords {
 
 const AccountSettings: React.FC = () => {
   const { user, setUser } = useAuthStore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     notifications,
@@ -52,7 +84,26 @@ const AccountSettings: React.FC = () => {
     email: '',
     avatar: '',
     gender: '',
-    birthdate: ''
+    birthdate: '',
+    phone_number: ''
+  });
+
+  // SubProfile state
+  const [subProfileInfo, setSubProfileInfo] = useState<SubProfileInfo>({
+    university_major_id: '',
+    cv: '',
+    linkedin_url: '',
+    github_url: '',
+    portfolio_url: '',
+    description: ''
+  });
+
+  // Mentor info state
+  const [mentorInfo, setMentorInfo] = useState<MentorInfo>({
+    headline: '',
+    description: '',
+    skill: [],
+    published: false
   });
 
   // Password state
@@ -68,24 +119,182 @@ const AccountSettings: React.FC = () => {
     confirm: false
   });
 
-  // Image upload states
+  // Additional states
   const [previewAvatar, setPreviewAvatar] = useState<string>('');
   const [uploading, setUploading] = useState<boolean>(false);
+  const [universityMajors, setUniversityMajors] = useState<UniversityMajor[]>([]);
+  const [hasSubProfile, setHasSubProfile] = useState<boolean>(false);
+  const [hasMentorProfile, setHasMentorProfile] = useState<boolean>(false);
+  const [mentorId, setMentorId] = useState<string>('');
 
-  // Load user data on component mount
+  // Load initial data
   useEffect(() => {
     if (user) {
+      // Load personal info
       setPersonalInfo({
         name: user.profile?.full_name || '',
         email: user.email || '',
         avatar: user.profile?.image_url || '',
         gender: user.profile?.gender || '',
-        birthdate: user.profile?.birthdate || ''
+        birthdate: user.profile?.birthdate || '',
+        phone_number: user.profile?.phone_number || ''
       });
+
+      // Load additional data
+      loadUniversityMajors();
+      loadSubProfile();
+
+      if (user.role === 'mentor') {
+        loadMentorInfo();
+      }
     }
   }, [user]);
 
-  // Image upload function
+  // Load university majors
+  const loadUniversityMajors = async () => {
+    try {
+      // First try with explicit joins
+      const { data, error } = await supabase
+          .from('university_majors')
+          .select(`
+          id,
+          university_id,
+          major_id,
+          universities!university_majors_university_id_fkey(
+            id,
+            name,
+            code
+          ),
+          majors!university_majors_major_id_fkey(
+            id,
+            name
+          )
+        `);
+
+      if (error) {
+        console.error('Primary query failed:', error);
+
+        // Fallback: Load data separately
+        const [universitiesResult, majorsResult, universityMajorsResult] = await Promise.all([
+          supabase.from('universities').select('id, name, code'),
+          supabase.from('majors').select('id, name'),
+          supabase.from('university_majors').select('id, university_id, major_id')
+        ]);
+
+        if (universitiesResult.error || majorsResult.error || universityMajorsResult.error) {
+          throw new Error('Failed to load fallback data');
+        }
+
+        // Manually join the data
+        const combinedData = universityMajorsResult.data?.map(um => ({
+          id: um.id,
+          university_id: um.university_id,
+          major_id: um.major_id,
+          university: universitiesResult.data?.find(u => u.id === um.university_id) || { name: 'Unknown', code: '' },
+          major: majorsResult.data?.find(m => m.id === um.major_id) || { name: 'Unknown' }
+        })) || [];
+
+        setUniversityMajors(combinedData);
+        return;
+      }
+
+      // Transform data to expected format
+      const transformedData = data?.map(item => ({
+        id: item.id,
+        university_id: item.university_id,
+        major_id: item.major_id,
+        university: {
+          name: item.universities?.name || 'Unknown University',
+          code: item.universities?.code || ''
+        },
+        major: {
+          name: item.majors?.name || 'Unknown Major'
+        }
+      })) || [];
+
+      setUniversityMajors(transformedData);
+    } catch (error) {
+      console.error('Error loading university majors:', error);
+
+      // Set empty array as fallback to prevent UI errors
+      setUniversityMajors([]);
+
+      // Show error to user
+      showError('Lỗi tải dữ liệu', 'Không thể tải danh sách trường và ngành học. Vui lòng thử lại sau.');
+    }
+  };
+
+  // Load sub profile
+  const loadSubProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+          .from('sub_profiles')
+          .select('*')
+          .eq('profile_id', user.id)
+          .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        setHasSubProfile(true);
+        setSubProfileInfo({
+          university_major_id: data.university_major_id || '',
+          cv: data.cv || '',
+          linkedin_url: data.linkedin_url || '',
+          github_url: data.github_url || '',
+          portfolio_url: data.portfolio_url || '',
+          description: data.description || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error loading sub profile:', error);
+    }
+  };
+
+  // Load mentor info
+  const loadMentorInfo = async () => {
+    if (!user || user.role !== 'mentor') return;
+
+    try {
+      const { data: profileMentor, error: profileError } = await supabase
+          .from('profile_mentor')
+          .select('mentor_id')
+          .eq('profile_id', user.id)
+          .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError;
+      }
+
+      if (profileMentor) {
+        setHasMentorProfile(true);
+        setMentorId(profileMentor.mentor_id);
+
+        const { data: mentorData, error: mentorError } = await supabase
+            .from('mentors')
+            .select('*')
+            .eq('id', profileMentor.mentor_id)
+            .single();
+
+        if (mentorError) throw mentorError;
+
+        setMentorInfo({
+          headline: mentorData.headline || '',
+          description: mentorData.description || '',
+          skill: mentorData.skill || [],
+          published: mentorData.published || false
+        });
+      }
+    } catch (error) {
+      console.error('Error loading mentor info:', error);
+    }
+  };
+
+  // Upload image
   const uploadImage = async (file: File): Promise<string> => {
     if (!user) throw new Error('User not authenticated');
 
@@ -100,9 +309,7 @@ const AccountSettings: React.FC = () => {
           upsert: true
         });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const { data: urlData } = supabase.storage
         .from('images')
@@ -116,7 +323,6 @@ const AccountSettings: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file
     if (file.size > 5 * 1024 * 1024) {
       showError('Lỗi tải file', 'Kích thước file không được vượt quá 5MB!');
       return;
@@ -130,14 +336,12 @@ const AccountSettings: React.FC = () => {
     try {
       setUploading(true);
 
-      // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         setPreviewAvatar(e.target?.result as string);
       };
       reader.readAsDataURL(file);
 
-      // Upload to Supabase
       const imageUrl = await uploadImage(file);
       setPersonalInfo(prev => ({ ...prev, avatar: imageUrl }));
 
@@ -155,7 +359,6 @@ const AccountSettings: React.FC = () => {
   const handleRemoveAvatar = () => {
     setPreviewAvatar('');
     setPersonalInfo(prev => ({ ...prev, avatar: '' }));
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Handle save personal info
@@ -173,7 +376,6 @@ const AccountSettings: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Update profile in database
       const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
@@ -182,14 +384,12 @@ const AccountSettings: React.FC = () => {
             image_url: personalInfo.avatar || null,
             gender: personalInfo.gender || null,
             birthdate: personalInfo.birthdate || null,
+            phone_number: personalInfo.phone_number || null,
             updated_at: new Date().toISOString()
           });
 
-      if (profileError) {
-        throw profileError;
-      }
+      if (profileError) throw profileError;
 
-      // Update local state
       setUser({
         ...user,
         profile: {
@@ -199,6 +399,7 @@ const AccountSettings: React.FC = () => {
           image_url: personalInfo.avatar,
           gender: personalInfo.gender as any,
           birthdate: personalInfo.birthdate,
+          phone_number: personalInfo.phone_number,
           updated_at: new Date().toISOString(),
           created_at: user.profile?.created_at || new Date().toISOString()
         }
@@ -215,20 +416,89 @@ const AccountSettings: React.FC = () => {
     }
   };
 
-  // Handle cancel edit
-  const handleCancelEdit = () => {
-    if (user) {
-      setPersonalInfo({
-        name: user.profile?.full_name || '',
-        email: user.email || '',
-        avatar: user.profile?.image_url || '',
-        gender: user.profile?.gender || '',
-        birthdate: user.profile?.birthdate || ''
-      });
+  // Handle save sub profile
+  const handleSaveSubProfile = async () => {
+    if (!user) {
+      showError('Lỗi', 'Vui lòng đăng nhập lại!');
+      return;
     }
-    setPreviewAvatar('');
-    setIsEditing(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    try {
+      setIsLoading(true);
+
+      if (hasSubProfile) {
+        const { error } = await supabase
+            .from('sub_profiles')
+            .update({
+              university_major_id: subProfileInfo.university_major_id || null,
+              cv: subProfileInfo.cv || null,
+              linkedin_url: subProfileInfo.linkedin_url || null,
+              github_url: subProfileInfo.github_url || null,
+              portfolio_url: subProfileInfo.portfolio_url || null,
+              description: subProfileInfo.description || null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('profile_id', user.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+            .from('sub_profiles')
+            .insert({
+              profile_id: user.id,
+              university_major_id: subProfileInfo.university_major_id || null,
+              cv: subProfileInfo.cv || null,
+              linkedin_url: subProfileInfo.linkedin_url || null,
+              github_url: subProfileInfo.github_url || null,
+              portfolio_url: subProfileInfo.portfolio_url || null,
+              description: subProfileInfo.description || null
+            });
+
+        if (error) throw error;
+        setHasSubProfile(true);
+      }
+
+      showSuccess('Thành công', 'Thông tin bổ sung đã được cập nhật!');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating sub profile:', error);
+      showError('Lỗi', 'Không thể cập nhật thông tin bổ sung. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle save mentor info
+  const handleSaveMentorInfo = async () => {
+    if (!user || !mentorId) {
+      showError('Lỗi', 'Không tìm thấy thông tin mentor!');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const { error } = await supabase
+          .from('mentors')
+          .update({
+            headline: mentorInfo.headline || null,
+            description: mentorInfo.description || null,
+            skill: mentorInfo.skill || [],
+            published: mentorInfo.published,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', mentorId);
+
+      if (error) throw error;
+
+      showSuccess('Thành công', 'Thông tin mentor đã được cập nhật!');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating mentor info:', error);
+      showError('Lỗi', 'Không thể cập nhật thông tin mentor. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle change password
@@ -251,7 +521,6 @@ const AccountSettings: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Verify current password by trying to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email || '',
         password: passwordData.currentPassword
@@ -262,14 +531,11 @@ const AccountSettings: React.FC = () => {
         return;
       }
 
-      // Update password
       const { error: updateError } = await supabase.auth.updateUser({
         password: passwordData.newPassword
       });
 
-      if (updateError) {
-        throw updateError;
-      }
+      if (updateError) throw updateError;
 
       showSuccess('Thành công', 'Mật khẩu đã được thay đổi!');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -281,285 +547,148 @@ const AccountSettings: React.FC = () => {
     }
   };
 
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    if (user) {
+      setPersonalInfo({
+        name: user.profile?.full_name || '',
+        email: user.email || '',
+        avatar: user.profile?.image_url || '',
+        gender: user.profile?.gender || '',
+        birthdate: user.profile?.birthdate || '',
+        phone_number: user.profile?.phone_number || ''
+      });
+    }
+    setPreviewAvatar('');
+    setIsEditing(false);
+
+    // Reload data based on current tab
+    if (activeTab === 'subprofile') {
+      loadSubProfile();
+    } else if (activeTab === 'mentor') {
+      loadMentorInfo();
+    }
+  };
+
   // Toggle password visibility
   const togglePasswordVisibility = (field: keyof ShowPasswords) => {
     setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const displayAvatar = previewAvatar || personalInfo.avatar;
+  // Get available tabs based on user role
+  const getAvailableTabs = () => {
+    const tabs = [
+      { id: 'personal' as TabType, label: 'Thông tin cá nhân', icon: User },
+      { id: 'subprofile' as TabType, label: 'Thông tin bổ sung', icon: FileText }
+    ];
+
+    if (user?.role === 'mentor') {
+      tabs.push({ id: 'mentor' as TabType, label: 'Thông tin Mentor', icon: GraduationCap });
+    }
+
+    tabs.push({ id: 'password' as TabType, label: 'Đổi mật khẩu', icon: Lock });
+
+    return tabs;
+  };
 
   return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 py-6 sm:py-8">
-
-        {/* Sử dụng Notification component mới */}
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-8 px-4 sm:px-6 lg:px-8">
         <Notification
             notifications={notifications}
             onRemove={removeNotification}
             maxVisible={3}
         />
 
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
-            {/* Header */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-cyan-600 to-blue-600 px-6 py-8">
-              <div className="absolute inset-0 bg-black/10" />
-              <div className="relative">
-                <h1 className="mb-2 text-2xl font-bold text-white sm:text-3xl">Thông tin tài khoản</h1>
-                <p className="text-cyan-100">Quản lý thông tin cá nhân và bảo mật tài khoản của bạn</p>
-              </div>
-            </div>
+        <div className="mx-auto max-w-7xl">
+          {/* Page Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              Thông tin tài khoản
+            </h1>
+            <p className="text-base sm:text-xl text-gray-600 max-w-3xl mx-auto">
+              Quản lý thông tin cá nhân và cài đặt tài khoản của bạn
+            </p>
+          </div>
 
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
             {/* Tabs */}
-            <div className="border-b border-gray-200 bg-gray-50/50">
-              <nav className="flex space-x-0 px-6">
-                <button
-                    onClick={() => setActiveTab('personal')}
-                    className={`relative flex items-center px-6 py-4 text-sm font-medium transition-all duration-300 ${
-                        activeTab === 'personal'
-                            ? 'border-b-2 border-cyan-600 bg-white text-cyan-600'
-                            : 'text-gray-500 hover:bg-white/50 hover:text-gray-700'
-                    }`}
-                >
-                  <User className="mr-2 h-4 w-4" />
-                  Thông tin cá nhân
-                </button>
-
-                <button
-                    onClick={() => setActiveTab('password')}
-                    className={`relative flex items-center px-6 py-4 text-sm font-medium transition-all duration-300 ${
-                        activeTab === 'password'
-                            ? 'border-b-2 border-cyan-600 bg-white text-cyan-600'
-                            : 'text-gray-500 hover:bg-white/50 hover:text-gray-700'
-                    }`}
-                >
-                  <Lock className="mr-2 h-4 w-4" />
-                  Đổi mật khẩu
-                </button>
+            <div className="border-b border-gray-200 bg-gray-50">
+              <nav className="flex space-x-0 px-6 overflow-x-auto">
+                {getAvailableTabs().map(({ id, label, icon: Icon }) => (
+                    <button
+                        key={id}
+                        onClick={() => setActiveTab(id)}
+                        className={`relative flex items-center px-6 py-4 text-sm font-medium transition-all duration-300 whitespace-nowrap ${
+                            activeTab === id
+                                ? 'border-b-2 border-cyan-600 bg-white text-cyan-600'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                        }`}
+                    >
+                      <Icon className="mr-2 h-4 w-4" />
+                      {label}
+                    </button>
+                ))}
               </nav>
             </div>
 
             {/* Content */}
             <div className="p-6 lg:p-8">
-              {activeTab === 'personal' ? (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-gray-900">Thông tin cá nhân</h2>
-                      {!isEditing ? (
-                          <button
-                              onClick={() => setIsEditing(true)}
-                              className="text-white bg-cyan-600 px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-cyan-700"
-                              disabled={isLoading}
-                          >
-                            <Edit3 className="w-4 h-4" />
-                            <span>Chỉnh sửa</span>
-                          </button>
-                      ) : (
-                          <button
-                              onClick={handleCancelEdit}
-                              className="text-white bg-gray-500 px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-gray-600"
-                              disabled={isLoading}
-                          >
-                            <X className="w-4 h-4" />
-                            <span>Hủy</span>
-                          </button>
-                      )}
-                    </div>
+              {/* Personal Tab */}
+              {activeTab === 'personal' && (
+                  <PersonalInfoTab
+                      personalInfo={personalInfo}
+                      setPersonalInfo={setPersonalInfo}
+                      isEditing={isEditing}
+                      setIsEditing={setIsEditing}
+                      isLoading={isLoading}
+                      previewAvatar={previewAvatar}
+                      uploading={uploading}
+                      onAvatarUpload={handleAvatarUpload}
+                      onRemoveAvatar={handleRemoveAvatar}
+                      onSave={handleSavePersonalInfo}
+                      onCancel={handleCancelEdit}
+                  />
+              )}
 
-                    {/* Avatar Section */}
-                    <div className="space-y-4">
-                      <label className="text-sm font-medium">Ảnh đại diện</label>
-                      <div className="flex items-center space-x-6">
-                        <div className="relative">
-                          <div className="h-24 w-24 rounded-full overflow-hidden border bg-gray-100">
-                            {displayAvatar ? (
-                                <img src={displayAvatar} className="object-cover w-full h-full" alt="Avatar" />
-                            ) : (
-                                <div className="flex items-center justify-center h-full w-full">
-                                  <Camera className="text-gray-400 w-6 h-6" />
-                                </div>
-                            )}
-                          </div>
-                          {isEditing && (
-                              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                                <Camera className="text-white w-5 h-5" />
-                              </div>
-                          )}
-                        </div>
+              {/* SubProfile Tab */}
+              {activeTab === 'subprofile' && (
+                  <SubProfileTab
+                      subProfileInfo={subProfileInfo}
+                      setSubProfileInfo={setSubProfileInfo}
+                      hasSubProfile={hasSubProfile}
+                      universityMajors={universityMajors}
+                      isEditing={isEditing}
+                      setIsEditing={setIsEditing}
+                      isLoading={isLoading}
+                      onSave={handleSaveSubProfile}
+                      onCancel={handleCancelEdit}
+                  />
+              )}
 
-                        {isEditing && (
-                            <div className="space-y-2">
-                              <input
-                                  ref={fileInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={handleAvatarUpload}
-                                  disabled={uploading}
-                              />
-                              <button
-                                  onClick={() => fileInputRef.current?.click()}
-                                  className="text-cyan-600 border border-cyan-600 px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-cyan-50"
-                                  disabled={uploading}
-                              >
-                                {uploading ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-600"></div>
-                                ) : (
-                                    <Upload className="w-4 h-4" />
-                                )}
-                                <span>{uploading ? 'Đang tải...' : 'Tải ảnh lên'}</span>
-                              </button>
+              {/* Mentor Tab */}
+              {activeTab === 'mentor' && user?.role === 'mentor' && (
+                  <MentorTab
+                      mentorInfo={mentorInfo}
+                      setMentorInfo={setMentorInfo}
+                      hasMentorProfile={hasMentorProfile}
+                      isEditing={isEditing}
+                      setIsEditing={setIsEditing}
+                      isLoading={isLoading}
+                      onSave={handleSaveMentorInfo}
+                      onCancel={handleCancelEdit}
+                  />
+              )}
 
-                              {displayAvatar && (
-                                  <button
-                                      onClick={handleRemoveAvatar}
-                                      className="text-red-600 border border-red-300 px-4 py-2 rounded-lg hover:bg-red-50 flex items-center space-x-2"
-                                      disabled={uploading}
-                                  >
-                                    <X className="w-4 h-4" />
-                                    <span>Xóa ảnh</span>
-                                  </button>
-                              )}
-                            </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Form Fields */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Họ và tên *</label>
-                        {isEditing ? (
-                            <input
-                                type="text"
-                                value={personalInfo.name}
-                                onChange={(e) => setPersonalInfo(prev => ({ ...prev, name: e.target.value }))}
-                                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                                disabled={isLoading}
-                            />
-                        ) : (
-                            <div className="px-4 py-3 bg-gray-50 border rounded-lg">{personalInfo.name || 'Chưa cập nhật'}</div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Email</label>
-                        <div className="px-4 py-3 bg-gray-100 border rounded-lg text-gray-500">{personalInfo.email}</div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Giới tính</label>
-                        {isEditing ? (
-                            <select
-                                value={personalInfo.gender}
-                                onChange={(e) => setPersonalInfo(prev => ({ ...prev, gender: e.target.value }))}
-                                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                                disabled={isLoading}
-                            >
-                              <option value="">Chọn giới tính</option>
-                              <option value="Nam">Nam</option>
-                              <option value="Nữ">Nữ</option>
-                              <option value="Khác">Khác</option>
-                            </select>
-                        ) : (
-                            <div className="px-4 py-3 bg-gray-50 border rounded-lg">{personalInfo.gender || 'Chưa cập nhật'}</div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Ngày sinh</label>
-                        {isEditing ? (
-                            <input
-                                type="date"
-                                value={personalInfo.birthdate}
-                                onChange={(e) => setPersonalInfo(prev => ({ ...prev, birthdate: e.target.value }))}
-                                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                                disabled={isLoading}
-                            />
-                        ) : (
-                            <div className="px-4 py-3 bg-gray-50 border rounded-lg">
-                              {personalInfo.birthdate ? new Date(personalInfo.birthdate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
-                            </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {isEditing && (
-                        <div className="flex justify-end space-x-2 pt-4">
-                          <button
-                              onClick={handleCancelEdit}
-                              className="border px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50"
-                              disabled={isLoading}
-                          >
-                            Hủy
-                          </button>
-                          <button
-                              onClick={handleSavePersonalInfo}
-                              className="bg-cyan-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-cyan-700"
-                              disabled={isLoading}
-                          >
-                            {isLoading ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            ) : (
-                                <Save className="w-4 h-4" />
-                            )}
-                            <span>{isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
-                          </button>
-                        </div>
-                    )}
-                  </div>
-              ) : (
-                  // Password Tab
-                  <div className="space-y-6 max-w-md mx-auto">
-                    <h2 className="text-xl font-semibold text-gray-900 text-center">Đổi mật khẩu</h2>
-
-                    {(['currentPassword', 'newPassword', 'confirmPassword'] as const).map((field) => (
-                        <div key={field} className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700">
-                            {field === 'currentPassword'
-                                ? 'Mật khẩu hiện tại'
-                                : field === 'newPassword'
-                                    ? 'Mật khẩu mới'
-                                    : 'Xác nhận mật khẩu mới'}
-                            <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                                type={showPasswords[field.replace('Password', '') as keyof ShowPasswords] ? 'text' : 'password'}
-                                value={passwordData[field]}
-                                onChange={(e) => setPasswordData(prev => ({ ...prev, [field]: e.target.value }))}
-                                className="w-full px-4 py-3 border rounded-lg pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                                placeholder="Nhập mật khẩu"
-                                disabled={isLoading}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => togglePasswordVisibility(field.replace('Password', '') as keyof ShowPasswords)}
-                                className="absolute right-3 top-3"
-                                disabled={isLoading}
-                            >
-                              {showPasswords[field.replace('Password', '') as keyof ShowPasswords] ? (
-                                  <EyeOff className="h-5 w-5 text-gray-400" />
-                              ) : (
-                                  <Eye className="h-5 w-5 text-gray-400" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                    ))}
-
-                    <button
-                        onClick={handleChangePassword}
-                        className="w-full bg-cyan-600 text-white px-4 py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-cyan-700"
-                        disabled={isLoading}
-                    >
-                      {isLoading ? (
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      ) : (
-                          <Lock className="h-5 w-5" />
-                      )}
-                      <span>{isLoading ? 'Đang xử lý...' : 'Đổi mật khẩu'}</span>
-                    </button>
-                  </div>
+              {/* Password Tab */}
+              {activeTab === 'password' && (
+                  <PasswordTab
+                      passwordData={passwordData}
+                      setPasswordData={setPasswordData}
+                      showPasswords={showPasswords}
+                      togglePasswordVisibility={togglePasswordVisibility}
+                      isLoading={isLoading}
+                      onSubmit={handleChangePassword}
+                  />
               )}
             </div>
           </div>
