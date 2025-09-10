@@ -360,110 +360,162 @@ const AccountSettings: React.FC = () => {
     setPersonalInfo(prev => ({ ...prev, avatar: '' }));
   };
 
-  // Handle save personal info
-  const handleSavePersonalInfo = async () => {
-    if (!user) {
-      showError('Lỗi', 'Vui lòng đăng nhập lại!');
-      return;
-    }
-
-    if (!personalInfo.name.trim()) {
-      showError('Lỗi validation', 'Vui lòng nhập họ và tên!');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: user.id,
-            full_name: personalInfo.name.trim(),
-            image_url: personalInfo.avatar || null,
-            gender: personalInfo.gender || null,
-            birthdate: personalInfo.birthdate || null,
-            phone_number: personalInfo.phone_number || null,
-            updated_at: new Date().toISOString()
-          });
-
-      if (profileError) throw profileError;
-
-      setUser({
-        ...user,
-        profile: {
-          ...user.profile,
-          id: user.id,
-          full_name: personalInfo.name.trim(),
-          image_url: personalInfo.avatar,
-          gender: personalInfo.gender as any,
-          birthdate: personalInfo.birthdate,
-          phone_number: personalInfo.phone_number,
-          updated_at: new Date().toISOString(),
-          created_at: user.profile?.created_at || new Date().toISOString()
+    // Handle save personal info
+    const handleSavePersonalInfo = async () => {
+        if (!user) {
+            showError('Lỗi', 'Vui lòng đăng nhập lại!');
+            return;
         }
-      });
 
-      showSuccess('Thành công', 'Thông tin cá nhân đã được cập nhật!');
-      setPreviewAvatar('');
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      showError('Lỗi', 'Không thể cập nhật thông tin. Vui lòng thử lại.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        if (!personalInfo.name.trim()) {
+            showError('Lỗi validation', 'Vui lòng nhập họ và tên!');
+            return;
+        }
 
-  // Handle save sub profile
-  const handleSaveSubProfile = async () => {
-    if (!user) {
-      showError('Lỗi', 'Vui lòng đăng nhập lại!');
-      return;
-    }
+        try {
+            setIsLoading(true);
+            console.log('🔄 Saving personal info for user:', user.id);
+            console.log('📝 Personal info data:', personalInfo);
 
-    try {
-      setIsLoading(true);
+            const profileData = {
+                id: user.id,
+                full_name: personalInfo.name.trim(),
+                image_url: personalInfo.avatar || null,
+                gender: personalInfo.gender || null,
+                birthdate: personalInfo.birthdate || null,
+                phone_number: personalInfo.phone_number || null,
+                updated_at: new Date().toISOString()
+            };
 
-      if (hasSubProfile) {
-        const { error } = await supabase
-            .from('sub_profiles')
-            .update({
-              university_major_id: subProfileInfo.university_major_id || null,
-              cv: subProfileInfo.cv || null,
-              linkedin_url: subProfileInfo.linkedin_url || null,
-              github_url: subProfileInfo.github_url || null,
-              portfolio_url: subProfileInfo.portfolio_url || null,
-              description: subProfileInfo.description || null,
-              updated_at: new Date().toISOString()
-            })
-            .eq('profile_id', user.id);
+            console.log('📤 Sending profile data to Supabase:', profileData);
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-            .from('sub_profiles')
-            .insert({
-              profile_id: user.id,
-              university_major_id: subProfileInfo.university_major_id || null,
-              cv: subProfileInfo.cv || null,
-              linkedin_url: subProfileInfo.linkedin_url || null,
-              github_url: subProfileInfo.github_url || null,
-              portfolio_url: subProfileInfo.portfolio_url || null,
-              description: subProfileInfo.description || null
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert(profileData);
+
+            if (profileError) {
+                console.error('❌ Supabase profile error:', profileError);
+                throw new Error(`Profile update failed: ${profileError.message || 'Unknown error'}`);
+            }
+
+            console.log('✅ Profile updated successfully');
+
+            setUser({
+                ...user,
+                profile: {
+                    ...user.profile,
+                    id: user.id,
+                    full_name: personalInfo.name.trim(),
+                    image_url: personalInfo.avatar,
+                    gender: personalInfo.gender as any,
+                    birthdate: personalInfo.birthdate,
+                    phone_number: personalInfo.phone_number,
+                    updated_at: new Date().toISOString(),
+                    created_at: user.profile?.created_at || new Date().toISOString()
+                }
             });
 
-        if (error) throw error;
-        setHasSubProfile(true);
-      }
+            showSuccess('Thành công', 'Thông tin cá nhân đã được cập nhật!');
+            setPreviewAvatar('');
+        } catch (error: any) {
+            console.error('❌ Error updating profile:', error);
+            console.error('❌ Error details:', {
+                message: error?.message,
+                code: error?.code,
+                details: error?.details,
+                hint: error?.hint,
+                stack: error?.stack
+            });
 
-      showSuccess('Thành công', 'Thông tin bổ sung đã được cập nhật!');
-    } catch (error) {
-      console.error('Error updating sub profile:', error);
-      showError('Lỗi', 'Không thể cập nhật thông tin bổ sung. Vui lòng thử lại.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+            let errorMessage = 'Không thể cập nhật thông tin. Vui lòng thử lại.';
+            if (error?.message) {
+                errorMessage = error.message;
+            }
+
+            showError('Lỗi', errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Handle save sub profile
+    const handleSaveSubProfile = async () => {
+        if (!user) {
+            showError('Lỗi', 'Vui lòng đăng nhập lại!');
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            console.log('🔄 Saving sub profile for user:', user.id);
+            console.log('📝 Sub profile data:', subProfileInfo);
+            console.log('🔍 Has existing sub profile:', hasSubProfile);
+
+            const subProfileData = {
+                university_major_id: subProfileInfo.university_major_id || null,
+                cv: subProfileInfo.cv || null,
+                linkedin_url: subProfileInfo.linkedin_url || null,
+                github_url: subProfileInfo.github_url || null,
+                portfolio_url: subProfileInfo.portfolio_url || null,
+                description: subProfileInfo.description || null,
+                updated_at: new Date().toISOString()
+            };
+
+            console.log('📤 Sending sub profile data to Supabase:', subProfileData);
+
+            if (hasSubProfile) {
+                console.log('🔄 Updating existing sub profile...');
+                const { error } = await supabase
+                    .from('sub_profiles')
+                    .update(subProfileData)
+                    .eq('profile_id', user.id);
+
+                if (error) {
+                    console.error('❌ Supabase sub profile update error:', error);
+                    throw new Error(`Sub profile update failed: ${error.message || 'Unknown error'}`);
+                }
+                console.log('✅ Sub profile updated successfully');
+            } else {
+                console.log('➕ Creating new sub profile...');
+                const insertData = {
+                    profile_id: user.id,
+                    ...subProfileData
+                };
+                console.log('📤 Insert data:', insertData);
+
+                const { error } = await supabase
+                    .from('sub_profiles')
+                    .insert(insertData);
+
+                if (error) {
+                    console.error('❌ Supabase sub profile insert error:', error);
+                    throw new Error(`Sub profile creation failed: ${error.message || 'Unknown error'}`);
+                }
+                console.log('✅ Sub profile created successfully');
+                setHasSubProfile(true);
+            }
+
+            showSuccess('Thành công', 'Thông tin bổ sung đã được cập nhật!');
+        } catch (error: any) {
+            console.error('❌ Error updating sub profile:', error);
+            console.error('❌ Error details:', {
+                message: error?.message,
+                code: error?.code,
+                details: error?.details,
+                hint: error?.hint,
+                stack: error?.stack
+            });
+
+            let errorMessage = 'Không thể cập nhật thông tin bổ sung. Vui lòng thử lại.';
+            if (error?.message) {
+                errorMessage = error.message;
+            }
+
+            showError('Lỗi', errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
   // Handle save mentor info
   const handleSaveMentorInfo = async () => {
