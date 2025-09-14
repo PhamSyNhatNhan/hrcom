@@ -254,44 +254,82 @@ const AccountSettings: React.FC = () => {
     }
   };
 
-  // Load mentor info
-  const loadMentorInfo = async () => {
-    if (!user || user.role !== 'mentor') return;
+    // Load mentor info
+    const loadMentorInfo = async () => {
+        if (!user) {
+            console.log('❌ No user found');
+            return;
+        }
 
-    try {
-      const { data: profileMentor, error: profileError } = await supabase
-          .from('profile_mentor')
-          .select('mentor_id')
-          .eq('profile_id', user.id)
-          .single();
+        console.log('🔄 Loading mentor info for user:', user.id, 'role:', user.role);
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        throw profileError;
-      }
+        try {
+            // Sử dụng RPC function thay vì query trực tiếp
+            const { data: mentorId, error: mentorIdError } = await supabase
+                .rpc('get_current_user_mentor_id');
 
-      if (profileMentor) {
-        setHasMentorProfile(true);
-        setMentorId(profileMentor.mentor_id);
+            console.log('📋 Mentor ID result:', { mentorId, mentorIdError });
 
-        const { data: mentorData, error: mentorError } = await supabase
-            .from('mentors')
-            .select('*')
-            .eq('id', profileMentor.mentor_id)
-            .single();
+            if (mentorIdError) {
+                console.error('❌ Error getting mentor ID:', mentorIdError);
+                setHasMentorProfile(false);
+                return;
+            }
 
-        if (mentorError) throw mentorError;
+            if (!mentorId) {
+                console.log('ℹ️ No mentor found for user');
+                setHasMentorProfile(false);
+                return;
+            }
 
-        setMentorInfo({
-          headline: mentorData.headline || '',
-          description: mentorData.description || '',
-          skill: mentorData.skill || [],
-          published: mentorData.published || false
-        });
-      }
-    } catch (error) {
-      console.error('Error loading mentor info:', error);
-    }
-  };
+            console.log('✅ Found mentor ID:', mentorId);
+            setHasMentorProfile(true);
+            setMentorId(mentorId);
+
+            // Lấy thông tin mentor đầy đủ bao gồm work experiences, educations, activities
+            const { data: mentorData, error: mentorError } = await supabase
+                .from('mentors')
+                .select(`
+        *,
+        mentor_work_experiences (*),
+        mentor_educations (*),
+        mentor_activities (*)
+      `)
+                .eq('id', mentorId)
+                .single();
+
+            console.log('👨‍🏫 Mentor data query result:', { mentorData, mentorError });
+
+            if (mentorError) {
+                console.error('❌ Error fetching mentor data:', mentorError);
+                throw mentorError;
+            }
+
+            if (mentorData) {
+                console.log('✅ Complete mentor info loaded:', mentorData);
+                setMentorInfo({
+                    // Basic info
+                    full_name: mentorData.full_name || '',
+                    email: mentorData.email || '',
+                    avatar: mentorData.avatar || '',
+                    phone_number: mentorData.phone_number || '',
+                    headline: mentorData.headline || '',
+                    description: mentorData.description || '',
+                    skill: mentorData.skill || [],
+                    published: mentorData.published || false,
+
+                    // Related data
+                    work_experiences: mentorData.mentor_work_experiences || [],
+                    educations: mentorData.mentor_educations || [],
+                    activities: mentorData.mentor_activities || []
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error loading mentor info:', error);
+            setHasMentorProfile(false);
+            showError('Lỗi', 'Không thể tải thông tin mentor');
+        }
+    };
 
   // Upload image
   const uploadImage = async (file: File): Promise<string> => {
@@ -624,20 +662,31 @@ const AccountSettings: React.FC = () => {
     setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  // Get available tabs based on user role
-  const getAvailableTabs = () => {
-    const tabs = [
-      { id: 'profile' as TabType, label: 'Thông tin cá nhân', icon: User }
-    ];
+    // Get available tabs based on user role
+    const getAvailableTabs = () => {
+        const tabs = [
+            { id: 'profile' as TabType, label: 'Thông tin cá nhân', icon: User }
+        ];
 
-    if (user?.role === 'mentor') {
-      tabs.push({ id: 'mentor' as TabType, label: 'Thông tin Mentor', icon: GraduationCap });
-    }
+        // Hiển thị tab Mentor cho TẤT CẢ user
+        tabs.push({ id: 'mentor' as TabType, label: 'Thông tin Mentor', icon: GraduationCap });
 
-    tabs.push({ id: 'password' as TabType, label: 'Đổi mật khẩu', icon: Lock });
+        tabs.push({ id: 'password' as TabType, label: 'Đổi mật khẩu', icon: Lock });
+        return tabs;
+    };
 
-    return tabs;
-  };
+    // Thêm vào cuối file src/app/user/page.tsx
+    useEffect(() => {
+        console.log('=== MENTOR DEBUG ===');
+        console.log('User:', user);
+        console.log('User role:', user?.role);
+        console.log('Has mentor profile:', hasMentorProfile);
+        console.log('Mentor ID:', mentorId);
+        console.log('Mentor info:', mentorInfo);
+        console.log('Available tabs:', getAvailableTabs());
+        console.log('=== END DEBUG ===');
+    }, [user, hasMentorProfile, mentorId, mentorInfo]);
+
 
   return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-8 px-4 sm:px-6 lg:px-8">
