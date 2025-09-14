@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Edit3, X, Save, GraduationCap, UserPlus, Upload, Camera, Plus, Trash2, Building, Award, Calendar, Eye, EyeOff, Clock, CheckCircle, XCircle } from 'lucide-react';
+import {
+    Edit3, X, Save, GraduationCap, UserPlus, Upload, Camera, Plus, Trash2, Building, Award, Calendar, Eye, EyeOff, Clock, CheckCircle, XCircle, Mail, Phone, FileText
+} from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/utils/supabase/client';
 import Image from 'next/image';
@@ -93,11 +95,15 @@ const MentorTab: React.FC<MentorTabProps> = ({
 
     // Registration states
     const [registrationData, setRegistrationData] = useState({
+        email: user?.email || '',
+        phone: user?.profile?.phone_number || '',
         notes: '',
         isSubmitting: false
     });
     const [hasRegistration, setHasRegistration] = useState(false);
     const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
+    const [registrationError, setRegistrationError] = useState('');
+
 
     // Check registration status on component mount
     useEffect(() => {
@@ -105,6 +111,18 @@ const MentorTab: React.FC<MentorTabProps> = ({
             checkRegistrationStatus();
         }
     }, [user]);
+
+    // Auto-fill email and phone when user changes
+    useEffect(() => {
+        if (user && !hasRegistration) {
+            setRegistrationData(prev => ({
+                ...prev,
+                email: user.email || prev.email,
+                phone: user.profile?.phone_number || prev.phone
+            }));
+        }
+    }, [user, hasRegistration]);
+
 
     // Check if user has submitted mentor registration
     const checkRegistrationStatus = async () => {
@@ -132,17 +150,52 @@ const MentorTab: React.FC<MentorTabProps> = ({
 
     // Submit mentor registration
     const handleSubmitRegistration = async () => {
-        if (!user || !registrationData.notes.trim()) return;
+        if (!user) {
+            setRegistrationError('Không tìm thấy thông tin người dùng');
+            return;
+        }
+
+        // Validation
+        if (!registrationData.email.trim()) {
+            setRegistrationError('Vui lòng nhập địa chỉ email');
+            return;
+        }
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrationData.email)) {
+            setRegistrationError('Địa chỉ email không hợp lệ');
+            return;
+        }
+
+        if (!registrationData.phone.trim()) {
+            setRegistrationError('Vui lòng nhập số điện thoại');
+            return;
+        }
+
+        if (!/^[0-9+\-\s()]{10,}$/.test(registrationData.phone.replace(/\s/g, ''))) {
+            setRegistrationError('Số điện thoại không hợp lệ');
+            return;
+        }
+
+        if (!registrationData.notes.trim()) {
+            setRegistrationError('Vui lòng chia sẻ thông tin về bản thân');
+            return;
+        }
+
+        if (registrationData.notes.trim().length < 100) {
+            setRegistrationError('Vui lòng chia sẻ ít nhất 100 ký tự về bản thân');
+            return;
+        }
 
         try {
             setRegistrationData(prev => ({ ...prev, isSubmitting: true }));
+            setRegistrationError('');
 
             const { error } = await supabase
                 .from('mentor_registrations')
                 .insert([{
                     user_id: user.id,
-                    email: user.email,
-                    phone: user.profile?.phone_number || '',
+                    email: registrationData.email.trim(),
+                    phone: registrationData.phone.trim(),
                     notes: registrationData.notes.trim(),
                     status: 'pending'
                 }]);
@@ -151,12 +204,18 @@ const MentorTab: React.FC<MentorTabProps> = ({
 
             setHasRegistration(true);
             setRegistrationStatus('pending');
-            setRegistrationData({ notes: '', isSubmitting: false });
+            setRegistrationData({
+                email: user?.email || '',
+                phone: user?.profile?.phone_number || '',
+                notes: '',
+                isSubmitting: false
+            });
+
             showSuccess('Thành công', 'Đăng ký mentor đã được gửi! Admin sẽ xem xét và phản hồi sớm nhất.');
 
         } catch (error: any) {
             console.error('Error submitting registration:', error);
-            showError('Lỗi', 'Không thể gửi đăng ký. Vui lòng thử lại.');
+            setRegistrationError('Không thể gửi đăng ký. Vui lòng thử lại.');
         } finally {
             setRegistrationData(prev => ({ ...prev, isSubmitting: false }));
         }
@@ -294,18 +353,11 @@ const MentorTab: React.FC<MentorTabProps> = ({
     };
 
     // Check permissions
-    const canEditMentor = user?.role === 'mentor' || user?.role === 'admin' || user?.role === 'superadmin';
+    const canEditMentor = user?.role === 'mentor';
 
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Thông tin Mentor</h2>
-                    <p className="text-sm text-gray-600 mt-1">
-                        Role hiện tại: <span className="font-semibold text-cyan-600">{user?.role}</span>
-                    </p>
-                </div>
-
                 {canEditMentor && hasMentorProfile && !isEditing ? (
                     <button
                         onClick={() => setIsEditing(true)}
@@ -1184,75 +1236,173 @@ const MentorTab: React.FC<MentorTabProps> = ({
                 <div className="max-w-2xl mx-auto">
                     {!hasRegistration ? (
                         // Form đăng ký
-                        <div className="text-center py-12">
-                            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-r from-blue-100 to-cyan-100 rounded-full flex items-center justify-center">
-                                <UserPlus className="w-12 h-12 text-blue-600" />
-                            </div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">Đăng ký trở thành Mentor</h3>
-                            <p className="text-gray-600 mb-8">
-                                Chia sẻ kinh nghiệm và hướng dẫn học viên trong lĩnh vực của bạn
-                            </p>
-
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 text-left">
-                                <h4 className="text-blue-800 font-semibold mb-3 flex items-center">
-                                    <CheckCircle className="w-5 h-5 mr-2" />
-                                    Yêu cầu trở thành Mentor:
-                                </h4>
-                                <ul className="text-blue-700 text-sm space-y-2">
-                                    <li className="flex items-start">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                                        Có kinh nghiệm chuyên môn ít nhất 2 năm trong lĩnh vực
-                                    </li>
-                                    <li className="flex items-start">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                                    </li>
-                                    <li className="flex items-start">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                                        Cam kết hỗ trợ và hướng dẫn học viên
-                                    </li>
-                                    <li className="flex items-start">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                                        Có kỹ năng giao tiếp và chia sẻ kiến thức tốt
-                                    </li>
-                                </ul>
+                        <div className="py-12">
+                            <div className="text-center mb-12">
+                                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-full flex items-center justify-center">
+                                    <UserPlus className="w-12 h-12 text-emerald-600" />
+                                </div>
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Đăng ký trở thành Mentor</h3>
+                                <p className="text-gray-600 mb-8">
+                                    Chia sẻ kinh nghiệm và hướng dẫn những người mới bắt đầu trong lĩnh vực HR.
+                                    Hãy cung cấp thông tin để chúng tôi có thể đánh giá hồ sơ của bạn.
+                                </p>
                             </div>
 
-                            <div className="space-y-4">
-                                <textarea
-                                    placeholder="Mô tả kinh nghiệm chuyên môn, lý do muốn trở thành mentor và kế hoạch hỗ trợ học viên..."
-                                    value={registrationData.notes}
-                                    onChange={(e) => setRegistrationData(prev => ({ ...prev, notes: e.target.value }))}
-                                    rows={6}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
-                                    maxLength={1000}
-                                />
-                                <div className="flex justify-between items-center text-sm text-gray-500">
-                                    <span>Tối thiểu 100 ký tự để gửi đăng ký</span>
-                                    <span>{registrationData.notes.length}/1000</span>
+                            {/* Error Message */}
+                            {registrationError && (
+                                <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-xl">
+                                    <div className="flex items-center">
+                                        <X className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" />
+                                        <span className="text-sm text-red-700">{registrationError}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-6">
+                                {/* Email */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                        <Mail className="w-4 h-4 inline mr-2" />
+                                        Email liên hệ <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="email"
+                                        required
+                                        disabled={registrationData.isSubmitting}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                        placeholder="email@example.com"
+                                        value={registrationData.email}
+                                        onChange={(e) => setRegistrationData(prev => ({
+                                            ...prev,
+                                            email: e.target.value
+                                        }))}
+                                    />
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Chúng tôi sẽ sử dụng email này để liên hệ về việc đăng ký mentor
+                                    </p>
+                                </div>
+
+                                {/* Phone */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                        <Phone className="w-4 h-4 inline mr-2" />
+                                        Số điện thoại <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        disabled={registrationData.isSubmitting}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                        placeholder="0901234567"
+                                        value={registrationData.phone}
+                                        onChange={(e) => setRegistrationData(prev => ({
+                                            ...prev,
+                                            phone: e.target.value
+                                        }))}
+                                    />
+                                    <p className="mt-2 text-xs text-gray-500">
+                                        Số điện thoại để chúng tôi có thể liên hệ trực tiếp khi cần thiết
+                                    </p>
+                                </div>
+
+                                {/* Notes */}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                        <FileText className="w-4 h-4 inline mr-2" />
+                                        Chia sẻ về bản thân <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                        required
+                                        disabled={registrationData.isSubmitting}
+                                        rows={6}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                        placeholder={`Chia sẻ về:
+• Kinh nghiệm chuyên môn trong lĩnh vực HR
+• Lý do muốn trở thành mentor
+• Kỹ năng và chuyên môn mà bạn có thể hướng dẫn
+• Thời gian có thể dành cho mentoring
+• Thông tin liên hệ khác (LinkedIn, v.v.)
+• Ghi chú hoặc thông tin khác...`}
+                                        value={registrationData.notes}
+                                        onChange={(e) => setRegistrationData(prev => ({
+                                            ...prev,
+                                            notes: e.target.value
+                                        }))}
+                                        maxLength={1000}
+                                    />
+                                    <div className="mt-2 flex justify-between items-center">
+                                        <span className="text-xs text-gray-500">
+                                            Tối thiểu 100 ký tự để gửi đăng ký
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            {registrationData.notes.length}/1000 ký tự
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Requirements Box */}
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6">
+                                    <h4 className="text-emerald-800 font-semibold mb-3 flex items-center">
+                                        <CheckCircle className="w-5 h-5 mr-2" />
+                                        Yêu cầu trở thành Mentor:
+                                    </h4>
+                                    <ul className="text-emerald-700 text-sm space-y-2">
+                                        <li className="flex items-start">
+                                            <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                            Có kinh nghiệm chuyên môn ít nhất 2 năm trong lĩnh vực HR
+                                        </li>
+                                        <li className="flex items-start">
+                                            <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                            Có kỹ năng giao tiếp và chia sẻ kiến thức tốt
+                                        </li>
+                                        <li className="flex items-start">
+                                            <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                            Cam kết hỗ trợ và hướng dẫn học viên
+                                        </li>
+                                        <li className="flex items-start">
+                                            <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                            Có thái độ tích cực và sẵn sàng chia sẻ
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                {/* Submit Button */}
+                                <button
+                                    onClick={handleSubmitRegistration}
+                                    disabled={registrationData.isSubmitting ||
+                                        !registrationData.email.trim() ||
+                                        !registrationData.phone.trim() ||
+                                        registrationData.notes.trim().length < 100}
+                                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-4 rounded-xl font-medium hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
+                                >
+                                    {registrationData.isSubmitting ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                            <span>Đang gửi đăng ký...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <UserPlus className="w-5 h-5" />
+                                            <span>Gửi đăng ký trở thành Mentor</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Info */}
+                                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            <span className="text-white text-xs font-bold">ℹ</span>
+                                        </div>
+                                        <div className="text-sm">
+                                            <p className="text-blue-700 text-xs leading-relaxed">
+                                                Chúng tôi sẽ xem xét hồ sơ và phản hồi qua email trong 3-5 ngày làm việc.
+                                                Bạn sẽ nhận được thông báo chi tiết về kết quả đăng ký.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-
-                            <button
-                                onClick={handleSubmitRegistration}
-                                disabled={registrationData.isSubmitting || registrationData.notes.trim().length < 100}
-                                className="w-full bg-gradient-to-r from-blue-500 to-cyan-600 text-white px-6 py-4 rounded-xl font-medium hover:from-blue-600 hover:to-cyan-700 transition-all duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
-                            >
-                                {registrationData.isSubmitting ? (
-                                    <>
-                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                        <span>Đang gửi đăng ký...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <UserPlus className="w-5 h-5" />
-                                        <span>Gửi đăng ký trở thành Mentor</span>
-                                    </>
-                                )}
-                            </button>
-
-                            <p className="text-xs text-gray-500 mt-4 text-center">
-                                Sau khi gửi đăng ký, admin sẽ xem xét và phản hồi trong vòng 3-5 ngày làm việc
-                            </p>
                         </div>
                     ) : (
                         // Hiển thị trạng thái đăng ký
@@ -1321,7 +1471,11 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                         onClick={() => {
                                             setHasRegistration(false);
                                             setRegistrationStatus(null);
-                                            setRegistrationData({ notes: '', isSubmitting: false });
+                                            setRegistrationData({
+                                                email: user?.email || '',
+                                                phone: user?.profile?.phone_number || '',
+                                                notes: '',
+                                                isSubmitting: false });
                                         }}
                                         className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-600 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
                                     >

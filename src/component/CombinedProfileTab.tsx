@@ -14,7 +14,6 @@ interface PersonalInfo {
 
 interface SubProfileInfo {
     university_major_id?: string;
-    cv?: string;
     linkedin_url?: string;
     github_url?: string;
     portfolio_url?: string;
@@ -51,17 +50,24 @@ interface CombinedProfileTabProps {
     subProfileInfo: SubProfileInfo;
     setSubProfileInfo: React.Dispatch<React.SetStateAction<SubProfileInfo>>;
     hasSubProfile: boolean;
+    setHasSubProfile: React.Dispatch<React.SetStateAction<boolean>>;
     universityMajors: UniversityMajor[];
     isEditing: boolean;
     setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
     isLoading: boolean;
+    setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
     previewAvatar: string;
+    setPreviewAvatar: React.Dispatch<React.SetStateAction<string>>;
     uploading: boolean;
     onAvatarUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onRemoveAvatar: () => void;
-    onSavePersonalInfo: () => void;
-    onSaveSubProfile: () => void;
+    onSave: () => void;  // ← Parent save function
     onCancel: () => void;
+    user: any;
+    setUser: (user: any) => void;
+    showSuccess: (title: string, message: string) => void;
+    showError: (title: string, message: string) => void;
+    uploadImage: (file: File) => Promise<string>;
 }
 
 const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
@@ -70,63 +76,86 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                                                    subProfileInfo,
                                                                    setSubProfileInfo,
                                                                    hasSubProfile,
+                                                                   setHasSubProfile,
                                                                    universityMajors,
                                                                    isEditing,
                                                                    setIsEditing,
                                                                    isLoading,
+                                                                   setIsLoading,
                                                                    previewAvatar,
+                                                                   setPreviewAvatar,
                                                                    uploading,
                                                                    onAvatarUpload,
                                                                    onRemoveAvatar,
-                                                                   onSavePersonalInfo,
-                                                                   onSaveSubProfile,
-                                                                   onCancel
+                                                                   onSave,  // ← Use parent save function
+                                                                   onCancel,
+                                                                   user,
+                                                                   setUser,
+                                                                   showSuccess,
+                                                                   showError,
+                                                                   uploadImage
                                                                }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const universityRef = useRef<HTMLDivElement>(null);
     const majorRef = useRef<HTMLDivElement>(null);
     const displayAvatar = previewAvatar || personalInfo.avatar;
 
-    // THEME ————————————————
-    const isEdit = isEditing;
+    // ————————————————————————————————————————————————————————————————————
+    // MENTOR TAB EDIT THEME - giống với mentor khi đang edit
+    // ————————————————————————————————————————————————————————————————————
 
-    // Panel wrapper
-    const panelBasicCls = isEdit
-        ? "rounded-2xl p-6 bg-white border border-cyan-200 shadow-[0_10px_30px_rgba(8,145,178,0.12)]"
-        : "rounded-2xl p-6 bg-gradient-to-br from-blue-50 to-cyan-50";
+    const theme = {
+        // Panel backgrounds - giống MentorTab edit mode
+        personalInfoPanel: isEditing
+            ? "bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6"
+            : "bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6",
 
-    const panelExtraCls = isEdit
-        ? "rounded-2xl p-6 bg-white border border-emerald-200 shadow-[0_10px_30px_rgba(16,185,129,0.12)]"
-        : "rounded-2xl p-6 bg-gradient-to-br from-green-50 to-emerald-50";
+        subProfilePanel: isEditing
+            ? "bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6"
+            : "bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6",
 
-    // Label màu nổi hơn khi edit
-    const labelCls = isEdit
-        ? "block text-sm font-semibold text-cyan-700"
-        : "block text-sm font-semibold text-gray-900";
+        // Headers - giống MentorTab
+        personalHeader: isEditing ? "text-cyan-800" : "text-gray-900",
+        subProfileHeader: isEditing ? "text-emerald-800" : "text-gray-900",
 
-    // Box hiển thị (View mode)
-    const viewBoxCls = "px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium";
+        // Icons - giống MentorTab
+        personalIcon: isEditing ? "text-cyan-600" : "text-blue-600",
+        subProfileIcon: isEditing ? "text-emerald-600" : "text-green-600",
 
-    // Input/Select/Textarea (Edit mode)
-    const editInputBase =
-        "w-full px-4 py-3 rounded-xl border transition-all duration-200 focus:outline-none";
-    const editInputCls =
-        `${editInputBase} border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm`;
-    const editSelectCls = editInputCls;
-    const editTextareaCls = `${editInputCls} resize-none`;
+        // Labels - giống MentorTab: cyan-700 khi edit
+        label: isEditing
+            ? "block text-sm font-semibold text-cyan-700 mb-3"
+            : "block text-sm font-semibold text-gray-900 mb-2",
 
-    // Search dropdown (Edit mode)
-    const dropdownCls =
-        "absolute z-30 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto";
-    const dropdownBorder = isEdit ? "border-cyan-200" : "border-gray-200";
-    const dropdownItem =
-        "w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b last:border-b-0";
-    const dropdownItemBorder = isEdit ? "border-cyan-50" : "border-gray-100";
+        // View mode boxes - giống MentorTab
+        viewBox: "px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium",
 
-    // Avatar ring
-    const avatarRing = isEdit ? "ring-4 ring-cyan-100" : "ring-4 ring-white";
+        // Edit mode inputs - giống hệt MentorTab
+        input: isEditing
+            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
+            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium",
 
-    // ———————————————— Local state cho trường/ngành
+        select: isEditing
+            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
+            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium",
+
+        textarea: isEditing
+            ? "w-full px-4 py-3 rounded-xl border border-emerald-300 bg-white focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 shadow-sm transition-all duration-200 focus:outline-none resize-none"
+            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium resize-none",
+
+        // Avatar - giống MentorTab
+        avatarRing: isEditing ? "ring-4 ring-cyan-100" : "ring-4 ring-white",
+        avatarBg: isEditing ? "bg-cyan-100" : "bg-gradient-to-br from-cyan-500 to-blue-600",
+
+        // Dropdowns - giống MentorTab
+        dropdown: "absolute z-30 w-full mt-1 bg-white border border-cyan-200 rounded-xl shadow-lg max-h-60 overflow-y-auto",
+        dropdownItem: "w-full text-left px-4 py-3 hover:bg-cyan-50 transition-colors border-b border-cyan-50 last:border-b-0 cursor-pointer",
+    };
+
+    // ————————————————————————————————————————————————————————————————————
+    // State management
+    // ————————————————————————————————————————————————————————————————————
+
     const [universities, setUniversities] = useState<University[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
     const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null);
@@ -268,13 +297,9 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
         )
         : majors.filter(major => major.name.toLowerCase().includes(majorSearch.toLowerCase()));
 
-    const handleSaveBoth = async () => {
-        try {
-            await onSavePersonalInfo();
-            await onSaveSubProfile();
-        } catch (error) {
-            console.error('Error saving profile data:', error);
-        }
+    // ✅ CALL PARENT SAVE FUNCTION
+    const handleSaveBoth = () => {
+        onSave();  // ← Delegate to parent
     };
 
     return (
@@ -304,23 +329,23 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
             </div>
 
             {/* Thông tin cơ bản */}
-            <div className={panelBasicCls}>
-                <h3 className={`text-lg font-semibold mb-6 flex items-center space-x-2 ${isEdit ? 'text-cyan-800' : 'text-gray-900'}`}>
-                    <Camera className={`w-5 h-5 ${isEdit ? 'text-cyan-600' : 'text-blue-600'}`} />
+            <div className={theme.personalInfoPanel}>
+                <h3 className={`text-lg font-semibold mb-6 flex items-center space-x-2 ${theme.personalHeader}`}>
+                    <Camera className={`w-5 h-5 ${theme.personalIcon}`} />
                     <span>Thông tin cơ bản</span>
                 </h3>
 
                 {/* Avatar */}
                 <div className="mb-6">
-                    <label className={`${labelCls} mb-4`}>Ảnh đại diện</label>
+                    <label className={`${theme.label} mb-4`}>Ảnh đại diện</label>
                     <div className="flex items-center space-x-6">
                         <div className="relative">
-                            <div className={`h-28 w-28 rounded-full overflow-hidden ${avatarRing} shadow-lg bg-gray-100`}>
+                            <div className={`h-28 w-28 rounded-full overflow-hidden ${theme.avatarRing} shadow-lg bg-gray-100`}>
                                 {displayAvatar ? (
                                     <img src={displayAvatar} className="object-cover w-full h-full" alt="Avatar" />
                                 ) : (
-                                    <div className={`flex items-center justify-center h-full w-full ${isEdit ? 'bg-cyan-100' : 'bg-gradient-to-br from-cyan-500 to-blue-600'}`}>
-                                        <Camera className={`${isEdit ? 'text-cyan-600' : 'text-white'} w-8 h-8`} />
+                                    <div className={`flex items-center justify-center h-full w-full ${theme.avatarBg}`}>
+                                        <Camera className={`${isEditing ? 'text-cyan-600' : 'text-white'} w-8 h-8`} />
                                     </div>
                                 )}
                             </div>
@@ -367,7 +392,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                 {/* Basic Info Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <label className={labelCls}>
+                        <label className={theme.label}>
                             Họ và tên <span className="text-red-500">*</span>
                         </label>
                         {isEditing ? (
@@ -375,48 +400,54 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 type="text"
                                 value={personalInfo.name}
                                 onChange={(e) => setPersonalInfo(prev => ({ ...prev, name: e.target.value }))}
-                                className={editInputCls}
+                                className={theme.input}
                                 disabled={isLoading}
                             />
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {personalInfo.name || 'Chưa cập nhật'}
                             </div>
                         )}
                     </div>
 
                     <div className="space-y-2">
-                        <label className={labelCls}>Email</label>
-                        <div className="px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600">
-                            {personalInfo.email}
-                        </div>
+                        <label className={theme.label}>Email</label>
+                        {isEditing ? (
+                            <div className="px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 font-medium">
+                                {personalInfo.email}
+                            </div>
+                        ) : (
+                            <div className={theme.viewBox}>
+                                {personalInfo.email}
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-2">
-                        <label className={labelCls}>Số điện thoại</label>
+                        <label className={theme.label}>Số điện thoại</label>
                         {isEditing ? (
                             <input
                                 type="tel"
                                 value={personalInfo.phone_number}
                                 onChange={(e) => setPersonalInfo(prev => ({ ...prev, phone_number: e.target.value }))}
-                                className={editInputCls}
+                                className={theme.input}
                                 disabled={isLoading}
                                 placeholder="Nhập số điện thoại"
                             />
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {personalInfo.phone_number || 'Chưa cập nhật'}
                             </div>
                         )}
                     </div>
 
                     <div className="space-y-2">
-                        <label className={labelCls}>Giới tính</label>
+                        <label className={theme.label}>Giới tính</label>
                         {isEditing ? (
                             <select
                                 value={personalInfo.gender}
                                 onChange={(e) => setPersonalInfo(prev => ({ ...prev, gender: e.target.value }))}
-                                className={editSelectCls}
+                                className={theme.select}
                                 disabled={isLoading}
                             >
                                 <option value="">Chọn giới tính</option>
@@ -425,24 +456,24 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 <option value="Khác">Khác</option>
                             </select>
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {personalInfo.gender || 'Chưa cập nhật'}
                             </div>
                         )}
                     </div>
 
                     <div className="space-y-2 md:col-span-1">
-                        <label className={labelCls}>Ngày sinh</label>
+                        <label className={theme.label}>Ngày sinh</label>
                         {isEditing ? (
                             <input
                                 type="date"
                                 value={personalInfo.birthdate}
                                 onChange={(e) => setPersonalInfo(prev => ({ ...prev, birthdate: e.target.value }))}
-                                className={editInputCls}
+                                className={theme.input}
                                 disabled={isLoading}
                             />
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {personalInfo.birthdate ? new Date(personalInfo.birthdate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
                             </div>
                         )}
@@ -451,17 +482,17 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
             </div>
 
             {/* Thông tin bổ sung */}
-            <div className={panelExtraCls}>
-                <h3 className={`text-lg font-semibold mb-6 flex items-center space-x-2 ${isEdit ? 'text-emerald-800' : 'text-gray-900'}`}>
-                    <GraduationCap className={`w-5 h-5 ${isEdit ? 'text-emerald-600' : 'text-green-600'}`} />
+            <div className={theme.subProfilePanel}>
+                <h3 className={`text-lg font-semibold mb-6 flex items-center space-x-2 ${theme.subProfileHeader}`}>
+                    <GraduationCap className={`w-5 h-5 ${theme.subProfileIcon}`} />
                     <span>Thông tin bổ sung</span>
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* University */}
                     <div className="space-y-2">
-                        <label className={`${labelCls} flex items-center space-x-2`}>
-                            <GraduationCap className={`w-4 h-4 ${isEdit ? 'text-cyan-600' : 'text-blue-600'}`} />
+                        <label className={`${theme.label} flex items-center space-x-2`}>
+                            <GraduationCap className={`w-4 h-4 ${theme.personalIcon}`} />
                             <span>Trường đại học / Cao đẳng</span>
                         </label>
                         {isEditing ? (
@@ -475,19 +506,19 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                         setShowUniversityDropdown(true);
                                     }}
                                     onFocus={() => setShowUniversityDropdown(true)}
-                                    className={editInputCls}
+                                    className={theme.input}
                                     disabled={isLoading}
                                 />
                                 <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400 pointer-events-none" />
 
                                 {showUniversityDropdown && (
-                                    <div className={`${dropdownCls} ${dropdownBorder}`}>
+                                    <div className={theme.dropdown}>
                                         {filteredUniversities.length > 0 ? (
                                             filteredUniversities.map((university) => (
                                                 <div
                                                     key={university.id}
                                                     onClick={() => handleUniversitySelect(university)}
-                                                    className={`${dropdownItem} ${dropdownItemBorder} cursor-pointer`}
+                                                    className={`${theme.dropdownItem} cursor-pointer`}
                                                 >
                                                     <div className="font-medium text-gray-900">{university.name}</div>
                                                     <div className="text-sm text-gray-500">{university.code}</div>
@@ -507,7 +538,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 )}
                             </div>
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {selectedUniversity ? selectedUniversity.name : 'Chưa cập nhật'}
                             </div>
                         )}
@@ -515,8 +546,8 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
 
                     {/* Major */}
                     <div className="space-y-2">
-                        <label className={`${labelCls} flex items-center space-x-2`}>
-                            <GraduationCap className={`w-4 h-4 ${isEdit ? 'text-emerald-600' : 'text-green-600'}`} />
+                        <label className={`${theme.label} flex items-center space-x-2`}>
+                            <GraduationCap className={`w-4 h-4 ${theme.subProfileIcon}`} />
                             <span>Ngành học</span>
                         </label>
                         {isEditing ? (
@@ -531,18 +562,18 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                     }}
                                     onFocus={() => selectedUniversity && setShowMajorDropdown(true)}
                                     disabled={!selectedUniversity || isLoading}
-                                    className={`${editInputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    className={`${theme.input} disabled:opacity-50 disabled:cursor-not-allowed`}
                                 />
                                 <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400 pointer-events-none" />
 
                                 {showMajorDropdown && selectedUniversity && (
-                                    <div className={`${dropdownCls} ${dropdownBorder}`}>
+                                    <div className={theme.dropdown}>
                                         {availableMajors.length > 0 ? (
                                             availableMajors.map((major) => (
                                                 <div
                                                     key={major.id}
                                                     onClick={() => handleMajorSelect(major)}
-                                                    className={`${dropdownItem} ${dropdownItemBorder} cursor-pointer`}
+                                                    className={`${theme.dropdownItem} cursor-pointer`}
                                                 >
                                                     <div className="font-medium text-gray-900">{major.name}</div>
                                                 </div>
@@ -561,38 +592,15 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 )}
                             </div>
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {selectedMajor ? selectedMajor.name : 'Chưa cập nhật'}
                             </div>
                         )}
                     </div>
 
                     <div className="space-y-2">
-                        <label className={labelCls}>CV (Link)</label>
-                        {isEditing ? (
-                            <input
-                                type="url"
-                                value={subProfileInfo.cv}
-                                onChange={(e) => setSubProfileInfo(prev => ({ ...prev, cv: e.target.value }))}
-                                className={editInputCls}
-                                disabled={isLoading}
-                                placeholder="https://drive.google.com/file/d/..."
-                            />
-                        ) : (
-                            <div className={viewBoxCls}>
-                                {subProfileInfo.cv ? (
-                                    <a href={subProfileInfo.cv} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline flex items-center space-x-1">
-                                        <span>Xem CV</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                ) : 'Chưa cập nhật'}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className={`${labelCls} flex items-center space-x-2`}>
-                            <Linkedin className={`w-4 h-4 ${isEdit ? 'text-cyan-600' : 'text-blue-600'}`} />
+                        <label className={`${theme.label} flex items-center space-x-2`}>
+                            <Linkedin className={`w-4 h-4 ${theme.personalIcon}`} />
                             <span>LinkedIn</span>
                         </label>
                         {isEditing ? (
@@ -600,12 +608,12 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 type="url"
                                 value={subProfileInfo.linkedin_url}
                                 onChange={(e) => setSubProfileInfo(prev => ({ ...prev, linkedin_url: e.target.value }))}
-                                className={editInputCls}
+                                className={theme.input}
                                 disabled={isLoading}
                                 placeholder="https://linkedin.com/in/yourprofile"
                             />
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {subProfileInfo.linkedin_url ? (
                                     <a href={subProfileInfo.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline flex items-center space-x-1">
                                         <span>Xem LinkedIn</span>
@@ -617,7 +625,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                     </div>
 
                     <div className="space-y-2">
-                        <label className={`${labelCls} flex items-center space-x-2`}>
+                        <label className={`${theme.label} flex items-center space-x-2`}>
                             <Github className="w-4 h-4 text-gray-800" />
                             <span>GitHub</span>
                         </label>
@@ -626,12 +634,12 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 type="url"
                                 value={subProfileInfo.github_url}
                                 onChange={(e) => setSubProfileInfo(prev => ({ ...prev, github_url: e.target.value }))}
-                                className={editInputCls}
+                                className={theme.input}
                                 disabled={isLoading}
                                 placeholder="https://github.com/yourusername"
                             />
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {subProfileInfo.github_url ? (
                                     <a href={subProfileInfo.github_url} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline flex items-center space-x-1">
                                         <span>Xem GitHub</span>
@@ -643,8 +651,8 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                        <label className={`${labelCls} flex items-center space-x-2`}>
-                            <Globe className={`w-4 h-4 ${isEdit ? 'text-emerald-600' : 'text-green-600'}`} />
+                        <label className={`${theme.label} flex items-center space-x-2`}>
+                            <Globe className={`w-4 h-4 ${theme.subProfileIcon}`} />
                             <span>Portfolio/Website</span>
                         </label>
                         {isEditing ? (
@@ -652,12 +660,11 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 type="url"
                                 value={subProfileInfo.portfolio_url}
                                 onChange={(e) => setSubProfileInfo(prev => ({ ...prev, portfolio_url: e.target.value }))}
-                                className={editInputCls}
+                                className={theme.input}
                                 disabled={isLoading}
-                                placeholder="https://yourportfolio.com"
-                            />
+                                placeholder="https://yourportfolio.com" />
                         ) : (
-                            <div className={viewBoxCls}>
+                            <div className={theme.viewBox}>
                                 {subProfileInfo.portfolio_url ? (
                                     <a href={subProfileInfo.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline flex items-center space-x-1">
                                         <span>Xem Portfolio</span>
@@ -669,18 +676,18 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                        <label className={labelCls}>Mô tả bản thân</label>
+                        <label className={theme.label}>Mô tả bản thân</label>
                         {isEditing ? (
                             <textarea
                                 rows={4}
                                 value={subProfileInfo.description}
                                 onChange={(e) => setSubProfileInfo(prev => ({ ...prev, description: e.target.value }))}
-                                className={editTextareaCls}
+                                className={theme.textarea}
                                 disabled={isLoading}
                                 placeholder="Viết về bản thân, kinh nghiệm, mục tiêu nghề nghiệp..."
                             />
                         ) : (
-                            <div className={`${viewBoxCls} min-h-[100px] whitespace-pre-wrap`}>
+                            <div className={`${theme.viewBox} min-h-[100px] whitespace-pre-wrap`}>
                                 {subProfileInfo.description || 'Chưa cập nhật'}
                             </div>
                         )}
@@ -699,7 +706,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                         Hủy
                     </button>
                     <button
-                        onClick={handleSaveBoth}
+                        onClick={handleSaveBoth}  // ← Gọi parent save function
                         className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2"
                         disabled={isLoading}
                     >
