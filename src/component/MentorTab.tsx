@@ -104,7 +104,6 @@ const MentorTab: React.FC<MentorTabProps> = ({
     const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null);
     const [registrationError, setRegistrationError] = useState('');
 
-
     // Check registration status on component mount
     useEffect(() => {
         if (user && user.role === 'user') {
@@ -122,7 +121,6 @@ const MentorTab: React.FC<MentorTabProps> = ({
             }));
         }
     }, [user, hasRegistration]);
-
 
     // Check if user has submitted mentor registration
     const checkRegistrationStatus = async () => {
@@ -221,7 +219,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
         }
     };
 
-    // Upload helpers
+    // Upload helpers - SỬA LỖI: Sử dụng onUploadImage prop
     const handleImageUpload = async (file: File, uploadKey?: string): Promise<string> => {
         if (uploadKey) {
             setUploadingStates(prev => ({ ...prev, [uploadKey]: true }));
@@ -274,13 +272,6 @@ const MentorTab: React.FC<MentorTabProps> = ({
         }));
     };
 
-    const updateWorkExperience = (index: number, field: keyof MentorWorkExperience, value: any) => {
-        setMentorInfo(prev => {
-            const newExps = [...(prev.work_experiences || [])];
-            newExps[index] = { ...newExps[index], [field]: value };
-            return { ...prev, work_experiences: newExps };
-        });
-    };
 
     const removeWorkExperience = (index: number) => {
         setMentorInfo(prev => ({
@@ -303,14 +294,6 @@ const MentorTab: React.FC<MentorTabProps> = ({
                 avatar: ''
             }]
         }));
-    };
-
-    const updateEducation = (index: number, field: keyof MentorEducation, value: any) => {
-        setMentorInfo(prev => {
-            const newEdus = [...(prev.educations || [])];
-            newEdus[index] = { ...newEdus[index], [field]: value };
-            return { ...prev, educations: newEdus };
-        });
     };
 
     const removeEducation = (index: number) => {
@@ -337,13 +320,6 @@ const MentorTab: React.FC<MentorTabProps> = ({
         }));
     };
 
-    const updateActivity = (index: number, field: keyof MentorActivity, value: any) => {
-        setMentorInfo(prev => {
-            const newActivities = [...(prev.activities || [])];
-            newActivities[index] = { ...newActivities[index], [field]: value };
-            return { ...prev, activities: newActivities };
-        });
-    };
 
     const removeActivity = (index: number) => {
         setMentorInfo(prev => ({
@@ -355,9 +331,75 @@ const MentorTab: React.FC<MentorTabProps> = ({
     // Check permissions
     const canEditMentor = user?.role === 'mentor';
 
+    // SỬA LỖI: Thêm styles cho edit mode
+    const theme = {
+        input: isEditing
+            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
+            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium bg-gray-50",
+
+        select: isEditing
+            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
+            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium bg-gray-50",
+
+        textarea: isEditing
+            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none resize-none"
+            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium bg-gray-50 resize-none",
+
+        viewBox: "px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium"
+    };
+
+    // Work Experience management với debug
+    const updateWorkExperience = (index: number, field: keyof MentorWorkExperience, value: any) => {
+        console.log(`🔄 Updating work experience [${index}].${field}:`, value);
+        setMentorInfo(prev => {
+            const newExps = [...(prev.work_experiences || [])];
+            newExps[index] = { ...newExps[index], [field]: value };
+            console.log('📝 Updated work experiences:', newExps);
+            return { ...prev, work_experiences: newExps };
+        });
+    };
+
+    // Education management với debug
+    const updateEducation = (index: number, field: keyof MentorEducation, value: any) => {
+        console.log(`🔄 Updating education [${index}].${field}:`, value);
+        setMentorInfo(prev => {
+            const newEdus = [...(prev.educations || [])];
+            newEdus[index] = { ...newEdus[index], [field]: value };
+            console.log('📝 Updated educations:', newEdus);
+            return { ...prev, educations: newEdus };
+        });
+    };
+
+    // Activity management với debug
+    const updateActivity = (index: number, field: keyof MentorActivity, value: any) => {
+        console.log(`🔄 Updating activity [${index}].${field}:`, value);
+        setMentorInfo(prev => {
+            const newActivities = [...(prev.activities || [])];
+            newActivities[index] = { ...newActivities[index], [field]: value };
+            console.log('📝 Updated activities:', newActivities);
+            return { ...prev, activities: newActivities };
+        });
+    };
+
+    // Kiểm tra state ban đầu của MentorTab
+    useEffect(() => {
+        console.log('🔍 MentorTab mounted with data:', {
+            work_experiences: mentorInfo.work_experiences?.length || 0,
+            educations: mentorInfo.educations?.length || 0,
+            activities: mentorInfo.activities?.length || 0,
+            isEditing
+        });
+    }, []);
+
+    // Debug khi isEditing changes
+    useEffect(() => {
+        console.log('✏️ Edit mode changed:', isEditing);
+    }, [isEditing]);
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-gray-900">Thông tin Mentor</h2>
                 {canEditMentor && hasMentorProfile && !isEditing ? (
                     <button
                         onClick={() => setIsEditing(true)}
@@ -423,6 +465,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                     try {
                                                         const imageUrl = await handleImageUpload(file);
                                                         setMentorInfo(prev => ({ ...prev, avatar: imageUrl }));
+                                                        showSuccess('Thành công', 'Ảnh đã được cập nhật');
                                                     } catch (error) {
                                                         console.error('Error uploading avatar:', error);
                                                         showError('Lỗi', 'Không thể tải ảnh lên');
@@ -462,7 +505,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                         {/* Basic Fields */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-cyan-700">
+                                <label className="block text-sm font-semibold text-cyan-700 mb-3">
                                     Tên Mentor <span className="text-red-500">*</span>
                                 </label>
                                 {isEditing ? (
@@ -470,19 +513,19 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                         type="text"
                                         value={mentorInfo.full_name || ''}
                                         onChange={(e) => setMentorInfo(prev => ({ ...prev, full_name: e.target.value }))}
-                                        className="w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200"
+                                        className={theme.input}
                                         disabled={isLoading}
                                         placeholder="Tên hiển thị công khai"
                                     />
                                 ) : (
-                                    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium">
+                                    <div className={theme.viewBox}>
                                         {mentorInfo.full_name || 'Chưa cập nhật'}
                                     </div>
                                 )}
                             </div>
 
                             <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-cyan-700">
+                                <label className="block text-sm font-semibold text-cyan-700 mb-3">
                                     Email liên hệ <span className="text-red-500">*</span>
                                 </label>
                                 {isEditing ? (
@@ -490,66 +533,66 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                         type="email"
                                         value={mentorInfo.email || ''}
                                         onChange={(e) => setMentorInfo(prev => ({ ...prev, email: e.target.value }))}
-                                        className="w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200"
+                                        className={theme.input}
                                         disabled={isLoading}
                                         placeholder="Email công khai để liên hệ"
                                     />
                                 ) : (
-                                    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium">
+                                    <div className={theme.viewBox}>
                                         {mentorInfo.email || 'Chưa cập nhật'}
                                     </div>
                                 )}
                             </div>
 
                             <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-cyan-700">Số điện thoại</label>
+                                <label className="block text-sm font-semibold text-cyan-700 mb-3">Số điện thoại</label>
                                 {isEditing ? (
                                     <input
                                         type="tel"
                                         value={mentorInfo.phone_number || ''}
                                         onChange={(e) => setMentorInfo(prev => ({ ...prev, phone_number: e.target.value }))}
-                                        className="w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200"
+                                        className={theme.input}
                                         disabled={isLoading}
                                         placeholder="SĐT liên hệ công khai"
                                     />
                                 ) : (
-                                    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium">
+                                    <div className={theme.viewBox}>
                                         {mentorInfo.phone_number || 'Chưa cập nhật'}
                                     </div>
                                 )}
                             </div>
 
                             <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-cyan-700">Tiêu đề chuyên môn</label>
+                                <label className="block text-sm font-semibold text-cyan-700 mb-3">Tiêu đề chuyên môn</label>
                                 {isEditing ? (
                                     <input
                                         type="text"
                                         value={mentorInfo.headline || ''}
                                         onChange={(e) => setMentorInfo(prev => ({ ...prev, headline: e.target.value }))}
-                                        className="w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200"
+                                        className={theme.input}
                                         disabled={isLoading}
                                         placeholder="VD: Senior HR Manager tại ABC Company"
                                     />
                                 ) : (
-                                    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium">
+                                    <div className={theme.viewBox}>
                                         {mentorInfo.headline || 'Chưa cập nhật'}
                                     </div>
                                 )}
                             </div>
 
                             <div className="space-y-2 md:col-span-2">
-                                <label className="block text-sm font-semibold text-cyan-700">Mô tả về bản thân (Mentor)</label>
+                                <label className="block text-sm font-semibold text-cyan-700 mb-3">Mô tả về bản thân (Mentor)</label>
                                 {isEditing ? (
                                     <textarea
                                         rows={4}
                                         value={mentorInfo.description || ''}
                                         onChange={(e) => setMentorInfo(prev => ({ ...prev, description: e.target.value }))}
-                                        className="w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 resize-none"
+                                        className={theme.textarea}
                                         disabled={isLoading}
                                         placeholder="Mô tả kinh nghiệm, chuyên môn và phương pháp hỗ trợ học viên..."
                                     />
                                 ) : (
-                                    <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium min-h-[100px] whitespace-pre-wrap">
+                                    <div className={`${theme.viewBox} min-h-[100px] whitespace-pre-wrap`}>
                                         {mentorInfo.description || 'Chưa cập nhật'}
                                     </div>
                                 )}
@@ -602,7 +645,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium">
+                            <div className={theme.viewBox}>
                                 {mentorInfo.skill && mentorInfo.skill.length > 0 ? (
                                     <div className="flex flex-wrap gap-2">
                                         {mentorInfo.skill.map((skill, index) => (
@@ -676,26 +719,25 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 placeholder="Công ty"
                                                                 value={exp.company}
                                                                 onChange={(e) => updateWorkExperience(index, 'company', e.target.value)}
-                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
                                                                 placeholder="Vị trí"
                                                                 value={exp.position}
-                                                                onChange={(e) => updateWorkExperience(index, 'position', e.target.value)}
-                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                                                onChange={(e) => updateWorkExperience(index, 'position', e.target.value)}className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="date"
                                                                 value={exp.start_date}
                                                                 onChange={(e) => updateWorkExperience(index, 'start_date', e.target.value)}
-                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="date"
                                                                 value={exp.end_date || ''}
                                                                 onChange={(e) => updateWorkExperience(index, 'end_date', e.target.value)}
-                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                                                className="px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                             />
                                                         </div>
                                                         <textarea
@@ -703,7 +745,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                             value={exp.description.join('\n')}
                                                             onChange={(e) => updateWorkExperience(index, 'description', e.target.value.split('\n').filter(d => d.trim()))}
                                                             rows={3}
-                                                            className="w-full px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                                            className="w-full px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                         />
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center space-x-4">
@@ -716,7 +758,9 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                         const file = e.target.files?.[0];
                                                                         if (file) {
                                                                             try {
-                                                                                const imageUrl = await handleImageUpload(file, `work-${index}`);updateWorkExperience(index, 'avatar', imageUrl);
+                                                                                const imageUrl = await handleImageUpload(file, `work-${index}`);
+                                                                                updateWorkExperience(index, 'avatar', imageUrl);
+                                                                                showSuccess('Thành công', 'Ảnh công ty đã được cập nhật');
                                                                             } catch (error) {
                                                                                 console.error('Error uploading work avatar:', error);
                                                                                 showError('Lỗi', 'Không thể tải ảnh lên');
@@ -727,12 +771,15 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 />
                                                                 <label
                                                                     htmlFor={`work-avatar-${index}`}
-                                                                    className="cursor-pointer text-sm text-indigo-600 hover:text-indigo-800"
+                                                                    className="cursor-pointer text-sm text-indigo-600 hover:text-indigo-800 px-3 py-1 border border-indigo-300 rounded-lg hover:bg-indigo-50"
                                                                 >
                                                                     {uploadingStates[`work-${index}`] ? (
-                                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                                                                        <div className="flex items-center space-x-1">
+                                                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></div>
+                                                                            <span>Đang tải...</span>
+                                                                        </div>
                                                                     ) : (
-                                                                        'Đổi ảnh'
+                                                                        'Tải ảnh công ty'
                                                                     )}
                                                                 </label>
                                                                 <label className="flex items-center space-x-2">
@@ -748,7 +795,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeWorkExperience(index)}
-                                                                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1"
+                                                                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 px-2 py-1 hover:bg-red-50 rounded"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                                 Xóa
@@ -848,26 +895,26 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 placeholder="Trường học"
                                                                 value={edu.school}
                                                                 onChange={(e) => updateEducation(index, 'school', e.target.value)}
-                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
                                                                 placeholder="Bằng cấp"
                                                                 value={edu.degree}
                                                                 onChange={(e) => updateEducation(index, 'degree', e.target.value)}
-                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="date"
                                                                 value={edu.start_date}
                                                                 onChange={(e) => updateEducation(index, 'start_date', e.target.value)}
-                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="date"
                                                                 value={edu.end_date || ''}
                                                                 onChange={(e) => updateEducation(index, 'end_date', e.target.value)}
-                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                                className="px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                             />
                                                         </div>
                                                         <textarea
@@ -875,7 +922,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                             value={edu.description.join('\n')}
                                                             onChange={(e) => updateEducation(index, 'description', e.target.value.split('\n').filter(d => d.trim()))}
                                                             rows={3}
-                                                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                         />
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center space-x-4">
@@ -890,6 +937,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                             try {
                                                                                 const imageUrl = await handleImageUpload(file, `edu-${index}`);
                                                                                 updateEducation(index, 'avatar', imageUrl);
+                                                                                showSuccess('Thành công', 'Ảnh trường học đã được cập nhật');
                                                                             } catch (error) {
                                                                                 console.error('Error uploading education avatar:', error);
                                                                                 showError('Lỗi', 'Không thể tải ảnh lên');
@@ -900,12 +948,15 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 />
                                                                 <label
                                                                     htmlFor={`edu-avatar-${index}`}
-                                                                    className="cursor-pointer text-sm text-emerald-600 hover:text-emerald-800"
+                                                                    className="cursor-pointer text-sm text-emerald-600 hover:text-emerald-800 px-3 py-1 border border-emerald-300 rounded-lg hover:bg-emerald-50"
                                                                 >
                                                                     {uploadingStates[`edu-${index}`] ? (
-                                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
+                                                                        <div className="flex items-center space-x-1">
+                                                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-emerald-600"></div>
+                                                                            <span>Đang tải...</span>
+                                                                        </div>
                                                                     ) : (
-                                                                        'Đổi ảnh'
+                                                                        'Tải ảnh trường'
                                                                     )}
                                                                 </label>
                                                                 <label className="flex items-center space-x-2">
@@ -921,7 +972,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeEducation(index)}
-                                                                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1"
+                                                                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 px-2 py-1 hover:bg-red-50 rounded"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                                 Xóa
@@ -1021,34 +1072,34 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 placeholder="Tên hoạt động"
                                                                 value={activity.activity_name}
                                                                 onChange={(e) => updateActivity(index, 'activity_name', e.target.value)}
-                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
                                                                 placeholder="Tổ chức"
                                                                 value={activity.organization}
                                                                 onChange={(e) => updateActivity(index, 'organization', e.target.value)}
-                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
                                                                 placeholder="Vai trò"
                                                                 value={activity.role}
                                                                 onChange={(e) => updateActivity(index, 'role', e.target.value)}
-                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                             <div></div>
                                                             <input
                                                                 type="date"
                                                                 value={activity.start_date}
                                                                 onChange={(e) => updateActivity(index, 'start_date', e.target.value)}
-                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="date"
                                                                 value={activity.end_date || ''}
                                                                 onChange={(e) => updateActivity(index, 'end_date', e.target.value)}
-                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                                                                className="px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                         </div>
                                                         <textarea
@@ -1056,7 +1107,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                             value={activity.description.join('\n')}
                                                             onChange={(e) => updateActivity(index, 'description', e.target.value.split('\n').filter(d => d.trim()))}
                                                             rows={3}
-                                                            className="w-full px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                                                            className="w-full px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                         />
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex items-center space-x-4">
@@ -1071,6 +1122,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                             try {
                                                                                 const imageUrl = await handleImageUpload(file, `activity-${index}`);
                                                                                 updateActivity(index, 'avatar', imageUrl);
+                                                                                showSuccess('Thành công', 'Ảnh hoạt động đã được cập nhật');
                                                                             } catch (error) {
                                                                                 console.error('Error uploading activity avatar:', error);
                                                                                 showError('Lỗi', 'Không thể tải ảnh lên');
@@ -1081,12 +1133,15 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 />
                                                                 <label
                                                                     htmlFor={`activity-avatar-${index}`}
-                                                                    className="cursor-pointer text-sm text-violet-600 hover:text-violet-800"
+                                                                    className="cursor-pointer text-sm text-violet-600 hover:text-violet-800 px-3 py-1 border border-violet-300 rounded-lg hover:bg-violet-50"
                                                                 >
                                                                     {uploadingStates[`activity-${index}`] ? (
-                                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-violet-600"></div>
+                                                                        <div className="flex items-center space-x-1">
+                                                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-violet-600"></div>
+                                                                            <span>Đang tải...</span>
+                                                                        </div>
                                                                     ) : (
-                                                                        'Đổi ảnh'
+                                                                        'Tải ảnh hoạt động'
                                                                     )}
                                                                 </label>
                                                                 <label className="flex items-center space-x-2">
@@ -1102,7 +1157,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeActivity(index)}
-                                                                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1"
+                                                                className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1 px-2 py-1 hover:bg-red-50 rounded"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                                 Xóa
@@ -1177,7 +1232,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                 </label>
                             </div>
                         ) : (
-                            <div className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium">
+                            <div className={theme.viewBox}>
                                 <span className={`px-3 py-2 rounded-full text-sm font-medium ${
                                     mentorInfo.published ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                                 }`}>
@@ -1204,8 +1259,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                             >
                                 {isLoading ? (
                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                ) : (
-                                    <Save className="w-4 h-4" />
+                                ) : (<Save className="w-4 h-4" />
                                 )}
                                 <span>{isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
                             </button>
@@ -1475,7 +1529,8 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                 email: user?.email || '',
                                                 phone: user?.profile?.phone_number || '',
                                                 notes: '',
-                                                isSubmitting: false });
+                                                isSubmitting: false
+                                            });
                                         }}
                                         className="bg-gradient-to-r from-blue-500 to-cyan-600 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-600 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
                                     >

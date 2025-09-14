@@ -518,24 +518,168 @@ const AccountSettings: React.FC = () => {
         try {
             setIsLoading(true);
 
-            const { error } = await supabase
+            console.log('🔄 Saving complete mentor info:', mentorInfo);
+
+            // 1. Lưu thông tin cơ bản của mentor
+            const mentorUpdateData = {
+                full_name: mentorInfo.full_name?.trim() || null,
+                email: mentorInfo.email?.trim() || null,
+                avatar: mentorInfo.avatar || null,
+                phone_number: mentorInfo.phone_number?.trim() || null,
+                headline: mentorInfo.headline?.trim() || null,
+                description: mentorInfo.description?.trim() || null,
+                skill: mentorInfo.skill || [],
+                published: mentorInfo.published,
+                updated_at: new Date().toISOString()
+            };
+
+            console.log('📝 Updating mentor basic info:', mentorUpdateData);
+
+            const { error: mentorError } = await supabase
                 .from('mentors')
-                .update({
-                    headline: mentorInfo.headline || null,
-                    description: mentorInfo.description || null,
-                    skill: mentorInfo.skill || [],
-                    published: mentorInfo.published,
-                    updated_at: new Date().toISOString()
-                })
+                .update(mentorUpdateData)
                 .eq('id', mentorId);
 
-            if (error) throw error;
+            if (mentorError) {
+                console.error('❌ Error updating mentor:', mentorError);
+                throw mentorError;
+            }
 
-            showSuccess('Thành công', 'Thông tin mentor đã được cập nhật!');
+            console.log('✅ Mentor basic info updated');
+
+            // 2. Lưu Work Experiences
+            if (mentorInfo.work_experiences && mentorInfo.work_experiences.length > 0) {
+                console.log('🔄 Saving work experiences:', mentorInfo.work_experiences);
+
+                // Xóa tất cả work experiences cũ
+                const { error: deleteWorkError } = await supabase
+                    .from('mentor_work_experiences')
+                    .delete()
+                    .eq('mentor_id', mentorId);
+
+                if (deleteWorkError) {
+                    console.error('❌ Error deleting old work experiences:', deleteWorkError);
+                }
+
+                // Thêm work experiences mới
+                const workExperiencesToInsert = mentorInfo.work_experiences
+                    .filter(exp => exp.company && exp.position) // Chỉ lưu những exp có đủ thông tin
+                    .map(exp => ({
+                        mentor_id: mentorId,
+                        avatar: exp.avatar || null,
+                        company: exp.company,
+                        position: exp.position,
+                        start_date: exp.start_date,
+                        end_date: exp.end_date || null,
+                        description: exp.description || [],
+                        published: exp.published
+                    }));
+
+                if (workExperiencesToInsert.length > 0) {
+                    const { error: insertWorkError } = await supabase
+                        .from('mentor_work_experiences')
+                        .insert(workExperiencesToInsert);
+
+                    if (insertWorkError) {
+                        console.error('❌ Error inserting work experiences:', insertWorkError);
+                        throw insertWorkError;
+                    }
+                    console.log('✅ Work experiences saved');
+                }
+            }
+
+            // 3. Lưu Education
+            if (mentorInfo.educations && mentorInfo.educations.length > 0) {
+                console.log('🔄 Saving educations:', mentorInfo.educations);
+
+                // Xóa tất cả educations cũ
+                const { error: deleteEduError } = await supabase
+                    .from('mentor_educations')
+                    .delete()
+                    .eq('mentor_id', mentorId);
+
+                if (deleteEduError) {
+                    console.error('❌ Error deleting old educations:', deleteEduError);
+                }
+
+                // Thêm educations mới
+                const educationsToInsert = mentorInfo.educations
+                    .filter(edu => edu.school && edu.degree) // Chỉ lưu những edu có đủ thông tin
+                    .map(edu => ({
+                        mentor_id: mentorId,
+                        avatar: edu.avatar || null,
+                        school: edu.school,
+                        degree: edu.degree,
+                        start_date: edu.start_date,
+                        end_date: edu.end_date || null,
+                        description: edu.description || [],
+                        published: edu.published
+                    }));
+
+                if (educationsToInsert.length > 0) {
+                    const { error: insertEduError } = await supabase
+                        .from('mentor_educations')
+                        .insert(educationsToInsert);
+
+                    if (insertEduError) {
+                        console.error('❌ Error inserting educations:', insertEduError);
+                        throw insertEduError;
+                    }
+                    console.log('✅ Educations saved');
+                }
+            }
+
+            // 4. Lưu Activities
+            if (mentorInfo.activities && mentorInfo.activities.length > 0) {
+                console.log('🔄 Saving activities:', mentorInfo.activities);
+
+                // Xóa tất cả activities cũ
+                const { error: deleteActError } = await supabase
+                    .from('mentor_activities')
+                    .delete()
+                    .eq('mentor_id', mentorId);
+
+                if (deleteActError) {
+                    console.error('❌ Error deleting old activities:', deleteActError);
+                }
+
+                // Thêm activities mới
+                const activitiesToInsert = mentorInfo.activities
+                    .filter(act => act.activity_name && act.organization && act.role) // Chỉ lưu những activity có đủ thông tin
+                    .map(act => ({
+                        mentor_id: mentorId,
+                        avatar: act.avatar || null,
+                        organization: act.organization,
+                        role: act.role,
+                        activity_name: act.activity_name,
+                        start_date: act.start_date,
+                        end_date: act.end_date || null,
+                        description: act.description || [],
+                        published: act.published
+                    }));
+
+                if (activitiesToInsert.length > 0) {
+                    const { error: insertActError } = await supabase
+                        .from('mentor_activities')
+                        .insert(activitiesToInsert);
+
+                    if (insertActError) {
+                        console.error('❌ Error inserting activities:', insertActError);
+                        throw insertActError;
+                    }
+                    console.log('✅ Activities saved');
+                }
+            }
+
+            showSuccess('Thành công', 'Tất cả thông tin mentor đã được cập nhật!');
             setIsEditing(false);
-        } catch (error) {
-            console.error('Error updating mentor info:', error);
-            showError('Lỗi', 'Không thể cập nhật thông tin mentor. Vui lòng thử lại.');
+
+            // Reload lại data để đảm bảo sync
+            await loadMentorInfo();
+
+        } catch (error: any) {
+            console.error('❌ Error updating mentor info:', error);
+            showError('Lỗi', error?.message || 'Không thể cập nhật thông tin mentor. Vui lòng thử lại.');
         } finally {
             setIsLoading(false);
         }
