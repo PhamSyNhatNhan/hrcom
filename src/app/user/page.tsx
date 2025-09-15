@@ -50,14 +50,12 @@ export interface MentorInfo {
 
 export interface UniversityMajor {
     id: string;
-    university: {
-        name: string;
-        code: string;
-    };
-    major: {
-        name: string;
-    };
+    university_id?: string;
+    major_id?: string;
+    university: { name: string; code: string };
+    major: { name: string };
 }
+
 
 export interface PasswordData {
     currentPassword: string;
