@@ -785,11 +785,13 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                 }
 
                 // Filter results based on search term (client-side filtering as fallback)
-                const filteredProfiles = (userRoleProfiles || []).filter(profile =>
-                    profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    profile.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    profile.phone_number?.includes(searchTerm)
+                const filteredProfiles = (userRoleProfiles ?? []).filter(
+                    (profile: { full_name?: string; email?: string; phone_number?: string }) =>
+                        profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        profile.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        profile.phone_number?.includes(searchTerm)
                 );
+
 
                 // Simple pagination on client side for fallback
                 const startIndex = (page - 1) * 10;
