@@ -48,13 +48,13 @@ export interface MentorInfo {
     activities?: any[];
 }
 
-export interface UniversityMajor {
+export type UniversityMajor = {
     id: string;
-    university_id?: string;
-    major_id?: string;
+    university_id: string;
+    major_id: string;
     university: { name: string; code: string };
     major: { name: string };
-}
+};
 
 
 export interface PasswordData {
