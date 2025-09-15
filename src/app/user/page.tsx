@@ -213,18 +213,24 @@ const AccountSettings: React.FC = () => {
             }
 
             // Transform data to expected format
-            const transformedData = data?.map(item => ({
-                id: item.id,
-                university_id: item.university_id,
-                major_id: item.major_id,
-                university: {
-                    name: item.universities?.name || 'Unknown University',
-                    code: item.universities?.code || ''
-                },
-                major: {
-                    name: item.majors?.name || 'Unknown Major'
-                }
-            })) || [];
+            const transformedData = (data ?? []).map((item: any) => {
+                const uni = Array.isArray(item.universities) ? item.universities[0] : item.universities;
+                const maj = Array.isArray(item.majors) ? item.majors[0] : item.majors;
+
+                return {
+                    id: item.id,
+                    university_id: item.university_id,
+                    major_id: item.major_id,
+                    university: {
+                        name: uni?.name ?? 'Unknown University',
+                        code: uni?.code ?? ''
+                    },
+                    major: {
+                        name: maj?.name ?? 'Unknown Major'
+                    }
+                } as UniversityMajor & { university_id?: string; major_id?: string };
+            });
+
 
             setUniversityMajors(transformedData);
         } catch (error) {
