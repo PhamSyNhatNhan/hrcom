@@ -240,7 +240,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
             console.log(`Loaded ${profilesWithAuthEmail.length} user-role profiles`);
 
             if (profilesWithAuthEmail.length === 0) {
-                showNotification('info', 'Không có user nào có role "user" để liên kết với mentor');
+                showNotification('error', 'Không có user nào có role "user" để liên kết với mentor');
             }
 
         } catch (error) {
