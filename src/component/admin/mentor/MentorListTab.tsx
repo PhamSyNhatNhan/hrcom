@@ -798,10 +798,13 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                 const endIndex = startIndex + 10;
                 const paginatedResults = filteredProfiles.slice(startIndex, endIndex);
 
-                const profilesWithAuthEmail = paginatedResults.map(profile => ({
-                    ...profile,
-                    auth_email: profile.email
-                }));
+                const profilesWithAuthEmail = paginatedResults.map(
+                    (profile: { email?: string } & Record<string, unknown>) => ({
+                        ...profile,
+                        auth_email: profile.email ?? ''
+                    })
+                );
+
 
                 if (reset) {
                     setSearchedUsers(profilesWithAuthEmail);
