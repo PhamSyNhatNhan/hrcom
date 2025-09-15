@@ -382,18 +382,15 @@ export default function MentorDetailPage() {
 
                                     {/* Action Buttons */}
                                     <div className="flex space-x-3">
-                                        <button
-                                            onClick={() => {
-                                                // TODO: Implement booking functionality
-                                                alert('Chức năng đặt lịch đang được phát triển');
-                                            }}
+                                        <Link
+                                            href={`/mentor_booking?mentor=${mentor.id}`}
                                             className="inline-flex items-center space-x-2 bg-cyan-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
                                         >
                                             <Calendar className="w-4 h-4" />
                                             <span>Đặt lịch ngay</span>
-                                        </button>
-
+                                        </Link>
                                     </div>
+
                                 </div>
 
                                 {/* Skills */}
