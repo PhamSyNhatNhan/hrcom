@@ -217,11 +217,37 @@ const MentorBookingContent = () => {
                 });
 
                 const skillsResults = await Promise.all(skillsPromises);
+
+                // skillsResults: Array<{ mentorId: string; skills: RawMentorSkillRelation[] }>
                 const skillsMap: Record<string, MentorSkillRelation[]> = {};
+
                 skillsResults.forEach(({ mentorId, skills }) => {
-                    skillsMap[mentorId] = skills;
+                    const normalized: MentorSkillRelation[] = (skills ?? [])
+                        .map((s): MentorSkillRelation | null => {
+                            // Nếu mentor_skills là mảng, lấy phần tử đầu; nếu là object, dùng luôn
+                            const ms = Array.isArray(s.mentor_skills)
+                                ? s.mentor_skills[0]
+                                : s.mentor_skills;
+
+                            // Bỏ qua bản ghi rỗng / không hợp lệ
+                            if (!ms || !ms.id || !ms.name) return null;
+
+                            return {
+                                skill_id: String(s.skill_id),
+                                mentor_skills: {
+                                    id: String(ms.id),
+                                    name: String(ms.name),
+                                    description: ms.description ?? null,
+                                },
+                            };
+                        })
+                        .filter((x): x is MentorSkillRelation => x !== null);
+
+                    skillsMap[mentorId] = normalized;
                 });
+
                 setMentorSkills(skillsMap);
+
             }
         } catch (error) {
             console.error('Error loading mentors:', error);
