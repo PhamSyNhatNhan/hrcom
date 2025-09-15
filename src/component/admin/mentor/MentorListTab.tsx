@@ -91,6 +91,18 @@ interface MentorProfileConnection {
     profiles: ProfileInfo;
 }
 
+interface MentorReview {
+    id: string;
+    rating: number;
+    comment?: string;
+    is_published: boolean;
+    created_at: string;
+    profiles?: {
+        full_name: string;
+        image_url?: string;
+    };
+}
+
 interface Mentor {
     id: string;
     email: string;
@@ -111,6 +123,7 @@ interface Mentor {
     total_bookings?: number;
     completed_bookings?: number;
     average_rating?: number;
+    reviews?: MentorReview[];
 }
 
 interface MentorFormData {
@@ -313,15 +326,34 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                     const totalBookings = bookingsData?.length || 0;
                     const completedBookings = bookingsData?.filter(b => b.status === 'completed').length || 0;
 
-                    // Load average rating
+                    // Load average rating - SỬA ĐỔI: sử dụng bảng mentor_reviews thay vì mentor_ratings
                     const { data: ratingsData } = await supabase
-                        .from('mentor_ratings')
-                        .select('overall_rating')
+                        .from('mentor_reviews')
+                        .select('rating')
                         .eq('mentor_id', mentor.id);
 
                     const averageRating = ratingsData?.length
-                        ? ratingsData.reduce((sum, r) => sum + r.overall_rating, 0) / ratingsData.length
+                        ? ratingsData.reduce((sum, r) => sum + r.rating, 0) / ratingsData.length
                         : 0;
+
+                    // Load recent reviews
+                    const { data: reviewsData } = await supabase
+                        .from('mentor_reviews')
+                        .select(`
+                            id,
+                            rating,
+                            comment,
+                            is_published,
+                            created_at,
+                            profiles (
+                                full_name,
+                                image_url
+                            )
+                        `)
+                        .eq('mentor_id', mentor.id)
+                        .eq('is_published', true)
+                        .order('created_at', { ascending: false })
+                        .limit(5);
 
                     // Process profile connection - FIXED: profile_mentor is single object, not array
                     let profileConnection = null;
@@ -348,7 +380,8 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                         profile_connection: profileConnection,
                         total_bookings: totalBookings,
                         completed_bookings: completedBookings,
-                        average_rating: averageRating
+                        average_rating: averageRating,
+                        reviews: reviewsData || []
                     };
                 })
             );
@@ -2644,6 +2677,44 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* Reviews Section */}
+                                        {mentor.reviews && mentor.reviews.length > 0 && (
+                                            <div className="mb-6">
+                                                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                    <Award className="w-4 h-4" />
+                                                    Đánh giá từ học viên ({mentor.reviews.length})
+                                                </h4>
+                                                <div className="space-y-3">
+                                                    {mentor.reviews.slice(0, 5).map((review, index) => (
+                                                        <div key={index} className="bg-gray-50 rounded-lg p-3">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-yellow-500">
+                                                                        {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-600">
+                                                                        {review.profiles?.full_name || 'Ẩn danh'}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-xs text-gray-500">
+                                                                    {new Date(review.created_at).toLocaleDateString('vi-VN')}
+                                                                </span>
+                                                            </div>
+                                                            {review.comment && (
+                                                                <p className="text-sm text-gray-700">{review.comment}</p>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {mentor.reviews.length > 5 && (
+                                                        <p className="text-xs text-gray-500 text-center">
+                                                            và {mentor.reviews.length - 5} đánh giá khác...
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
 
                                         {/* Profile Connection Details */}
                                         {mentor.profile_connection && (
