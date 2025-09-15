@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import { supabase } from '@/utils/supabase/client';
 
 import {
@@ -207,6 +207,24 @@ const MentorSkillsTab: React.FC<MentorSkillsTabProps> = ({
             showNotification('error', 'Lỗi khi cập nhật trạng thái: ' + (error as Error).message);
         }
     };
+
+    useEffect(() => {
+        if (showForm) {
+            // Lock body scroll khi modal mở
+            document.body.style.overflow = 'hidden';
+            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
+        } else {
+            // Unlock body scroll khi modal đóng
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        }
+
+        // Cleanup khi component unmount
+        return () => {
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        };
+    }, [showForm]);
 
     return (
         <div className="space-y-6">

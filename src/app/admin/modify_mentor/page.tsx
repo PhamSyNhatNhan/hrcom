@@ -7,7 +7,10 @@ import { supabase } from '@/utils/supabase/client';
 import {
     Users,
     FileCheck,
-    Award
+    Award,
+    X,
+    CheckCircle,
+    AlertCircle
 } from 'lucide-react';
 
 // Import components
@@ -57,6 +60,18 @@ const AdminMentorManager: React.FC = () => {
     const [registrations, setRegistrations] = useState<MentorRegistration[]>([]);
     const [loadingRegistrations, setLoadingRegistrations] = useState(false);
 
+    // Notification state
+    const [notification, setNotification] = useState<{
+        type: 'success' | 'error' | 'warning';
+        message: string;
+    } | null>(null);
+
+    // Show notification function
+    const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification(null), 5000);
+    };
+
     // Load skills
     const loadSkills = async () => {
         try {
@@ -70,6 +85,7 @@ const AdminMentorManager: React.FC = () => {
             setSkills(data || []);
         } catch (error) {
             console.error('Error loading skills:', error);
+            showNotification('error', 'Không thể tải danh sách skills');
         } finally {
             setLoadingSkills(false);
         }
@@ -94,6 +110,7 @@ const AdminMentorManager: React.FC = () => {
             setRegistrations(data || []);
         } catch (error) {
             console.error('Error loading registrations:', error);
+            showNotification('error', 'Không thể tải danh sách đăng ký');
         } finally {
             setLoadingRegistrations(false);
         }
@@ -143,6 +160,32 @@ const AdminMentorManager: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+            {/* Notification - Z-index cao nhất */}
+            {notification && (
+                <div
+                    className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm w-full ${
+                        notification.type === 'success'
+                            ? 'bg-green-100 text-green-800 border border-green-200'
+                            : notification.type === 'error'
+                                ? 'bg-red-100 text-red-800 border border-red-200'
+                                : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                    }`}
+                >
+                    <div className="flex items-center">
+                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        {notification.type === 'error' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+                        <span className="flex-1">{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-4 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto">
                 <SectionHeader
                     title="QUẢN LÝ MENTOR"
@@ -173,7 +216,8 @@ const AdminMentorManager: React.FC = () => {
 
                 {/* Content */}
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div className="p-6 lg:p-8">{/* Mentor List Tab */}
+                    <div className="p-6 lg:p-8">
+                        {/* Mentor List Tab */}
                         {activeTab === 'mentors' && (
                             <MentorListTab
                                 loading={loading}
@@ -188,6 +232,7 @@ const AdminMentorManager: React.FC = () => {
                                 setRegistrations={setRegistrations}
                                 loading={loadingRegistrations}
                                 onReload={loadRegistrations}
+                                showNotification={showNotification}
                             />
                         )}
 
@@ -198,6 +243,7 @@ const AdminMentorManager: React.FC = () => {
                                 setSkills={setSkills}
                                 loading={loadingSkills}
                                 onReload={loadSkills}
+                                showNotification={showNotification}
                             />
                         )}
                     </div>
