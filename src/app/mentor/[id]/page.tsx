@@ -90,10 +90,10 @@ interface MentorData {
     work_experiences: MentorWorkExperience[];
     educations: MentorEducation[];
     activities: MentorActivity[];
-    total_bookings?: number;
-    completed_bookings?: number;
-    average_rating?: number;
-    total_reviews?: number;
+    total_bookings: number;
+    completed_bookings: number;
+    average_rating: number;
+    total_reviews: number;
     reviews?: MentorReview[];
 }
 
@@ -393,16 +393,6 @@ export default function MentorDetailPage() {
                                             <span>Đặt lịch ngay</span>
                                         </button>
 
-                                        {mentor.email && (
-                                            <a
-                                                href={`mailto:${mentor.email}`}
-                                                className="inline-flex items-center space-x-2 bg-white border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-all duration-300"
-                                            >
-                                                <Mail className="w-4 h-4" />
-                                                <span>Liên hệ</span>
-                                                <ExternalLink className="w-4 h-4 opacity-50" />
-                                            </a>
-                                        )}
                                     </div>
                                 </div>
 
