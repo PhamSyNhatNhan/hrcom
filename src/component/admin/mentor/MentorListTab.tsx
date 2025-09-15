@@ -120,10 +120,10 @@ interface Mentor {
     skills?: MentorSkill[];
     profile_connection?: MentorProfileConnection;
     // Statistics
-    total_bookings?: number;
-    completed_bookings?: number;
-    average_rating?: number;
-    reviews?: MentorReview[];
+    total_bookings: number;
+    completed_bookings: number;
+    average_rating: number;
+    reviews: MentorReview[];
 }
 
 interface MentorFormData {
