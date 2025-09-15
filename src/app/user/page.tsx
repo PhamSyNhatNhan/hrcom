@@ -31,6 +31,12 @@ export interface SubProfileInfo {
     description?: string;
 }
 
+export interface MentorSkill {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 export interface MentorInfo {
     // Basic info
     full_name?: string;
@@ -39,8 +45,10 @@ export interface MentorInfo {
     phone_number?: string;
     headline?: string;
     description?: string;
-    skill?: string[];
     published?: boolean;
+
+    // NEW
+    skills?: MentorSkill[];
 
     // Related data
     work_experiences?: any[];
@@ -111,7 +119,7 @@ const AccountSettings: React.FC = () => {
         phone_number: '',
         headline: '',
         description: '',
-        skill: [],
+        skills: [],
         published: false,
         work_experiences: [],
         educations: [],
@@ -300,6 +308,17 @@ const AccountSettings: React.FC = () => {
             setHasMentorProfile(true);
             setMentorId(mentorId);
 
+            const { data: skillRels, error: relErr } = await supabase
+                .from('mentor_skill_relations')
+                .select('skill_id, mentor_skills:skill_id(id,name,description)')
+                .eq('mentor_id', mentorId);
+            if (relErr) {
+                console.error('❌ Error loading mentor skills:', relErr);
+            }
+            const skills: MentorSkill[] = (skillRels || [])
+                .map((r: any) => r.mentor_skills)
+                .filter(Boolean) as MentorSkill[];
+
             // Lấy thông tin mentor đầy đủ bao gồm work experiences, educations, activities
             const { data: mentorData, error: mentorError } = await supabase
                 .from('mentors')
@@ -329,9 +348,8 @@ const AccountSettings: React.FC = () => {
                     phone_number: mentorData.phone_number || '',
                     headline: mentorData.headline || '',
                     description: mentorData.description || '',
-                    skill: mentorData.skill || [],
                     published: mentorData.published || false,
-
+                    skills, // ✅ dùng skills mới
                     // Related data
                     work_experiences: mentorData.mentor_work_experiences || [],
                     educations: mentorData.mentor_educations || [],
@@ -532,7 +550,6 @@ const AccountSettings: React.FC = () => {
                 phone_number: mentorInfo.phone_number?.trim() || null,
                 headline: mentorInfo.headline?.trim() || null,
                 description: mentorInfo.description?.trim() || null,
-                skill: mentorInfo.skill || [],
                 published: mentorInfo.published,
                 updated_at: new Date().toISOString()
             };
@@ -550,6 +567,34 @@ const AccountSettings: React.FC = () => {
             }
 
             console.log('✅ Mentor basic info updated');
+
+            {
+                // delete old relations
+                const { error: delRelErr } = await supabase
+                    .from('mentor_skill_relations')
+                    .delete()
+                    .eq('mentor_id', mentorId);
+                if (delRelErr) {
+                    console.error('❌ Error deleting old mentor_skill_relations:', delRelErr);
+                    throw delRelErr;
+                }
+
+                // insert new relations
+                const selected = mentorInfo.skills || [];
+                if (selected.length > 0) {
+                    const rows = selected.map(s => ({
+                        mentor_id: mentorId,
+                        skill_id: s.id
+                    }));
+                    const { error: insRelErr } = await supabase
+                        .from('mentor_skill_relations')
+                        .insert(rows);
+                    if (insRelErr) {
+                        console.error('❌ Error inserting mentor_skill_relations:', insRelErr);
+                        throw insRelErr;
+                    }
+                }
+            }
 
             // 2. Lưu Work Experiences
             if (mentorInfo.work_experiences && mentorInfo.work_experiences.length > 0) {

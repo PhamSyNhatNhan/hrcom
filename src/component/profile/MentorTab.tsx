@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
     Edit3, X, Save, GraduationCap, UserPlus, Upload, Camera, Plus, Trash2, Building, Award, Calendar, Eye, EyeOff, Clock, CheckCircle, XCircle, Mail, Phone, FileText
 } from 'lucide-react';
@@ -43,6 +43,12 @@ interface MentorActivity {
     published: boolean;
 }
 
+interface MentorSkill {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 interface MentorInfo {
     // Basic info
     full_name?: string;
@@ -51,7 +57,7 @@ interface MentorInfo {
     phone_number?: string;
     headline?: string;
     description?: string;
-    skill?: string[];
+    skills?: MentorSkill[];
     published?: boolean;
 
     // Related data
@@ -88,10 +94,38 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                  showError
                                              }) => {
     const { user } = useAuthStore();
-    const [skillInput, setSkillInput] = useState('');
     const [uploading, setUploading] = useState(false);
     const [uploadingStates, setUploadingStates] = useState<{[key: string]: boolean}>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Skill states
+    const [allSkills, setAllSkills] = useState<MentorSkill[]>([]);
+    const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
+    const [tempSelectedSkillIds, setTempSelectedSkillIds] = useState<Set<string>>(new Set());
+
+    // Danh sách còn lại (chưa được chọn)
+    const remainingSkills = useMemo(() => {
+        const selected = new Set((mentorInfo.skills || []).map(s => s.id));
+        return (allSkills || []).filter(s => !selected.has(s.id));
+    }, [allSkills, mentorInfo.skills]);
+
+    useEffect(() => {
+        let mounted = true;
+        supabase
+            .from('mentor_skills')
+            .select('id,name,description')
+            .eq('published', true)
+            .order('name', { ascending: true })
+            .then(({ data, error }) => {
+                if (!mounted) return;
+                if (error) {
+                    console.error('Load mentor_skills error:', error);
+                    return;
+                }
+                setAllSkills(data || []);
+            });
+        return () => { mounted = false; };
+    }, []);
 
     // Registration states
     const [registrationData, setRegistrationData] = useState({
@@ -239,21 +273,50 @@ const MentorTab: React.FC<MentorTabProps> = ({
     };
 
     // Skill management
-    const handleAddSkill = () => {
-        if (skillInput.trim() && !mentorInfo.skill?.includes(skillInput.trim())) {
-            setMentorInfo(prev => ({
-                ...prev,
-                skill: [...(prev.skill || []), skillInput.trim()]
-            }));
-            setSkillInput('');
-        }
-    };
-
-    const handleRemoveSkill = (skillToRemove: string) => {
+    const removeSkill = (skillId: string) => {
         setMentorInfo(prev => ({
             ...prev,
-            skill: prev.skill?.filter(skill => skill !== skillToRemove) || []
+            skills: (prev.skills || []).filter(s => s.id !== skillId)
         }));
+    };
+
+    const toggleSkillId = (id: string) => {
+        setTempSelectedSkillIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const selectAllRemaining = () => {
+        setTempSelectedSkillIds(new Set(remainingSkills.map(s => s.id)));
+    };
+
+    const clearTempSelection = () => setTempSelectedSkillIds(new Set());
+
+    const applyAddSkills = () => {
+        if (tempSelectedSkillIds.size === 0) {
+            setIsSkillPickerOpen(false);
+            return;
+        }
+        const mapById = new Map(allSkills.map(s => [s.id, s]));
+        const toAdd: MentorSkill[] = Array.from(tempSelectedSkillIds)
+            .map(id => mapById.get(id))
+            .filter(Boolean) as MentorSkill[];
+
+        setMentorInfo(prev => {
+            const curr = prev.skills || [];
+            // Dedupe
+            const exists = new Set(curr.map(s => s.id));
+            const merged = [...curr, ...toAdd.filter(s => !exists.has(s.id))];
+            return { ...prev, skills: merged };
+        });
+
+        // reset & close
+        setTempSelectedSkillIds(new Set());
+        setIsSkillPickerOpen(false);
+        showSuccess?.('Đã thêm kỹ năng', `Đã thêm ${toAdd.length} kỹ năng vào hồ sơ`);
     };
 
     // Work Experience management
@@ -602,62 +665,114 @@ const MentorTab: React.FC<MentorTabProps> = ({
 
                     {/* Skills Section */}
                     <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6">
-                        <h3 className="text-lg font-semibold text-emerald-800 mb-6">Kỹ năng chuyên môn</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-emerald-800">Kỹ năng</h3>
 
-                        {isEditing ? (
-                            <div className="space-y-4">
-                                <div className="flex space-x-2">
-                                    <input
-                                        type="text"
-                                        value={skillInput}
-                                        onChange={(e) => setSkillInput(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
-                                        className="flex-1 px-4 py-2 border border-emerald-300 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 shadow-sm"
-                                        disabled={isLoading}
-                                        placeholder="Nhập kỹ năng và nhấn Enter"
-                                    />
+                            {isEditing && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSkillPickerOpen(true)}
+                                    className="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                                >
+                                    Thêm kỹ năng
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Selected skills as chips */}
+                        <div className="flex flex-wrap gap-2">
+                            {(mentorInfo.skills || []).map(s => (
+                                <span
+                                    key={s.id}
+                                    className="inline-flex items-center gap-2 rounded-full bg-emerald-600/10 text-emerald-800 px-3 py-1 text-sm"
+                                >
+                                    {s.name}
+                                    {isEditing && (
+                                        <button
+                                            onClick={() => removeSkill(s.id)}
+                                            className="ml-1 rounded-full hover:bg-emerald-600/20 px-1"
+                                            aria-label={`Remove ${s.name}`}
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </span>
+                            ))}
+                            {(!mentorInfo.skills || mentorInfo.skills.length === 0) && (
+                                <span className="text-sm text-emerald-800/70">Chưa chọn kỹ năng nào</span>
+                            )}
+                        </div>
+
+                        {/* Skill Picker Modal/Sheet (đơn giản) */}
+                        {isEditing && isSkillPickerOpen && (
+                            <div className="mt-4 border border-emerald-200 bg-white rounded-xl shadow p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="font-medium text-emerald-900">
+                                        Chọn kỹ năng (còn lại: {remainingSkills.length})
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={selectAllRemaining}
+                                            className="text-sm px-2 py-1 border rounded-lg hover:bg-emerald-50"
+                                        >
+                                            Chọn tất cả
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={clearTempSelection}
+                                            className="text-sm px-2 py-1 border rounded-lg hover:bg-emerald-50"
+                                        >
+                                            Bỏ chọn
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-64 overflow-auto divide-y">
+                                    {remainingSkills.length === 0 ? (
+                                        <div className="text-sm text-gray-500 py-4">Không còn kỹ năng nào để thêm.</div>
+                                    ) : (
+                                        remainingSkills.map(s => {
+                                            const checked = tempSelectedSkillIds.has(s.id);
+                                            return (
+                                                <label
+                                                    key={s.id}
+                                                    className="flex items-start gap-3 py-2 cursor-pointer hover:bg-emerald-50/40 px-2 rounded-lg"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => toggleSkillId(s.id)}
+                                                        className="mt-1 w-4 h-4 text-emerald-600 rounded"
+                                                    />
+                                                    <div>
+                                                        <div className="text-sm font-medium text-gray-900">{s.name}</div>
+                                                        {s.description && (
+                                                            <div className="text-xs text-gray-500 line-clamp-2">{s.description}</div>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                <div className="flex justify-end gap-2 mt-4">
                                     <button
                                         type="button"
-                                        onClick={handleAddSkill}
-                                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 font-medium transition-all duration-300"
-                                        disabled={isLoading || !skillInput.trim()}
+                                        onClick={() => { setIsSkillPickerOpen(false); setTempSelectedSkillIds(new Set()); }}
+                                        className="px-3 py-2 rounded-xl border hover:bg-gray-50"
                                     >
-                                        Thêm
+                                        Đóng
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={applyAddSkills}
+                                        className="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                                    >
+                                        Thêm {tempSelectedSkillIds.size > 0 ? `(${tempSelectedSkillIds.size})` : ''}
                                     </button>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {(mentorInfo.skill || []).map((skill, index) => (
-                                        <span
-                                            key={index}
-                                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-emerald-100 text-emerald-800"
-                                        >
-                                            {skill}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveSkill(skill)}
-                                                className="ml-2 text-emerald-600 hover:text-emerald-800 transition-colors duration-200"
-                                                disabled={isLoading}
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className={theme.viewBox}>
-                                {mentorInfo.skill && mentorInfo.skill.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {mentorInfo.skill.map((skill, index) => (
-                                            <span
-                                                key={index}
-                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-emerald-100 text-emerald-800"
-                                            >
-                                                {skill}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : 'Chưa cập nhật kỹ năng'}
                             </div>
                         )}
                     </div>

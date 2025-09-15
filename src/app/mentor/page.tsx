@@ -7,15 +7,27 @@ import { Search, Filter, Users, ChevronDown, X, ChevronLeft, ChevronRight } from
 
 const MENTORS_PER_PAGE = 12;
 
+interface MentorSkill {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 interface Mentor {
     id: string;
     full_name: string;
-    headline: string;
-    avatar: string;
-    skill: string[];
+    headline?: string;
+    avatar?: string;
+    skill?: string[]; // Legacy field
+    skills?: MentorSkill[]; // New structure
     description?: string;
     published: boolean;
     created_at: string;
+    // Statistics
+    total_bookings?: number;
+    completed_bookings?: number;
+    average_rating?: number;
+    total_reviews?: number;
 }
 
 const MentorPage = () => {
@@ -28,7 +40,7 @@ const MentorPage = () => {
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
     const [showFilters, setShowFilters] = useState(false);
-    const [sortBy, setSortBy] = useState<'name' | 'newest' | 'oldest'>('name');
+    const [sortBy, setSortBy] = useState<'name' | 'newest' | 'oldest' | 'rating' | 'popular'>('name');
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
@@ -56,13 +68,14 @@ const MentorPage = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }, [currentPage]);
 
-    // Load mentors from database
+    // Load mentors from database with statistics
     const fetchMentors = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const { data, error: fetchError } = await supabase
+            // Fetch basic mentor data
+            const { data: mentorsData, error: fetchError } = await supabase
                 .from('mentors')
                 .select('*')
                 .eq('published', true)
@@ -72,14 +85,90 @@ const MentorPage = () => {
                 throw fetchError;
             }
 
-            const mentorsData = data || [];
-            setMentors(mentorsData);
+            if (!mentorsData || mentorsData.length === 0) {
+                setMentors([]);
+                setAvailableSkills([]);
+                return;
+            }
 
-            // Extract all unique skills
+            // Fetch additional data for each mentor in parallel
+            const mentorsWithStats = await Promise.all(
+                mentorsData.map(async (mentor) => {
+                    try {
+                        // Fetch skills from mentor_skill_relations
+                        const { data: skillsData } = await supabase
+                            .from('mentor_skill_relations')
+                            .select(`
+                                mentor_skills (
+                                    id,
+                                    name,
+                                    description
+                                )
+                            `)
+                            .eq('mentor_id', mentor.id);
+
+                        // Fetch booking statistics
+                        const { data: bookingsData } = await supabase
+                            .from('mentor_bookings')
+                            .select('id, status')
+                            .eq('mentor_id', mentor.id);
+
+                        // Fetch reviews and calculate average rating
+                        const { data: reviewsData } = await supabase
+                            .from('mentor_reviews')
+                            .select('rating')
+                            .eq('mentor_id', mentor.id)
+                            .eq('is_published', true);
+
+                        const totalBookings = bookingsData?.length || 0;
+                        const completedBookings = bookingsData?.filter((b: any) => b.status === 'completed').length || 0;
+                        const totalReviews = reviewsData?.length || 0;
+                        const averageRating = totalReviews > 0 && reviewsData
+                            ? reviewsData.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0) / totalReviews
+                            : 0;
+
+                        // Transform skills data
+                        const skills = skillsData?.map((item: any) => item.mentor_skills).filter(Boolean) || [];
+
+                        return {
+                            ...mentor,
+                            skills,
+                            total_bookings: totalBookings,
+                            completed_bookings: completedBookings,
+                            average_rating: averageRating,
+                            total_reviews: totalReviews
+                        } as Mentor;
+                    } catch (err) {
+                        console.error(`Error fetching data for mentor ${mentor.id}:`, err);
+                        // Return mentor with basic data if stats fetch fails
+                        return {
+                            ...mentor,
+                            skills: [],
+                            total_bookings: 0,
+                            completed_bookings: 0,
+                            average_rating: 0,
+                            total_reviews: 0
+                        } as Mentor;
+                    }
+                })
+            );
+
+            setMentors(mentorsWithStats);
+
+            // Extract all unique skills for filtering
             const allSkills = new Set<string>();
-            mentorsData.forEach(mentor => {
+            mentorsWithStats.forEach(mentor => {
+                // Add skills from new structure
+                if (mentor.skills && Array.isArray(mentor.skills)) {
+                    mentor.skills.forEach(skill => {
+                        if (skill && skill.name && skill.name.trim()) {
+                            allSkills.add(skill.name.trim());
+                        }
+                    });
+                }
+                // Add skills from legacy structure for backward compatibility
                 if (mentor.skill && Array.isArray(mentor.skill)) {
-                    mentor.skill.forEach((skill: string) => {
+                    mentor.skill.forEach(skill => {
                         if (skill && skill.trim()) {
                             allSkills.add(skill.trim());
                         }
@@ -104,30 +193,44 @@ const MentorPage = () => {
     const filteredMentors = useMemo(() => {
         let filtered = mentors;
 
-        // Search by name or skill
+        // Search by name, headline, description, or skills
         if (debouncedSearchTerm.trim()) {
             const searchLower = debouncedSearchTerm.toLowerCase();
             filtered = filtered.filter(mentor => {
                 const nameMatch = mentor.full_name.toLowerCase().includes(searchLower);
                 const headlineMatch = mentor.headline?.toLowerCase().includes(searchLower);
-                const skillMatch = mentor.skill?.some(skill =>
-                    skill.toLowerCase().includes(searchLower)
-                );
                 const descriptionMatch = mentor.description?.toLowerCase().includes(searchLower);
 
-                return nameMatch || headlineMatch || skillMatch || descriptionMatch;
+                // Search in new skills structure
+                const newSkillMatch = mentor.skills?.some(skill =>
+                    skill.name.toLowerCase().includes(searchLower)
+                );
+
+                // Search in legacy skills structure
+                const legacySkillMatch = mentor.skill?.some(skill =>
+                    skill.toLowerCase().includes(searchLower)
+                );
+
+                return nameMatch || headlineMatch || descriptionMatch || newSkillMatch || legacySkillMatch;
             });
         }
 
         // Filter by selected skills
         if (selectedSkills.length > 0) {
             filtered = filtered.filter(mentor => {
-                if (!mentor.skill || !Array.isArray(mentor.skill)) return false;
-                return selectedSkills.some(selectedSkill =>
-                    mentor.skill.some(mentorSkill =>
-                        mentorSkill.toLowerCase().includes(selectedSkill.toLowerCase())
-                    )
-                );
+                return selectedSkills.some(selectedSkill => {
+                    // Check new skills structure
+                    const newSkillMatch = mentor.skills?.some(skill =>
+                        skill.name.toLowerCase().includes(selectedSkill.toLowerCase())
+                    );
+
+                    // Check legacy skills structure
+                    const legacySkillMatch = mentor.skill?.some(skill =>
+                        skill.toLowerCase().includes(selectedSkill.toLowerCase())
+                    );
+
+                    return newSkillMatch || legacySkillMatch;
+                });
             });
         }
 
@@ -141,6 +244,12 @@ const MentorPage = () => {
                 break;
             case 'oldest':
                 filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                break;
+            case 'rating':
+                filtered.sort((a, b) => (b.average_rating || 0) - (a.average_rating || 0));
+                break;
+            case 'popular':
+                filtered.sort((a, b) => (b.total_bookings || 0) - (a.total_bookings || 0));
                 break;
         }
 
@@ -286,6 +395,8 @@ const MentorPage = () => {
                                     <option value="name">Sắp xếp theo tên</option>
                                     <option value="newest">Mới nhất</option>
                                     <option value="oldest">Cũ nhất</option>
+                                    <option value="rating">Đánh giá cao nhất</option>
+                                    <option value="popular">Phổ biến nhất</option>
                                 </select>
 
                                 {/* Filter Toggle */}
