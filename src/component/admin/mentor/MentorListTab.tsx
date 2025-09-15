@@ -821,10 +821,13 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
             const totalCount = searchResults?.total_count || 0;
 
             // Ensure results have auth_email field
-            const resultsWithAuthEmail = results.map(result => ({
-                ...result,
-                auth_email: result.email
-            }));
+            const resultsWithAuthEmail = (results ?? []).map(
+                (result: { email?: string } & Record<string, unknown>) => ({
+                    ...result,
+                    auth_email: result.email ?? ''
+                })
+            );
+
 
             if (reset) {
                 setSearchedUsers(resultsWithAuthEmail);
