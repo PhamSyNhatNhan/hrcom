@@ -228,10 +228,12 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
             }
 
             // Map to correct format với auth_email
-            const profilesWithAuthEmail = (userRoleData || []).map(profile => ({
-                ...profile,
-                auth_email: profile.email
-            }));
+            const profilesWithAuthEmail = (userRoleData ?? []).map(
+                (profile: { email?: string } & Record<string, any>) => ({
+                    ...profile,
+                    auth_email: profile.email ?? ''
+                })
+            );
 
             setAvailableProfiles(profilesWithAuthEmail);
 
