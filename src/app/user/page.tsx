@@ -8,9 +8,9 @@ import { useNotificationWithUtils } from '@/hooks/useNotification';
 import { supabase } from '@/utils/supabase/client';
 
 // Import tab components
-import CombinedProfileTab from '@/component/CombinedProfileTab';
-import MentorTab from '@/component/MentorTab';
-import PasswordTab from '@/component/PasswordTab';
+import CombinedProfileTab from '@/component/profile/CombinedProfileTab';
+import MentorTab from '@/component/profile/MentorTab';
+import PasswordTab from '@/component/profile/PasswordTab';
 
 export type TabType = 'profile' | 'mentor' | 'password';
 
