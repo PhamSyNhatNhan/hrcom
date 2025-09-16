@@ -91,7 +91,8 @@ const BookingMentorPage = () => {
     // Filter and search states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [showFilters, setShowFilters] = useState(false);
+    const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Modal states
     const [selectedBooking, setSelectedBooking] = useState<MentorBooking | null>(null);
@@ -298,15 +299,17 @@ const BookingMentorPage = () => {
         setShowDetailModal(true);
     };
 
-    // Filter bookings
+    // Filter bookings based on search and filters
     const filteredBookings = bookings.filter(booking => {
         const matchesSearch = searchTerm === '' ||
             booking.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            booking.contact_email.toLowerCase().includes(searchTerm.toLowerCase());
+            booking.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            booking.user_notes?.toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
+        const matchesSessionType = sessionTypeFilter === 'all' || booking.session_type === sessionTypeFilter;
 
-        return matchesSearch && matchesStatus;
+        return matchesSearch && matchesStatus && matchesSessionType;
     });
 
     // Status display functions
@@ -380,8 +383,6 @@ const BookingMentorPage = () => {
         );
     }
 
-
-
     return (
         <div className="min-h-screen bg-gray-50 py-4 sm:py-8 px-4 sm:px-6 lg:px-8">
             {/* Notification */}
@@ -414,46 +415,59 @@ const BookingMentorPage = () => {
                     />
                 </div>
 
-                {/* Controls */}
-                <div className="mb-6 sm:mb-8 bg-white rounded-xl shadow-sm p-4 sm:p-6">
-                    <div className="space-y-4">
+                {/* Filters */}
+                <div className="mb-8 bg-white rounded-xl shadow-sm p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         {/* Search */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                                 type="text"
-                                placeholder="Tìm kiếm theo tên hoặc email..."
+                                placeholder="Tìm kiếm theo tên, email..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
 
-                        {/* Filters and Actions */}
-                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                            <select
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                                className="flex-1 sm:flex-none px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                            >
-                                <option value="all">Tất cả trạng thái</option>
-                                <option value="pending">Chờ xác nhận</option>
-                                <option value="confirmed">Đã xác nhận</option>
-                                <option value="completed">Hoàn thành</option>
-                                <option value="cancelled">Đã hủy</option>
-                            </select>
+                        {/* Status Filter */}
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="all">Tất cả trạng thái</option>
+                            <option value="pending">Chờ xác nhận</option>
+                            <option value="confirmed">Đã xác nhận</option>
+                            <option value="completed">Hoàn thành</option>
+                            <option value="cancelled">Đã hủy</option>
+                        </select>
 
-                            <Button
-                                variant="outline"
-                                onClick={loadBookings}
-                                disabled={loading}
-                                className="flex items-center justify-center gap-2 text-sm sm:text-base"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                                <span className="hidden sm:inline">Tải lại</span>
-                                <span className="sm:hidden">Tải lại</span>
-                            </Button>
-                        </div>
+                        {/* Session Type Filter */}
+                        <select
+                            value={sessionTypeFilter}
+                            onChange={(e) => setSessionTypeFilter(e.target.value)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="all">Tất cả hình thức</option>
+                            <option value="online">Online</option>
+                            <option value="offline">Offline</option>
+                            <option value="hybrid">Hybrid</option>
+                        </select>
+
+                        {/* Reset Filters */}
+                        <button
+                            onClick={() => {
+                                setSearchTerm('');
+                                setStatusFilter('all');
+                                setSessionTypeFilter('all');
+                                setCurrentPage(1);
+                            }}
+                            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                            Xóa bộ lọc
+                        </button>
                     </div>
                 </div>
 
