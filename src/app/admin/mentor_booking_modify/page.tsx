@@ -132,6 +132,9 @@ const AdminMentorBookingPage = () => {
     const [bookingFormData, setBookingFormData] = useState<Partial<MentorBooking>>({});
     const [reviewFormData, setReviewFormData] = useState<Partial<MentorReview>>({});
 
+    const safeRating = Number(reviewFormData?.rating ?? 0);
+
+
     // Scroll lock effect for modals
     useEffect(() => {
         const isAnyModalOpen = showEditForm || showReviewForm;
@@ -1387,8 +1390,9 @@ const AdminMentorBookingPage = () => {
                                                 </button>
                                             ))}
                                             <span className="ml-3 text-sm text-gray-600">
-                                                {reviewFormData.rating > 0 ? `${reviewFormData.rating}/5 sao` : 'Chọn số sao'}
+                                              {safeRating > 0 ? `${safeRating}/5 sao` : 'Chọn số sao'}
                                             </span>
+
                                         </div>
                                     </div>
 
