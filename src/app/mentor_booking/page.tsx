@@ -262,27 +262,40 @@ const MentorBookingContent = () => {
             const { data, error } = await supabase
                 .from('mentor_bookings')
                 .select(`
-                    *,
-                    mentors (
-                        id,
-                        full_name,
-                        avatar,
-                        headline
-                    ),
-                    mentor_reviews!left (
-                        id
-                    )
-                `)
+                *,
+                mentors (
+                    id,
+                    full_name,
+                    avatar,
+                    headline
+                ),
+                mentor_reviews!left (
+                    id
+                )
+            `)
                 .eq('user_id', user?.id)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
 
-            // Add has_review flag
-            const bookingsWithReview = data?.map(booking => ({
-                ...booking,
-                has_review: booking.mentor_reviews && booking.mentor_reviews.length > 0
-            })) || [];
+            // Sửa lại logic mapping
+            const bookingsWithReview = data?.map(booking => {
+                // Kiểm tra nhiều trường hợp có thể
+                const reviews = booking.mentor_reviews;
+                const hasReview = Array.isArray(reviews) ? reviews.length > 0 : !!reviews;
+
+                console.log(`Booking ${booking.id}:`, {
+                    reviews,
+                    isArray: Array.isArray(reviews),
+                    length: Array.isArray(reviews) ? reviews.length : 'not array',
+                    hasReview
+                });
+
+                return {
+                    ...booking,
+                    has_review: hasReview
+                };
+            }) || [];
 
             setBookings(bookingsWithReview);
         } catch (error) {
@@ -499,6 +512,13 @@ const MentorBookingContent = () => {
             return;
         }
 
+        // Kiểm tra đã có review chưa
+        if (reviewingBooking.has_review) {
+            showNotification('warning', 'Bạn đã đánh giá buổi tư vấn này rồi');
+            setShowReviewModal(false);
+            return;
+        }
+
         try {
             setSubmitting(true);
 
@@ -517,7 +537,7 @@ const MentorBookingContent = () => {
 
             showNotification('success', 'Đánh giá đã được gửi thành công');
             setShowReviewModal(false);
-            loadUserBookings(); // Reload để cập nhật has_review
+            loadUserBookings();
         } catch (error) {
             console.error('Error submitting review:', error);
             showNotification('error', 'Lỗi khi gửi đánh giá');
@@ -1274,6 +1294,14 @@ const MentorBookingContent = () => {
                                                 >
                                                     <Star className="w-4 h-4" />
                                                 </button>
+                                            )}
+
+                                            {/* Hiển thị trạng thái đã đánh giá */}
+                                            {booking.status === 'completed' && booking.has_review && (
+                                                <div className="text-gray-500 p-2 flex items-center gap-1" title="Đã đánh giá">
+                                                    <Star className="w-4 h-4 fill-current text-yellow-400" />
+                                                    <span className="text-xs">Đã đánh giá</span>
+                                                </div>
                                             )}
 
                                             {['pending', 'cancelled'].includes(booking.status) && (
