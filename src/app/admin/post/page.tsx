@@ -39,8 +39,8 @@ interface Tag {
     id: string;
     name: string;
     description?: string;
-    created_at: string;
-    updated_at: string;
+    created_at?: string;
+    updated_at?: string;
     post_count?: number;
 }
 
