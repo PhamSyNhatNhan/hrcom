@@ -63,14 +63,14 @@ function getErrorMessage(err: unknown): string {
     return typeof err === 'string' ? err : JSON.stringify(err);
 }
 
-const PostsTab: React.FC<PostsTabProps> = ({
-                                               searchTerm,
-                                               filterType,
-                                               filterPublished,
-                                               filterTag,
-                                               onEditPost,
-                                               showNotification
-                                           }) => {
+const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
+                                                                              searchTerm,
+                                                                              filterType,
+                                                                              filterPublished,
+                                                                              filterTag,
+                                                                              onEditPost,
+                                                                              showNotification
+                                                                          }, ref) => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -190,7 +190,9 @@ const PostsTab: React.FC<PostsTabProps> = ({
 
             // If current page becomes empty, go to previous page
             if (posts.length === 1 && currentPage > 1) {
-                setCurrentPage(currentPage - 1);
+                const newPage = currentPage - 1;
+                setCurrentPage(newPage);
+                loadPosts(newPage);
             } else {
                 loadPosts(currentPage);
             }
@@ -202,9 +204,16 @@ const PostsTab: React.FC<PostsTabProps> = ({
 
     // Handle page change
     const handlePageChange = (newPage: number) => {
-        setCurrentPage(newPage);
-        loadPosts(newPage);
+        if (newPage > 0 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            loadPosts(newPage);
+        }
     };
+
+    // Expose reload function for parent component
+    React.useImperativeHandle(ref, () => ({
+        reload: () => loadPosts(currentPage)
+    }));
 
     // Effects
     useEffect(() => {
@@ -433,6 +442,8 @@ const PostsTab: React.FC<PostsTabProps> = ({
             )}
         </>
     );
-};
+});
+
+PostsTab.displayName = 'PostsTab';
 
 export default PostsTab;
