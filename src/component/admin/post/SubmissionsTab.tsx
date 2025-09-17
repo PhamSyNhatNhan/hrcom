@@ -255,7 +255,7 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
 
             console.log('Final submissions with tags:', filteredSubmissions);
 
-            setSubmissions(filteredSubmissions as PostSubmission[]);
+            setSubmissions(filteredSubmissions as unknown as PostSubmission[]);
             setTotalCount(count || 0);
             setTotalPages(Math.ceil((count || 0) / pageSize));
 
