@@ -84,12 +84,17 @@ const renderPreviewContent = (content: string) => {
 
     // Handle if content is a JSON object (from TinyMCE)
     let htmlContent = '';
-    if (typeof content === 'object') {
-        // If it's an object, try to extract HTML or convert to string
-        htmlContent = content.html || JSON.stringify(content);
-    } else {
+
+    if (typeof content === 'string') {
         htmlContent = content;
+    } else if (content && typeof content === 'object') {
+        // Thu hẹp kiểu object trước khi đọc thuộc tính html
+        const maybeHtml = (content as { html?: unknown }).html;
+        htmlContent = typeof maybeHtml === 'string' ? maybeHtml : JSON.stringify(content);
+    } else {
+        htmlContent = String(content ?? '');
     }
+
 
     return (
         <div
