@@ -325,7 +325,7 @@ const RootLayout = ({ children }: LayoutProps) => {
 
                                             {/* Superadmin only */}
                                             {user?.role === 'superadmin' && (
-                                                <Link href="/admin/modify_user" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200">
+                                                <Link href="/src/app/admin/modify" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200">
                                                     Khác
                                                 </Link>
                                             )}
@@ -436,7 +436,7 @@ const RootLayout = ({ children }: LayoutProps) => {
 
                                         {/* Superadmin only - Mobile */}
                                         {user?.role === 'superadmin' && (
-                                            <Link href="/admin/modify_user" className={`block py-2 pl-8 ${navLinkClass('/admin/modify_user')}`} onClick={handleNavLinkClick}>
+                                            <Link href="/src/app/admin/modify" className={`block py-2 pl-8 ${navLinkClass('/admin/modify')}`} onClick={handleNavLinkClick}>
                                                 Chỉnh sửa tài khoản
                                             </Link>
                                         )}
