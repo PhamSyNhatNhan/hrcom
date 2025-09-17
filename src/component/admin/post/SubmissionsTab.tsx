@@ -230,7 +230,7 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                             if (!tagsMap[item.post_id]) {
                                 tagsMap[item.post_id] = [];
                             }
-                            tagsMap[item.post_id].push(item.tags as Tag);
+                            tagsMap[item.post_id].push(item.tags as unknown as Tag);
                         }
                     });
                 }
