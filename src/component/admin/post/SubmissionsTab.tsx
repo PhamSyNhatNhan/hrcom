@@ -241,7 +241,7 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                 ...submission,
                 posts: submission.posts ? {
                     ...submission.posts,
-                    tags: tagsMap[submission.posts.id] || []
+                    tags: tagsMap[submission.posts?.id] || []
                 } : null
             }));
 
