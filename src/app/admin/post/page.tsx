@@ -74,7 +74,7 @@ interface PostSubmission {
     submitted_at: string;
     created_at: string;
     updated_at: string;
-    posts: Post;
+    posts: Post | null;
     profiles: {
         full_name: string;
         image_url?: string;
