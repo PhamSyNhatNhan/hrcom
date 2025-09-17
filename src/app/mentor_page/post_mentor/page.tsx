@@ -11,7 +11,6 @@ import {
     Upload,
     X,
     Save,
-    Check,
     XCircle,
     AlertCircle,
     CheckCircle,
@@ -27,13 +26,9 @@ import {
     Edit3,
     Trash2,
     MessageSquare,
-    Filter,
     Settings,
     ChevronLeft,
-    ChevronRight,
-    Users,
-    FileCheck,
-    Award
+    ChevronRight
 } from 'lucide-react';
 import Image from 'next/image';
 import { Editor } from '@tinymce/tinymce-react';
@@ -565,8 +560,6 @@ const PostMentorPage: React.FC = () => {
                     const status = editingPost.latest_submission?.status;
                     if (status === 'rejected') {
                         showNotification('success', 'Đã cập nhật bài viết bị từ chối. Bạn có thể gửi duyệt lại khi sẵn sàng.');
-                    } else if (status === 'draft' || !status) {
-                        showNotification('success', 'Đã cập nhật bản nháp');
                     } else {
                         showNotification('success', 'Cập nhật bài viết thành công');
                     }
