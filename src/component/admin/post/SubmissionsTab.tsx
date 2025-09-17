@@ -14,10 +14,12 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 
-interface TagLite {
+interface Tag {
     id: string;
     name: string;
     description?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 interface Post {
@@ -36,7 +38,7 @@ interface Post {
         full_name: string;
         image_url?: string;
     };
-    tags?: TagLite[];
+    tags?: Tag[];
 }
 
 interface PostSubmission {
@@ -164,7 +166,7 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
             // Client-side filter by tag (since Supabase doesn't support nested filtering easily)
             if (filterTag !== 'all') {
                 submissionsWithTags = submissionsWithTags.filter(submission =>
-                    submission.posts?.tags && submission.posts.tags.some((tag: TagLite) => tag.id === filterTag)
+                    submission.posts?.tags && submission.posts.tags.some((tag: Tag) => tag.id === filterTag)
                 );
             }
 
