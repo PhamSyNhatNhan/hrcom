@@ -10,14 +10,14 @@ import {
     AlertCircle,
     Loader2,
     Calendar,
-    Tag,
+    Tag as TagLite,
     User,
     ChevronLeft,
     ChevronRight
 } from 'lucide-react';
 import Image from 'next/image';
 
-interface Tag {
+interface TagLite {
     id: string;
     name: string;
     description?: string;
@@ -39,7 +39,7 @@ interface Post {
         full_name: string;
         image_url?: string;
     };
-    tags?: Tag[];
+    tags?: TagLite[];
 }
 
 interface PostsTabProps {
@@ -135,7 +135,7 @@ const PostsTab: React.FC<PostsTabProps> = ({
             // Client-side filter by tag (since Supabase doesn't support nested filtering easily)
             if (filterTag !== 'all') {
                 postsWithTags = postsWithTags.filter(post =>
-                    post.tags && post.tags.some((tag: Tag) => tag.id === filterTag)
+                    post.tags && post.tags.some((tag: TagLite) => tag.id === filterTag)
                 );
             }
 
@@ -302,7 +302,7 @@ const PostsTab: React.FC<PostsTabProps> = ({
                                                 key={tag.id}
                                                 className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800"
                                             >
-                                                    <Tag className="w-3 h-3 mr-1" />
+                                                    <TagLite className="w-3 h-3 mr-1" />
                                                 {tag.name}
                                                 </span>
                                         ))
