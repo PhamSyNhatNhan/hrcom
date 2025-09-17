@@ -3,70 +3,38 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
 import { supabase } from '@/utils/supabase/client';
-
 import { Button } from '@/component/Button';
 import {
     Plus,
     Search,
     Edit,
-    Trash2,
-    Eye,
-    EyeOff,
     Upload,
     X,
     Save,
     Check,
-    Clock,
     XCircle,
     AlertCircle,
     CheckCircle,
     Loader2,
     RefreshCw,
     MessageSquare,
-    User,
     Filter,
     Settings,
-    Calendar
+    Calendar,
+    Clock,
+    Eye,
+    Tag
 } from 'lucide-react';
 import Image from 'next/image';
 import { Editor } from '@tinymce/tinymce-react';
-import { Tag } from 'lucide-react';
 import Link from 'next/link';
 
-// Bắt lỗi
-function getErrorMessage(err: unknown): string {
-    if (err instanceof Error) return err.message;
-    if (typeof err === 'object' && err && 'message' in err) {
-        const m = (err as { message?: unknown }).message;
-        return typeof m === 'string' ? m : JSON.stringify(m);
-    }
-    return typeof err === 'string' ? err : JSON.stringify(err);
-}
-function getErrorCode(err: unknown): string | undefined {
-    return typeof err === 'object' && err !== null && 'code' in err
-        ? (err as { code?: string }).code
-        : undefined;
-}
+// Import tab components
+import PostsTab from '@/component/admin/post/PostsTab';
+import SubmissionsTab from '@/component/admin/post/SubmissionsTab';
+import TagsTab from '@/component/admin/post/TagsTab';
 
-// 4. THÊM FUNCTIONS XỬ LÝ PREVIEW
-const renderPreviewContent = (content: string) => {
-    if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
-
-    return (
-        <div
-            className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
-            style={{
-                lineHeight: '1.7',
-                ['--tw-prose-ul' as any]: 'disc',
-                ['--tw-prose-ol' as any]: 'decimal',
-            }}
-            dangerouslySetInnerHTML={{ __html: content }}
-        />
-    );
-};
-
-
-
+// Types
 interface Tag {
     id: string;
     name: string;
@@ -128,17 +96,53 @@ interface PostFormData {
 
 type TabType = 'posts' | 'submissions' | 'tags';
 
+// Helper functions
+function getErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'object' && err && 'message' in err) {
+        const m = (err as { message?: unknown }).message;
+        return typeof m === 'string' ? m : JSON.stringify(m);
+    }
+    return typeof err === 'string' ? err : JSON.stringify(err);
+}
+
+function getErrorCode(err: unknown): string | undefined {
+    return typeof err === 'object' && err !== null && 'code' in err
+        ? (err as { code?: string }).code
+        : undefined;
+}
+
+// Preview content render function
+const renderPreviewContent = (content: string) => {
+    if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
+
+    return (
+        <div
+            className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
+            style={{
+                lineHeight: '1.7',
+                ['--tw-prose-ul' as any]: 'disc',
+                ['--tw-prose-ol' as any]: 'decimal',
+            }}
+            dangerouslySetInnerHTML={{ __html: content }}
+        />
+    );
+};
+
 const PostPage: React.FC = () => {
     const { user } = useAuthStore();
     const editorRef = useRef<any>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const liveEditorRef = useRef<any>(null);
 
+    // Tab refs for reloading
+    const postsTabRef = useRef<{ reload: () => void }>(null);
+    const submissionsTabRef = useRef<{ reload: () => void }>(null);
+    const tagsTabRef = useRef<{ reload: () => void }>(null);
+
     // State management
     const [activeTab, setActiveTab] = useState<TabType>('posts');
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [submissions, setSubmissions] = useState<PostSubmission[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [showForm, setShowForm] = useState(false);
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -161,7 +165,6 @@ const PostPage: React.FC = () => {
     const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
     const [filterTag, setFilterTag] = useState<string>('all');
 
-
     // Form state
     const [formData, setFormData] = useState<PostFormData>({
         title: '',
@@ -181,40 +184,20 @@ const PostPage: React.FC = () => {
         message: string;
     } | null>(null);
 
+    // Preview states - FIXED VERSION
     const [showPreview, setShowPreview] = useState(false);
     const [showLivePreview, setShowLivePreview] = useState(false);
     const [previewContent, setPreviewContent] = useState('');
-
-    const handlePreview = () => {
-        const content = editorRef.current?.getContent() || '';
-        setPreviewContent(content);
-        setShowPreview(true);
-    };
-
-    const handleLivePreview = () => {
-        const content = editorRef.current?.getContent() || '';
-        setPreviewContent(content);
-        setShowLivePreview(true);
-    };
-
-    const updateLivePreview = () => {
-        if (showLivePreview && liveEditorRef.current) {
-            const content = liveEditorRef.current.getContent();
-            setPreviewContent(content);
-            // Sync ngược lại main editor
-            if (editorRef.current) {
-                editorRef.current.setContent(content);
-            }
-        }
-    };
-
+    const [livePreviewContent, setLivePreviewContent] = useState('');
+    const [isLivePreviewClosing, setIsLivePreviewClosing] = useState(false);
+    const [pendingLiveContent, setPendingLiveContent] = useState('');
 
     const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
         setNotification({ type, message });
         setTimeout(() => setNotification(null), 5000);
     };
 
-    // Load Tags
+    // Load Tags for form
     const loadTags = async () => {
         try {
             const { data, error } = await supabase
@@ -229,7 +212,6 @@ const PostPage: React.FC = () => {
 
             if (error) throw error;
 
-            // Transform data to include post count
             const tagsWithCount = (data || []).map(tag => ({
                 ...tag,
                 post_count: tag.post_tags?.length || 0
@@ -242,46 +224,90 @@ const PostPage: React.FC = () => {
         }
     };
 
-    // Load posts
-    const loadPosts = async () => {
+    // FIXED PREVIEW HANDLERS
+    const handlePreview = () => {
+        const content = editorRef.current?.getContent() || '';
+        setPreviewContent(content);
+        setShowPreview(true);
+    };
+
+    const handleLivePreview = () => {
+        const content = editorRef.current?.getContent() || '';
+        setPreviewContent(content);
+        setLivePreviewContent(content);
+        setPendingLiveContent(content);
+        setShowLivePreview(true);
+    };
+
+    const handleCloseLivePreview = async () => {
+        setIsLivePreviewClosing(true);
+
         try {
-            setLoading(true);
-            const { data, error } = await supabase
-                .from('posts')
-                .select(`
-                *,
-                profiles (
-                    full_name,
-                    image_url
-                ),
-                post_tags (
-                    tags (
-                        id,
-                        name,
-                        description
-                    )
-                )
-            `)
-                .order('created_at', { ascending: false });
+            // Đợi một chút để đảm bảo editor đã sẵn sàng
+            await new Promise(resolve => setTimeout(resolve, 150));
 
-            if (error) throw error;
+            // Lấy content cuối cùng từ live editor
+            let finalContent = '';
 
-            // Transform the data to include tags array
-            const postsWithTags = (data || []).map(post => ({
-                ...post,
-                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
-            }));
+            // Ưu tiên lấy từ live editor
+            if (liveEditorRef.current) {
+                try {
+                    finalContent = liveEditorRef.current.getContent();
+                } catch (error) {
+                    console.warn('Could not get content from live editor:', error);
+                }
+            }
 
-            setPosts(postsWithTags);
+            // Fallback theo thứ tự ưu tiên
+            if (!finalContent) {
+                finalContent = pendingLiveContent || livePreviewContent || '';
+            }
+
+            // Sync về main editor nếu có content
+            if (finalContent && editorRef.current) {
+                try {
+                    editorRef.current.setContent(finalContent);
+
+                    // Trigger các events để đảm bảo form nhận diện thay đổi
+                    editorRef.current.fire('change');
+                    editorRef.current.fire('input');
+
+                    // Cập nhật form data để chắc chắn
+                    setFormData(prev => ({ ...prev, content: finalContent }));
+
+                    console.log('Content synced successfully:', finalContent.length, 'characters');
+                } catch (error) {
+                    console.error('Error syncing content to main editor:', error);
+                }
+            }
+
         } catch (error) {
-            console.error('Error loading posts:', error);
-            showNotification('error', 'Không thể tải bài viết: ' + getErrorMessage(error));
+            console.error('Error during live preview close:', error);
         } finally {
-            setLoading(false);
+            // Reset states
+            setShowLivePreview(false);
+            setPreviewContent('');
+            setIsLivePreviewClosing(false);
+            setLivePreviewContent('');
+            setPendingLiveContent('');
         }
     };
 
-    // 4. tag management functions
+    // Updated live preview content handler
+    const updateLivePreview = () => {
+        if (showLivePreview && liveEditorRef.current && !isLivePreviewClosing) {
+            const content = liveEditorRef.current.getContent();
+            setPreviewContent(content);
+            setPendingLiveContent(content);
+
+            // Sync to main editor in real-time
+            if (editorRef.current) {
+                editorRef.current.setContent(content);
+            }
+        }
+    };
+
+    // Tag management functions
     const createTag = async () => {
         if (!tagFormData.name.trim()) {
             showNotification('error', 'Tên tag không được để trống');
@@ -303,6 +329,7 @@ const PostPage: React.FC = () => {
             showNotification('success', 'Tạo tag thành công');
             resetTagForm();
             loadTags();
+            tagsTabRef.current?.reload();
         } catch (err) {
             console.error('Error creating tag:', err);
             const code = getErrorCode(err);
@@ -314,7 +341,6 @@ const PostPage: React.FC = () => {
         } finally {
             setUploading(false);
         }
-
     };
 
     const updateTag = async () => {
@@ -339,6 +365,7 @@ const PostPage: React.FC = () => {
             showNotification('success', 'Cập nhật tag thành công');
             resetTagForm();
             loadTags();
+            tagsTabRef.current?.reload();
         } catch (err) {
             console.error('Error updating tag:', err);
             const code = getErrorCode(err);
@@ -349,33 +376,6 @@ const PostPage: React.FC = () => {
             }
         } finally {
             setUploading(false);
-        }
-    };
-
-    const deleteTag = async (tag: Tag) => {
-        if (tag.post_count && tag.post_count > 0) {
-            if (!confirm(`Tag "${tag.name}" đang được sử dụng bởi ${tag.post_count} bài viết. Bạn có chắc chắn muốn xóa?`)) {
-                return;
-            }
-        } else {
-            if (!confirm(`Bạn có chắc chắn muốn xóa tag "${tag.name}"?`)) {
-                return;
-            }
-        }
-
-        try {
-            const { error } = await supabase
-                .from('tags')
-                .delete()
-                .eq('id', tag.id);
-
-            if (error) throw error;
-
-            showNotification('success', 'Xóa tag thành công');
-            loadTags();
-        } catch (error) {
-            console.error('Error deleting tag:', error);
-            showNotification('error', 'Lỗi khi xóa tag: ' + getErrorMessage(error));
         }
     };
 
@@ -395,58 +395,6 @@ const PostPage: React.FC = () => {
             name: '',
             description: ''
         });
-    };
-
-    // Load post submissions
-    const loadSubmissions = async () => {
-        try {
-            setLoading(true);
-            const { data, error } = await supabase
-                .from('post_submissions')
-                .select(`
-                *,
-                posts (
-                    *,
-                    profiles (
-                        full_name,
-                        image_url
-                    ),
-                    post_tags (
-                        tags (
-                            id,
-                            name,
-                            description
-                        )
-                    )
-                ),
-                profiles!post_submissions_author_id_fkey (
-                    full_name,
-                    image_url
-                ),
-                reviewed_by_profile:profiles!post_submissions_reviewed_by_fkey (
-                    full_name
-                )
-            `)
-                .order('submitted_at', { ascending: false });
-
-            if (error) throw error;
-
-            // Transform the data to include tags array
-            const submissionsWithTags = (data || []).map(submission => ({
-                ...submission,
-                posts: submission.posts ? {
-                    ...submission.posts,
-                    tags: submission.posts.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
-                } : null
-            }));
-
-            setSubmissions(submissionsWithTags);
-        } catch (error) {
-            console.error('Error loading submissions:', error);
-            showNotification('error', 'Không thể tải danh sách duyệt bài: ' + getErrorMessage(error));
-        } finally {
-            setLoading(false);
-        }
     };
 
     // Upload image to Supabase Storage
@@ -474,7 +422,6 @@ const PostPage: React.FC = () => {
         if (file) {
             setFormData(prev => ({ ...prev, thumbnail: file }));
 
-            // Create preview
             const reader = new FileReader();
             reader.onload = (e) => {
                 setThumbnailPreview(e.target?.result as string);
@@ -509,12 +456,11 @@ const PostPage: React.FC = () => {
                 thumbnailUrl = await uploadImage(formData.thumbnail);
             }
 
-            // Get content from TinyMCE
-            const content = editorRef.current?.getContent() || '';
+            const content = editorRef.current?.getContent() || formData.content || '';
 
             const postData = {
                 title: formData.title,
-                description: formData.description, // THÊM
+                description: formData.description,
                 type: formData.type,
                 content: content,
                 thumbnail: thumbnailUrl || null,
@@ -527,7 +473,6 @@ const PostPage: React.FC = () => {
             let postId;
 
             if (editingPost) {
-                // Update existing post
                 result = await supabase
                     .from('posts')
                     .update(postData)
@@ -538,13 +483,11 @@ const PostPage: React.FC = () => {
                 if (result.error) throw result.error;
                 postId = editingPost.id;
 
-                // Remove existing tags
                 await supabase
                     .from('post_tags')
                     .delete()
                     .eq('post_id', postId);
             } else {
-                // Create new post
                 result = await supabase
                     .from('posts')
                     .insert([postData])
@@ -555,7 +498,6 @@ const PostPage: React.FC = () => {
                 postId = result.data.id;
             }
 
-            // Add selected tags
             if (formData.selectedTags.length > 0) {
                 const tagInserts = formData.selectedTags.map(tagId => ({
                     post_id: postId,
@@ -571,54 +513,13 @@ const PostPage: React.FC = () => {
 
             showNotification('success', editingPost ? 'Cập nhật bài viết thành công' : 'Tạo bài viết thành công');
             resetForm();
-            loadPosts();
+            postsTabRef.current?.reload();
 
         } catch (error) {
             console.error('Error saving post:', error);
             showNotification('error', 'Lỗi khi lưu bài viết: ' + getErrorMessage(error));
         } finally {
             setUploading(false);
-        }
-    };
-
-    // Delete post
-    const deletePost = async (postId: string) => {
-        if (!confirm('Bạn có chắc chắn muốn xóa bài viết này?')) return;
-
-        try {
-            const { error } = await supabase
-                .from('posts')
-                .delete()
-                .eq('id', postId);
-
-            if (error) throw error;
-
-            showNotification('success', 'Xóa bài viết thành công');
-            loadPosts();
-        } catch (error) {
-            console.error('Error deleting post:', error);
-            showNotification('error', 'Lỗi khi xóa bài viết: ' + getErrorMessage(error));
-        }
-    };
-
-    // Toggle publish status
-    const togglePublishStatus = async (postId: string, currentStatus: boolean) => {
-        try {
-            const { error } = await supabase
-                .from('posts')
-                .update({
-                    published: !currentStatus,
-                    published_at: !currentStatus ? new Date().toISOString() : null
-                })
-                .eq('id', postId);
-
-            if (error) throw error;
-
-            showNotification('success', 'Cập nhật trạng thái thành công');
-            loadPosts();
-        } catch (error) {
-            console.error('Error updating publish status:', error);
-            showNotification('error', 'Lỗi khi cập nhật trạng thái: ' + getErrorMessage(error));
         }
     };
 
@@ -640,8 +541,8 @@ const PostPage: React.FC = () => {
             setShowReviewModal(false);
             setReviewingSubmission(null);
             setAdminNotes('');
-            loadSubmissions();
-            if (activeTab === 'posts') loadPosts();
+            submissionsTabRef.current?.reload();
+            if (activeTab === 'posts') postsTabRef.current?.reload();
 
         } catch (error) {
             console.error('Error approving submission:', error);
@@ -672,7 +573,7 @@ const PostPage: React.FC = () => {
             setShowReviewModal(false);
             setReviewingSubmission(null);
             setAdminNotes('');
-            loadSubmissions();
+            submissionsTabRef.current?.reload();
 
         } catch (error) {
             console.error('Error rejecting submission:', error);
@@ -682,14 +583,14 @@ const PostPage: React.FC = () => {
         }
     };
 
-    // Edit post
-    const editPost = (post: Post) => {
+    // Edit post handler
+    const handleEditPost = (post: Post) => {
         setEditingPost(post);
         setFormData({
             title: post.title,
             description: post.description || '',
             type: post.type,
-            content: '', // Will be set by TinyMCE
+            content: post.content || '',
             thumbnail: null,
             published: post.published,
             selectedTags: post.tags?.map(tag => tag.id) || []
@@ -698,6 +599,13 @@ const PostPage: React.FC = () => {
             setThumbnailPreview(post.thumbnail);
         }
         setShowForm(true);
+    };
+
+    // Review submission handler
+    const handleReviewSubmission = (submission: PostSubmission) => {
+        setReviewingSubmission(submission);
+        setAdminNotes('');
+        setShowReviewModal(true);
     };
 
     // Reset form
@@ -716,41 +624,29 @@ const PostPage: React.FC = () => {
         setThumbnailPreview('');
         setTagSearch('');
         setShowTagDropdown(false);
+        // Reset preview states
+        setPreviewContent('');
+        setLivePreviewContent('');
+        setPendingLiveContent('');
         if (editorRef.current) {
             editorRef.current.setContent('');
         }
     };
 
-    // Filter functions
-    const filteredPosts = posts.filter(post => {
-        const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (post.description && post.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesType = filterType === 'all' || post.type === filterType;
-        const matchesPublished =
-            filterPublished === 'all' ||
-            (filterPublished === 'published' && post.published) ||
-            (filterPublished === 'draft' && !post.published);
-        const matchesTag = filterTag === 'all' ||
-            (post.tags && post.tags.some(tag => tag.id === filterTag));
-
-        return matchesSearch && matchesType && matchesPublished && matchesTag;
-    });
-
-    const filteredSubmissions = submissions.filter(submission => {
-        const matchesSearch = submission.posts?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (submission.posts?.description && submission.posts.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesType = filterType === 'all' || submission.posts?.type === filterType;
-        const matchesStatus = filterStatus === 'all' || submission.status === filterStatus;
-        const matchesTag = filterTag === 'all' ||
-            (submission.posts?.tags && submission.posts.tags.some(tag => tag.id === filterTag));
-
-        return matchesSearch && matchesType && matchesStatus && matchesTag;
-    });
-
-    const filteredTagsList = tags.filter(tag =>
-        tag.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (tag.description && tag.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // Handle tab reload
+    const handleTabReload = () => {
+        switch (activeTab) {
+            case 'posts':
+                postsTabRef.current?.reload();
+                break;
+            case 'submissions':
+                submissionsTabRef.current?.reload();
+                break;
+            case 'tags':
+                tagsTabRef.current?.reload();
+                break;
+        }
+    };
 
     // Effects
     useEffect(() => {
@@ -758,61 +654,28 @@ const PostPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'posts') {
-            loadPosts();
-        } else if (activeTab === 'submissions') {
-            loadSubmissions();
-        } else if (activeTab === 'tags') {
-            // Tags already loaded in initial useEffect
-        }
-    }, [activeTab]);
-
-    useEffect(() => {
         if (showForm) {
-            // Lock body scroll khi modal mở
             document.body.style.overflow = 'hidden';
-            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
+            document.body.style.paddingRight = '15px';
         } else {
-            // Unlock body scroll khi modal đóng
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
         }
 
-        // Cleanup khi component unmount
         return () => {
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
         };
     }, [showForm]);
 
-    // Get status badge
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'pending':
-                return (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                        <Clock className="w-3 h-3 mr-1" />
-                        Chờ duyệt
-                    </span>
-                );
-            case 'approved':
-                return (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Đã duyệt
-                    </span>
-                );
-            case 'rejected':
-                return (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                        <XCircle className="w-3 h-3 mr-1" />
-                        Từ chối
-                    </span>
-                );
-            default:
-                return null;
-        }
-    };
+    // Cleanup effect for live preview
+    useEffect(() => {
+        return () => {
+            if (showLivePreview && !isLivePreviewClosing) {
+                handleCloseLivePreview();
+            }
+        };
+    }, []);
 
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
         return (
@@ -884,11 +747,6 @@ const PostPage: React.FC = () => {
                             >
                                 <MessageSquare className="w-4 h-4" />
                                 Duyệt bài viết
-                                {submissions.filter(s => s.status === 'pending').length > 0 && (
-                                    <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                                        {submissions.filter(s => s.status === 'pending').length}
-                                    </span>
-                                )}
                             </button>
                             <button
                                 onClick={() => setActiveTab('tags')}
@@ -912,7 +770,7 @@ const PostPage: React.FC = () => {
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                                 <input
                                     type="text"
-                                    placeholder="Tìm kiếm bài viết..."
+                                    placeholder="Tìm kiếm..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -954,7 +812,7 @@ const PostPage: React.FC = () => {
                                         <option value="published">Đã xuất bản</option>
                                         <option value="draft">Bản nháp</option>
                                     </select>
-                                ) : (
+                                ) : activeTab === 'submissions' ? (
                                     <select
                                         value={filterStatus}
                                         onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
@@ -965,16 +823,17 @@ const PostPage: React.FC = () => {
                                         <option value="approved">Đã duyệt</option>
                                         <option value="rejected">Từ chối</option>
                                     </select>
-                                )}
+                                ) : null}
                             </div>
 
                             {/* Actions */}
                             <div className="flex gap-4">
-                                <Button variant="outline" onClick={() => {
-                                    if (activeTab === 'posts') loadPosts();
-                                    else if (activeTab === 'submissions') loadSubmissions();
-                                    else if (activeTab === 'tags') loadTags();
-                                }} disabled={loading} className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={handleTabReload}
+                                    disabled={loading}
+                                    className="flex items-center gap-2"
+                                >
                                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                                     Tải lại
                                 </Button>
@@ -1003,317 +862,38 @@ const PostPage: React.FC = () => {
 
                 {/* Content */}
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                    {loading ? (
-                        <div className="p-8 text-center">
-                            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-                            <p className="text-gray-600">Đang tải dữ liệu...</p>
-                        </div>
-                    ) : activeTab === 'tags' ? (
-                        filteredTagsList.length === 0 ? (
-                            <div className="p-8 text-center">
-                                <p className="text-gray-600">Không có tag nào.</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tag</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số bài viết</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredTagsList.map((tag) => (
-                                        <tr key={tag.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <Tag className="w-4 h-4 text-gray-400 mr-2" />
-                                                    <span className="text-sm font-medium text-gray-900">
-                                    {tag.name}
-                                </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-600">
-                                                    {tag.description || 'Chưa có mô tả'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
-                                                    {tag.post_count || 0} bài viết
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(tag.created_at).toLocaleDateString('vi-VN')}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => editTag(tag)}
-                                                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                                                        title="Chỉnh sửa"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteTag(tag)}
-                                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                                                        title="Xóa"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )
-                    ) : activeTab === 'posts' ? (
-                        filteredPosts.length === 0 ? (
-                            <div className="p-8 text-center">
-                                <p className="text-gray-600">Không có bài viết nào.</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bài viết</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tác giả</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredPosts.map((post) => (
-                                        <tr key={post.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center">
-                                                    {post.thumbnail && (
-                                                        <div className="flex-shrink-0 h-10 w-10 mr-4">
-                                                            <Image
-                                                                src={post.thumbnail}
-                                                                alt=""
-                                                                width={40}
-                                                                height={40}
-                                                                className="h-10 w-10 rounded-lg object-cover"
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    <div>
-                                                        <div className="text-sm font-medium text-gray-900 line-clamp-1">
-                                                            {post.title}
-                                                        </div>
-                                                        {post.description && (
-                                                            <div className="text-xs text-gray-500 line-clamp-1 mt-1">
-                                                                {post.description}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                                        post.type === 'activity'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-blue-100 text-blue-800'
-                                                    }`}>
-                                                        {post.type === 'activity' ? 'Hoạt động' : 'Blog'}
-                                                    </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {post.tags && post.tags.length > 0 ? (
-                                                        post.tags.slice(0, 2).map((tag) => (
-                                                            <span
-                                                                key={tag.id}
-                                                                className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800"
-                                                            >
-                                                                <Tag className="w-3 h-3 mr-1" />
-                                                                {tag.name}
-                                                            </span>
-                                                        ))
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400">Chưa có tag</span>
-                                                    )}
-                                                    {post.tags && post.tags.length > 2 && (
-                                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800">
-                                                            +{post.tags.length - 2}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {post.profiles?.full_name || 'N/A'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <button
-                                                    onClick={() => togglePublishStatus(post.id, post.published)}
-                                                    className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                                                        post.published
-                                                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                                            : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                                    }`}
-                                                >
-                                                    {post.published ? (
-                                                        <>
-                                                            <Eye className="w-3 h-3 mr-1" />
-                                                            Đã xuất bản
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <EyeOff className="w-3 h-3 mr-1" />
-                                                            Bản nháp
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(post.created_at).toLocaleDateString('vi-VN')}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => editPost(post)}
-                                                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                                                        title="Chỉnh sửa"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deletePost(post.id)}
-                                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                                                        title="Xóa"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )
-                    ) : (
-                        // Submissions tab
-                        filteredSubmissions.length === 0 ? (
-                            <div className="p-8 text-center">
-                                <p className="text-gray-600">Không có bài viết nào cần duyệt.</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bài viết</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày gửi</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredSubmissions.map((submission) => (
-                                        <tr key={submission.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center">
-                                                    {submission.posts?.thumbnail && (
-                                                        <div className="flex-shrink-0 h-10 w-10 mr-4">
-                                                            <Image
-                                                                src={submission.posts.thumbnail}
-                                                                alt=""
-                                                                width={40}
-                                                                height={40}
-                                                                className="h-10 w-10 rounded-lg object-cover"
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    <div>
-                                                        <div className="text-sm font-medium text-gray-900 line-clamp-2">
-                                                            {submission.posts?.title}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    {submission.profiles?.image_url ? (
-                                                        <Image
-                                                            src={submission.profiles.image_url}
-                                                            alt=""
-                                                            width={24}
-                                                            height={24}
-                                                            className="w-6 h-6 rounded-full mr-2"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center mr-2">
-                                                            <User className="w-3 h-3" />
-                                                        </div>
-                                                    )}
-                                                    <span className="text-sm text-gray-900">
-                                                            {submission.profiles?.full_name}
-                                                        </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                                        submission.posts?.type === 'activity'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : 'bg-blue-100 text-blue-800'
-                                                    }`}>
-                                                        {submission.posts?.type === 'activity' ? 'Hoạt động' : 'Blog'}
-                                                    </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                {getStatusBadge(submission.status)}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {new Date(submission.submitted_at).toLocaleDateString('vi-VN')}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {submission.status === 'pending' && (
-                                                        <button
-                                                            onClick={() => {
-                                                                setReviewingSubmission(submission);
-                                                                setAdminNotes('');
-                                                                setShowReviewModal(true);
-                                                            }}
-                                                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                                                            title="Duyệt bài viết"
-                                                        >
-                                                            <MessageSquare className="w-4 h-4" />
-                                                        </button>
-                                                    )}
-                                                    <button
-                                                        onClick={() => window.open(`/posts/${submission.posts?.id}`, '_blank')}
-                                                        className="text-gray-600 hover:text-gray-900 p-1 rounded hover:bg-gray-50"
-                                                        title="Xem bài viết"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )
+                    {activeTab === 'posts' && (
+                        <PostsTab
+                            ref={postsTabRef}
+                            searchTerm={searchTerm}
+                            filterType={filterType}
+                            filterPublished={filterPublished}
+                            filterTag={filterTag}
+                            onEditPost={handleEditPost}
+                            showNotification={showNotification}
+                        />
+                    )}
 
-                    )
+                    {activeTab === 'submissions' && (
+                        <SubmissionsTab
+                            ref={submissionsTabRef}
+                            searchTerm={searchTerm}
+                            filterType={filterType}
+                            filterStatus={filterStatus}
+                            filterTag={filterTag}
+                            onReviewSubmission={handleReviewSubmission}
+                            showNotification={showNotification}
+                        />
+                    )}
 
-                    }
+                    {activeTab === 'tags' && (
+                        <TagsTab
+                            ref={tagsTabRef}
+                            searchTerm={searchTerm}
+                            onEditTag={editTag}
+                            showNotification={showNotification}
+                        />
+                    )}
                 </div>
 
                 {/* Post Form Modal */}
@@ -1417,6 +997,7 @@ const PostPage: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Tags */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Tags
@@ -1524,9 +1105,7 @@ const PostPage: React.FC = () => {
                                             <Settings className="w-4 h-4" />
                                             Live Preview
                                         </button>
-
                                     </div>
-
 
                                     <Editor
                                         key={editingPost ? editingPost.id : 'new'}
@@ -1555,7 +1134,7 @@ const PostPage: React.FC = () => {
                                             ],
 
                                             toolbar: [
-                                                'undo redo | restoredraft', // Bỏ preview và fullscreen
+                                                'undo redo | restoredraft',
                                                 'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
                                                 'alignleft aligncenter alignright alignjustify | lineheight | ltr rtl',
                                                 'bullist numlist outdent indent',
@@ -1595,39 +1174,39 @@ const PostPage: React.FC = () => {
                                                         border-radius: 8px;
                                                         height: auto;
                                                     }
-                                
+                
                                                     /* Text wrapping classes - KHÔNG THAY ĐỔI KÍCH THƯỚC */
                                                     .wrap-left {
                                                         float: left !important;
                                                         margin: 0 2rem 1rem 0 !important;
                                                         clear: none !important;
                                                     }
-                                
+                
                                                     .wrap-right {
                                                         float: right !important;
                                                         margin: 0 0 1rem 2rem !important;
                                                         clear: none !important;
                                                     }
-                                
+                
                                                     .wrap-center {
                                                         display: block !important;
                                                         float: none !important;
                                                         margin: 2rem auto !important;
                                                         clear: both !important;
                                                     }
-                                
+                
                                                     /* Container fixes */
                                                     p {
                                                         margin-bottom: 1rem;
                                                         overflow: visible !important;
                                                     }
-                                
+                
                                                     p:has(.wrap-left),
                                                     p:has(.wrap-right) {
                                                         overflow: visible !important;
                                                         min-height: 50px !important;
                                                     }
-                                
+                
                                                     /* Clear utility */
                                                     .clear-wrap {
                                                         clear: both !important;
@@ -1636,7 +1215,7 @@ const PostPage: React.FC = () => {
                                                         font-size: 0 !important;
                                                         line-height: 0 !important;
                                                     }
-                                
+                
                                                     table {
                                                         border-collapse: collapse;
                                                         width: 100%;
@@ -1646,7 +1225,7 @@ const PostPage: React.FC = () => {
                                                         border: 1px solid #e5e7eb;
                                                         padding: .5rem;
                                                     }
-                                
+                
                                                     /* Responsive */
                                                     @media (max-width: 768px) {
                                                         .wrap-left,
@@ -1660,61 +1239,48 @@ const PostPage: React.FC = () => {
                                             ],
 
                                             setup: function (editor) {
-                                                // Helper: báo TinyMCE là đối tượng "đã resize" (ép kiểu để TS không bắt lỗi)
+                                                // Helper: báo TinyMCE là đối tượng "đã resize"
                                                 const fireWrapChange = (img: HTMLElement) => {
                                                     editor.fire('ObjectResized', { target: img } as any);
                                                 };
 
-                                                editor.on('KeyUp Change', function() {
-                                                    setTimeout(updateLivePreview, 100);
-                                                });
-
-                                                // Command: Wrap Left
+                                                // Commands và buttons cho wrap (giống code cũ)
                                                 editor.addCommand('WrapImageLeft', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
                                                         img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
                                                         img.classList.add('wrap-left');
-
                                                         const parent = img.parentNode as HTMLElement;
                                                         if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
-
                                                         editor.undoManager.add();
-                                                        fireWrapChange(img); // <-- ép kiểu any
+                                                        fireWrapChange(img);
                                                     }
                                                 });
 
-                                                // Command: Wrap Right
                                                 editor.addCommand('WrapImageRight', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
                                                         img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
                                                         img.classList.add('wrap-right');
-
                                                         const parent = img.parentNode as HTMLElement;
                                                         if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
-
                                                         editor.undoManager.add();
-                                                        fireWrapChange(img); // <-- ép kiểu any
+                                                        fireWrapChange(img);
                                                     }
                                                 });
 
-                                                // Command: Wrap Center
                                                 editor.addCommand('WrapImageCenter', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
                                                         img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
                                                         img.classList.add('wrap-center');
-
                                                         const parent = img.parentNode as HTMLElement;
                                                         if (parent && parent.tagName === 'P') (parent as HTMLElement).style.textAlign = 'center';
-
                                                         editor.undoManager.add();
-                                                        fireWrapChange(img); // <-- ép kiểu any
+                                                        fireWrapChange(img);
                                                     }
                                                 });
 
-                                                // Command: Clear Wrap (toggle)
                                                 editor.addCommand('ClearImageWrap', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
@@ -1722,22 +1288,14 @@ const PostPage: React.FC = () => {
                                                             img.classList.contains('wrap-left') ||
                                                             img.classList.contains('wrap-right') ||
                                                             img.classList.contains('wrap-center');
-
                                                         if (hasWrap) {
                                                             img.classList.remove('wrap-left', 'wrap-right', 'wrap-center');
-
                                                             const parent = img.parentNode as HTMLElement;
                                                             if (parent && parent.tagName === 'P') parent.removeAttribute('style');
                                                         }
-
                                                         editor.undoManager.add();
-                                                        fireWrapChange(img); // <-- ép kiểu any
+                                                        fireWrapChange(img);
                                                     }
-                                                });
-
-                                                // Command: Insert Clear Div
-                                                editor.addCommand('InsertClearDiv', function () {
-                                                    editor.insertContent('<div class="clear-wrap">&nbsp;</div>');
                                                 });
 
                                                 // Buttons cho quickbar
@@ -1794,15 +1352,6 @@ const PostPage: React.FC = () => {
                                                     }
                                                 });
 
-                                                // Optional: thêm button vào toolbar chính
-                                                editor.ui.registry.addButton('insertclear', {
-                                                    icon: 'new-document',
-                                                    tooltip: 'Thêm dòng clear',
-                                                    onAction: function () {
-                                                        editor.execCommand('InsertClearDiv');
-                                                    }
-                                                });
-
                                                 // Auto-fix container khi có ảnh wrap
                                                 editor.on('NodeChange', function () {
                                                     const wrappedImages = editor.dom.select('img.wrap-left, img.wrap-right');
@@ -1810,21 +1359,6 @@ const PostPage: React.FC = () => {
                                                         const parent = imgEl.parentNode as HTMLElement;
                                                         if (parent && parent.tagName === 'P') parent.style.overflow = 'visible';
                                                     });
-                                                });
-
-                                                // Preserve classes khi preprocess/postprocess
-                                                editor.on('PreProcess', function (e) {
-                                                    const images = e.node.querySelectorAll('img[class*="wrap-"]');
-                                                    images.forEach((imgEl) => {
-                                                        const classes = imgEl.getAttribute('class');
-                                                        if (classes) imgEl.setAttribute('data-mce-classes', classes);
-                                                    });
-                                                });
-
-                                                editor.on('PostProcess', function (e) {
-                                                    if (e.content) {
-                                                        e.content = e.content.replace(/data-mce-classes="([^"]*)"/g, 'class="$1"');
-                                                    }
                                                 });
                                             },
 
@@ -1904,11 +1438,6 @@ const PostPage: React.FC = () => {
                                     />
                                 </div>
 
-
-
-
-
-
                                 {/* Publish Status */}
                                 <div className="flex items-center gap-2">
                                     <input
@@ -1973,17 +1502,7 @@ const PostPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Scrollable Content với smooth scrolling */}
-                                    <div
-                                        className="p-6 overflow-y-auto max-h-[calc(90vh-120px)] scroll-smooth"
-                                        style={{
-                                            scrollBehavior: 'smooth',
-                                            WebkitOverflowScrolling: 'touch',
-                                            transform: 'translateZ(0)',
-                                            backfaceVisibility: 'hidden',
-                                            perspective: 1000,
-                                        }}
-                                    >
+                                    <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
                                         {/* Post Header */}
                                         <div className="mb-8 pb-6 border-b border-gray-200">
                                             <div className="mb-3">
@@ -2015,7 +1534,7 @@ const PostPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Content - Chỉ cần className, bỏ hết inline styles và styled-jsx */}
+                                        {/* Content */}
                                         <div
                                             className="preview-content tinymce-content prose prose-lg max-w-none"
                                             dangerouslySetInnerHTML={{ __html: previewContent }}
@@ -2025,15 +1544,23 @@ const PostPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Live Preview Modal */}
+                        {/* Live Preview Modal - FIXED VERSION */}
                         {showLivePreview && (
-                            <div className="fixed inset-0 z-[60] bg-white">
+                            <div
+                                className="fixed inset-0 z-[60] bg-white"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                        handleCloseLivePreview();
+                                    }
+                                }}
+                                tabIndex={-1}
+                            >
                                 <div className="h-full flex flex-col">
                                     {/* Header */}
                                     <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
                                         <h3 className="text-lg font-bold">Live Preview - {formData.title || 'Bài viết mới'}</h3>
                                         <button
-                                            onClick={() => setShowLivePreview(false)}
+                                            onClick={handleCloseLivePreview}
                                             className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
                                         >
                                             <X className="w-5 h-5" />
@@ -2043,7 +1570,7 @@ const PostPage: React.FC = () => {
 
                                     {/* Content */}
                                     <div className="flex-1 flex overflow-hidden">
-                                        {/* Editor Side - GIỮ NGUYÊN */}
+                                        {/* Editor Side */}
                                         <div className="w-1/2 border-r border-gray-200 flex flex-col">
                                             <div className="p-3 bg-gray-50 border-b border-gray-200">
                                                 <h4 className="font-semibold text-gray-700">Editor</h4>
@@ -2054,12 +1581,14 @@ const PostPage: React.FC = () => {
                                                     tinymceScriptSrc="/tinymce/tinymce.min.js"
                                                     onInit={(evt, editor) => {
                                                         liveEditorRef.current = editor;
-                                                        // Load content từ main editor hoặc editing post
-                                                        const currentContent = editorRef.current?.getContent() || editingPost?.content || '';
+                                                        // Load content từ main editor hoặc stored content
+                                                        const currentContent = livePreviewContent || editorRef.current?.getContent() || editingPost?.content || '';
                                                         if (currentContent) {
                                                             setTimeout(() => {
                                                                 editor.setContent(currentContent);
                                                                 setPreviewContent(currentContent);
+                                                                setLivePreviewContent(currentContent);
+                                                                setPendingLiveContent(currentContent);
                                                             }, 100);
                                                         }
                                                     }}
@@ -2069,7 +1598,6 @@ const PostPage: React.FC = () => {
                                                         suffix: '.min',
                                                         height: 'calc(100vh - 140px)',
                                                         menubar: 'file edit view insert format tools table help',
-
                                                         branding: false,
                                                         promotion: false,
                                                         statusbar: false,
@@ -2179,14 +1707,12 @@ const PostPage: React.FC = () => {
                                     `)
                                                         ],
 
-                                                        // Copy toàn bộ setup function từ editor chính
                                                         setup: function(editor) {
-                                                            // Tất cả các commands và buttons từ editor chính
+                                                            // Wrap commands (same as main editor)
                                                             const fireWrapChange = (img: HTMLElement) => {
                                                                 editor.fire('ObjectResized', { target: img } as any);
                                                             };
 
-                                                            // Commands
                                                             editor.addCommand('WrapImageLeft', function () {
                                                                 const img = editor.selection.getNode() as HTMLElement;
                                                                 if (img && img.tagName === 'IMG') {
@@ -2294,37 +1820,100 @@ const PostPage: React.FC = () => {
                                                                 }
                                                             });
 
-                                                            // Real-time sync với throttling
-                                                            let updateTimeout: NodeJS.Timeout;
-                                                            editor.on('KeyUp Change', function() {
-                                                                clearTimeout(updateTimeout);
-                                                                updateTimeout = setTimeout(() => {
-                                                                    const content = editor.getContent();
-                                                                    setPreviewContent(content);
-                                                                    if (editorRef.current) {
-                                                                        editorRef.current.setContent(content);
+                                                            // ENHANCED CONTENT SYNC SYSTEM
+                                                            let syncTimeout: NodeJS.Timeout;
+                                                            let lastSyncTime = 0;
+
+                                                            const performSync = () => {
+                                                                const now = Date.now();
+                                                                if (now - lastSyncTime < 100) return; // Throttle
+
+                                                                lastSyncTime = now;
+                                                                const content = editor.getContent();
+
+                                                                // Update preview immediately
+                                                                setPreviewContent(content);
+                                                                setPendingLiveContent(content);
+
+                                                                // Sync to main editor with debounce
+                                                                clearTimeout(syncTimeout);
+                                                                syncTimeout = setTimeout(() => {
+                                                                    if (editorRef.current && !isLivePreviewClosing) {
+                                                                        try {
+                                                                            editorRef.current.setContent(content);
+                                                                            setFormData(prev => ({ ...prev, content }));
+                                                                        } catch (error) {
+                                                                            console.warn('Sync to main editor failed:', error);
+                                                                        }
                                                                     }
                                                                 }, 300);
+                                                            };
+
+                                                            // Multiple event listeners for comprehensive sync
+                                                            editor.on('KeyUp Change Input NodeChange', performSync);
+                                                            editor.on('Paste Undo Redo ExecCommand', () => {
+                                                                setTimeout(performSync, 50);
                                                             });
+
+                                                            // Periodic sync as backup
+                                                            const intervalSync = setInterval(() => {
+                                                                if (!isLivePreviewClosing) {
+                                                                    performSync();
+                                                                } else {
+                                                                    clearInterval(intervalSync);
+                                                                }
+                                                            }, 2000);
+
+                                                            // Final sync on blur
+                                                            editor.on('blur', () => {
+                                                                setTimeout(performSync, 100);
+                                                            });
+
+                                                            // Cleanup
+                                                            editor.on('remove', () => {
+                                                                clearTimeout(syncTimeout);
+                                                                clearInterval(intervalSync);
+                                                            });
+                                                        },
+
+                                                        images_upload_handler: async (blobInfo: any) => {
+                                                            try {
+                                                                const file = blobInfo.blob() as File;
+                                                                const url = await uploadImage(file);
+                                                                return url;
+                                                            } catch (err) {
+                                                                throw 'Lỗi upload ảnh: ' + err;
+                                                            }
+                                                        },
+
+                                                        file_picker_callback: (cb: any, value: any, meta: any) => {
+                                                            const input = document.createElement('input');
+                                                            input.type = 'file';
+                                                            input.accept = meta.filetype === 'media' ? 'video/*,audio/*' : 'image/*';
+                                                            input.onchange = async () => {
+                                                                const f = (input as HTMLInputElement).files?.[0];
+                                                                if (!f) return;
+                                                                try {
+                                                                    const url = await uploadImage(f);
+                                                                    cb(url, { title: f.name });
+                                                                } catch (e) {
+                                                                    console.error(e);
+                                                                }
+                                                            };
+                                                            input.click();
                                                         }
                                                     }}
                                                 />
                                             </div>
                                         </div>
 
+                                        {/* Preview Side */}
                                         <div className="w-1/2 flex flex-col">
                                             <div className="p-3 bg-gray-50 border-b border-gray-200">
                                                 <h4 className="font-semibold text-gray-700">Preview</h4>
                                             </div>
-                                            <div
-                                                className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white"
-                                                style={{
-                                                    scrollBehavior: 'smooth',
-                                                    WebkitOverflowScrolling: 'touch',
-                                                    transform: 'translateZ(0)',
-                                                }}
-                                            >
-                                                {/* Post Header giống PostDetailPage */}
+                                            <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white">
+                                                {/* Post Header */}
                                                 <div className="mb-8 pb-6 border-b border-gray-200">
                                                     <div className="mb-3">
                                                         <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
@@ -2355,7 +1944,7 @@ const PostPage: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Content - Chỉ cần className, bỏ hết inline styles và styled-jsx */}
+                                                {/* Content */}
                                                 <div
                                                     className="live-preview-content tinymce-content prose prose-lg max-w-none"
                                                     dangerouslySetInnerHTML={{ __html: previewContent }}
@@ -2366,8 +1955,6 @@ const PostPage: React.FC = () => {
                                 </div>
                             </div>
                         )}
-
-
                     </div>
                 )}
 
@@ -2488,6 +2075,7 @@ const PostPage: React.FC = () => {
                     </div>
                 )}
 
+                {/* Tag Form Modal */}
                 {showTagForm && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div
