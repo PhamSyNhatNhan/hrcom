@@ -56,7 +56,7 @@ interface Post {
     published_at: string | null;
     created_at: string;
     updated_at: string;
-    profiles: {
+    profiles?: {
         full_name: string;
         image_url?: string;
     };
