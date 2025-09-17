@@ -205,8 +205,8 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
 
             // Get post IDs for tags
             const postIds = data
-                .map(item => item.posts?.id)
-                .filter(Boolean);
+                .map((item: any) => item.posts?.id)
+                .filter((id): id is string => Boolean(id));
 
             // Fetch tags separately
             let tagsMap: { [key: string]: Tag[] } = {};
