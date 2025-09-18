@@ -85,6 +85,7 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
     const pageSize = 20;
 
     // Load posts with filters to exclude unapproved mentor posts
+    // Load posts with filters to exclude unapproved mentor posts
     const loadPosts = async (page: number = 1) => {
         try {
             setLoading(true);
@@ -123,19 +124,14 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                 query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
             }
 
-            // Pagination
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
+            // Order first, then get all matching records for filtering
+            query = query.order('created_at', { ascending: false });
 
-            query = query
-                .range(from, to)
-                .order('created_at', { ascending: false });
-
-            const { data: postsData, error, count } = await query;
+            const { data: allPosts, error, count } = await query;
 
             if (error) throw error;
 
-            if (!postsData || postsData.length === 0) {
+            if (!allPosts || allPosts.length === 0) {
                 setPosts([]);
                 setTotalCount(0);
                 setTotalPages(0);
@@ -143,7 +139,7 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
             }
 
             // Get user roles to identify admin/superadmin vs mentor posts
-            const authorIds = [...new Set(postsData.map(post => post.author_id))];
+            const authorIds = [...new Set(allPosts.map(post => post.author_id))];
             const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
 
             // Create a map of user_id -> role
@@ -159,7 +155,7 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
             const { data: submissions, error: submissionError } = await supabase
                 .from('post_submissions')
                 .select('post_id, status')
-                .in('post_id', postsData.map(post => post.id));
+                .in('post_id', allPosts.map(post => post.id));
 
             const submissionMap: { [key: string]: string } = {};
             if (!submissionError && submissions) {
@@ -169,7 +165,7 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
             }
 
             // Filter posts based on author role and submission status
-            const filteredPosts = postsData.filter(post => {
+            const filteredPosts = allPosts.filter(post => {
                 const authorRole = userRoles[post.author_id] || 'user';
 
                 // Admin and superadmin posts are always shown
@@ -204,9 +200,18 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                 );
             }
 
-            setPosts(finalPosts);
-            setTotalCount(filteredPosts.length); // Use filtered count
-            setTotalPages(Math.ceil(filteredPosts.length / pageSize));
+            // Apply pagination to filtered results
+            const totalFilteredCount = finalPosts.length;
+            const totalPages = Math.ceil(totalFilteredCount / pageSize);
+
+            // Calculate pagination range
+            const from = (page - 1) * pageSize;
+            const to = from + pageSize;
+            const paginatedPosts = finalPosts.slice(from, to);
+
+            setPosts(paginatedPosts);
+            setTotalCount(totalFilteredCount);
+            setTotalPages(totalPages);
 
         } catch (error) {
             console.error('Error loading posts:', error);

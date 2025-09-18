@@ -103,6 +103,9 @@ const RootLayout = ({ children }: LayoutProps) => {
         // New states for dropdown menus
         const [isMentorMenuOpen, setIsMentorMenuOpen] = useState(false);
         const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+        // Mobile dropdown states
+        const [isMobileMentorMenuOpen, setIsMobileMentorMenuOpen] = useState(false);
+        const [isMobileAdminMenuOpen, setIsMobileAdminMenuOpen] = useState(false);
 
         // Prevent hydration mismatch by ensuring user-specific UI renders only on the client
         const [isMounted, setIsMounted] = useState(false);
@@ -128,6 +131,8 @@ const RootLayout = ({ children }: LayoutProps) => {
             setIsMenuOpen(false);
             setIsMentorMenuOpen(false);
             setIsAdminMenuOpen(false);
+            setIsMobileMentorMenuOpen(false);
+            setIsMobileAdminMenuOpen(false);
         };
 
         const handleLogout = async () => {
@@ -404,44 +409,116 @@ const RootLayout = ({ children }: LayoutProps) => {
                                     )
                                 )}
 
-                                {/* Mentor Links - Mobile */}
+                                {/* Mentor Dropdown - Mobile */}
                                 {user?.role === 'mentor' && (
-                                    <div className="border-t pt-3 mt-3">
-                                        <p className="px-4 py-2 text-sm font-semibold text-gray-900 bg-gray-50 rounded-lg mb-2">Mentor Panel</p>
-                                        <Link href="/mentor_page/booking_mentor" className={`block py-2 pl-8 ${navLinkClass('/mentor_page/booking_mentor')}`} onClick={handleNavLinkClick}>
-                                            Lịch hẹn
-                                        </Link>
-                                        <Link href="/mentor_page/post_mentor" className={`block py-2 pl-8 ${navLinkClass('/mentor_page/post_mentor')}`} onClick={handleNavLinkClick}>
-                                            Đăng bài
-                                        </Link>
+                                    <div>
+                                        <button
+                                            onClick={() => setIsMobileMentorMenuOpen(!isMobileMentorMenuOpen)}
+                                            className={`flex items-center justify-between w-full py-2 pl-4 transition-colors duration-200 ${navLinkClass('/mentor_page')} ${isMentorRouteActive ? 'text-cyan-600 font-semibold' : ''}`}
+                                        >
+                                            Mentor Panel
+                                            <ChevronDown className={`w-4 h-4 mr-4 transition-transform duration-300 ${isMobileMentorMenuOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        <div className={`grid transition-all duration-300 ease-in-out ${
+                                            isMobileMentorMenuOpen
+                                                ? 'grid-rows-[1fr] opacity-100'
+                                                : 'grid-rows-[0fr] opacity-0'
+                                        }`}>
+                                            <div className="overflow-hidden">
+                                                <div className="py-1 space-y-0">
+                                                    <Link
+                                                        href="/mentor_page/booking_mentor"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/mentor_page/booking_mentor')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Lịch hẹn
+                                                    </Link>
+                                                    {/*
+                                                    <Link
+                                                        href="/mentor_page/post_mentor"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/mentor_page/post_mentor')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Đăng bài
+                                                    </Link>
+                                                    */}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* Admin Links - Mobile */}
+                                {/* Admin Dropdown - Mobile */}
                                 {(user?.role === 'admin' || user?.role === 'superadmin') && (
-                                    <div className="border-t pt-3 mt-3">
-                                        <p className="px-4 py-2 text-sm font-semibold text-gray-900 bg-gray-50 rounded-lg mb-2">Admin Panel</p>
-                                        <Link href="/admin/daskboard_modify" className={`block py-2 pl-8 ${navLinkClass('/admin/daskboard_modify')}`} onClick={handleNavLinkClick}>
-                                            Chỉnh sửa Trang chủ
-                                        </Link>
-                                        <Link href="/admin/modify_mentor" className={`block py-2 pl-8 ${navLinkClass('/admin/modify_mentor')}`} onClick={handleNavLinkClick}>
-                                            Chỉnh sửa mentor
-                                        </Link>
-                                        <Link href="/admin/mentor_booking_modify" className={`block py-2 pl-8 ${navLinkClass('/admin/mentor_booking_modify')}`} onClick={handleNavLinkClick}>
-                                            Quản lý đặt lịch
-                                        </Link>
-                                        <Link href="/admin/post" className={`block py-2 pl-8 ${navLinkClass('/admin/post')}`} onClick={handleNavLinkClick}>
-                                            Quản lý bài viết
-                                        </Link>
+                                    <div>
+                                        <button
+                                            onClick={() => setIsMobileAdminMenuOpen(!isMobileAdminMenuOpen)}
+                                            className={`flex items-center justify-between w-full py-2 pl-4 transition-colors duration-200 ${navLinkClass('/admin')} ${isAdminRouteActive ? 'text-cyan-600 font-semibold' : ''}`}
+                                        >
+                                            Admin Panel
+                                            <ChevronDown className={`w-4 h-4 mr-4 transition-transform duration-300 ${isMobileAdminMenuOpen ? 'rotate-180' : ''}`} />
+                                        </button>
 
-                                        {/* Superadmin only - Mobile */}
-                                        {user?.role === 'superadmin' && (
-                                            <Link href="/src/app/admin/modify" className={`block py-2 pl-8 ${navLinkClass('/admin/modify')}`} onClick={handleNavLinkClick}>
-                                                Chỉnh sửa tài khoản
-                                            </Link>
-                                        )}
+                                        <div className={`grid transition-all duration-300 ease-in-out ${
+                                            isMobileAdminMenuOpen
+                                                ? 'grid-rows-[1fr] opacity-100'
+                                                : 'grid-rows-[0fr] opacity-0'
+                                        }`}>
+                                            <div className="overflow-hidden">
+                                                <div className="py-1 space-y-0">
+                                                    {/*
+                                                    <Link
+                                                        href="/admin/daskboard_modify"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/admin/daskboard_modify')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Chỉnh sửa Trang chủ
+                                                    </Link>
+                                                    <Link
+                                                        href="/admin/modify_mentor"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/admin/modify_mentor')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Chỉnh sửa mentor
+                                                    </Link>
+                                                    */}
+                                                    <Link
+                                                        href="/admin/mentor_booking_modify"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/admin/mentor_booking_modify')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Quản lý đặt lịch
+                                                    </Link>
+                                                    {/*
+                                                    <Link
+                                                        href="/admin/post"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/admin/post')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Quản lý bài viết
+                                                    </Link>
+                                                    */}
+
+                                                    {/* Superadmin only - Mobile */}
+                                                    {/*
+                                                    {user?.role === 'superadmin' && (
+                                                        <Link
+                                                            href="/admin/modify"
+                                                            className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/admin/modify')}`}
+                                                            onClick={handleNavLinkClick}
+                                                        >
+                                                            Khác
+                                                        </Link>
+                                                    )}
+                                                    */}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
+
+
                             </div>
 
                             {/* Auth Section */}
@@ -465,7 +542,6 @@ const RootLayout = ({ children }: LayoutProps) => {
                                             setIsMenuOpen(false);
                                             router.push('/user');
                                         }}><User className="w-4 h-4 text-gray-500" /><span>Tài khoản của tôi</span></button>
-                                        <button className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><Settings className="w-4 h-4 text-gray-500" /><span>Cài đặt</span></button>
                                         <button onClick={handleLogout} className="w-full text-left py-2 px-3 text-sm hover:bg-gray-50 rounded-lg text-red-600 flex items-center space-x-2 transition-all duration-300 transform hover:scale-105"><LogOut className="w-4 h-4" /><span>Đăng xuất</span></button>
                                     </div>
                                 ) : null}
@@ -544,11 +620,11 @@ const RootLayout = ({ children }: LayoutProps) => {
     return (
         <html lang="vi">
         <body className="min-h-screen bg-gradient-to-br from-slate-50 to-cyan-50">
-            <Header />
-            <FloatingMenu />
-                <main>{children}</main>
-            <Footer />
-            </body>
+        <Header />
+        <FloatingMenu />
+        <main>{children}</main>
+        <Footer />
+        </body>
         </html>
     );
 };

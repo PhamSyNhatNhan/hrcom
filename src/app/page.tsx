@@ -17,8 +17,7 @@ import { PartnerCard } from '@/component/PartnerCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
 import Link from "next/link";
 import { supabase } from '@/utils/supabase/client';
-import { useAuthStore } from '@/stores/authStore';
-
+import { useAuthStore } from "@/stores/authStore";
 
 const fallbackStats = [
     {icon: UserCheck, value: '89', label: 'Mentor đồng hành',},
@@ -222,7 +221,7 @@ const HomePage = () => {
     const [mentorsError, setMentorsError] = useState<string | null>(null);
 
     const { user } = useAuthStore();
-
+    const isLoggedIn = !!user;
 
     // Load homepage data using the SQL function
     useEffect(() => {
@@ -614,8 +613,8 @@ const HomePage = () => {
                 </div>
             </section>
 
-            {/* CTA Section */}
-            {!user && (
+            {/* CTA Section - Only show for non-logged in users */}
+            {!isLoggedIn && (
                 <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-600 to-blue-700 text-white">
                     <div className="max-w-4xl mx-auto text-center">
                         <h2 className="text-4xl font-bold mb-6">Tham Gia HR Companion Ngay Hôm Nay</h2>

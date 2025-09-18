@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -15,7 +15,9 @@ import {
     Loader2,
     Users,
     RefreshCw,
-    Phone
+    Phone,
+    GraduationCap,
+    AlertTriangle
 } from 'lucide-react';
 import Image from 'next/image';
 
@@ -26,125 +28,131 @@ interface UserProfile {
     phone_number?: string;
     created_at: string;
     updated_at: string;
-    role?: 'user' | 'admin' | 'superadmin';
-    email?: string;
+    role: 'user' | 'admin' | 'superadmin' | 'mentor';
+    email: string;
+    email_confirmed_at?: string;
+    last_sign_in_at?: string;
 }
 
 interface UserManagementTabProps {
     showNotification: (type: 'success' | 'error' | 'warning', message: string) => void;
 }
 
-// Helper functions
+// Helper function for error handling
 function getErrorMessage(err: unknown): string {
     if (!err) return 'Unknown error';
     if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
 
-    // Supabase PostgrestError thường có thuộc tính không enumerable
     try {
-        const msg =
-            // @ts-ignore
-            err?.message ||
-            // @ts-ignore
-            err?.error_description ||
-            // @ts-ignore
-            err?.hint ||
-            // stringify toàn bộ props (kể cả non-enumerable)
-            JSON.stringify(err, Object.getOwnPropertyNames(err));
-        return typeof msg === 'string' ? msg : JSON.stringify(msg);
+        return JSON.stringify(err);
     } catch {
-        try {
-            return JSON.stringify(err);
-        } catch {
-            return String(err);
-        }
+        return String(err);
     }
 }
 
+// Debounce utility function
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+    let timeout: NodeJS.Timeout;
+    return ((...args: any[]) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    }) as T;
+}
+
+// Error Boundary Wrapper Component
+const ErrorBoundaryWrapper: React.FC<{ children: React.ReactNode; onRetry: () => void }> = ({
+                                                                                                children,
+                                                                                                onRetry
+                                                                                            }) => {
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        const handleError = (error: ErrorEvent) => {
+            console.error('Global error caught:', error);
+            setHasError(true);
+        };
+
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            setHasError(true);
+        };
+
+        window.addEventListener('error', handleError);
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+        return () => {
+            window.removeEventListener('error', handleError);
+            window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        };
+    }, []);
+
+    if (hasError) {
+        return (
+            <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle className="w-8 h-8 text-red-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Có lỗi xảy ra
+                </h3>
+                <p className="text-gray-600 mb-4">
+                    Trang đã gặp lỗi. Vui lòng thử làm mới.
+                </p>
+                <div className="flex gap-2 justify-center">
+                    <button
+                        onClick={() => setHasError(false)}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                    >
+                        Thử lại
+                    </button>
+                    <button
+                        onClick={() => {
+                            setHasError(false);
+                            onRetry();
+                        }}
+                        className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                    >
+                        Làm mới dữ liệu
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return <>{children}</>;
+};
 
 const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification }) => {
     const { user: currentUser } = useAuthStore();
     const [users, setUsers] = useState<UserProfile[]>([]);
-    const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'admin' | 'superadmin'>('all');
+    const [roleFilter, setRoleFilter] = useState<'all' | 'user' | 'admin' | 'superadmin' | 'mentor'>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const [confirmAction, setConfirmAction] = useState<{
         userId: string;
         action: 'promote' | 'demote';
         userEmail: string;
+        userName: string;
+        currentRole: string;
+        newRole: string;
     } | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [loadingDebounce, setLoadingDebounce] = useState(false);
 
     const pageSize = 20;
-    const totalPages = Math.ceil(filteredUsers.length / pageSize);
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const currentUsers = filteredUsers.slice(startIndex, endIndex);
 
-    // Load users - Sử dụng RPC function
-    const loadUsers = async () => {
-        try {
-            setLoading(true);
-            console.log('Loading users via RPC function (admin_get_users_with_roles)...');
-
-            // Quan trọng: dùng throwOnError để không bị {} mơ hồ
-            const { data } = await supabase
-                .rpc('admin_get_users_with_roles')
-                .throwOnError();
-
-            if (!data || data.length === 0) {
-                setUsers([]);
-                setFilteredUsers([]);
-                return;
-            }
-
-            const processedUsers = (data as any[]).map((u) => ({
-                id: u.id, // RPC đã SELECT au.id AS id
-                full_name: u.full_name ?? 'Chưa cập nhật tên',
-                image_url: u.image_url ?? undefined,
-                phone_number: u.phone_number ?? undefined,
-                created_at: u.created_at,
-                updated_at: u.updated_at ?? u.created_at,
-                role: (u.role as 'user' | 'admin' | 'superadmin') ?? 'user',
-                email: u.email ?? '',
-            }));
-
-            const sortedUsers = processedUsers.sort((a: any, b: any) => {
-                const order: Record<string, number> = { superadmin: 0, admin: 1, user: 2 };
-                const ao = order[a.role] ?? 3;
-                const bo = order[b.role] ?? 3;
-                return ao !== bo
-                    ? ao - bo
-                    : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            });
-
-            setUsers(sortedUsers);
-            setFilteredUsers(sortedUsers);
-            console.log(`Successfully loaded ${sortedUsers.length} users`);
-        } catch (err) {
-            // In ra toàn bộ object lỗi để dễ debug
-            console.error('Error loading users (raw):', err);
-            showNotification('error', 'Không thể tải danh sách người dùng: ' + getErrorMessage(err));
-            setUsers([]);
-            setFilteredUsers([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
-
-    // Filter users
-    useEffect(() => {
+    // Memoized filtered users to prevent unnecessary recalculations
+    const filteredUsers = useMemo(() => {
         let filtered = users;
 
         // Filter by search term
         if (searchTerm.trim()) {
             const searchLower = searchTerm.toLowerCase();
             filtered = filtered.filter(user => {
-                const emailMatch = user.email?.toLowerCase().includes(searchLower);
-                const nameMatch = user.full_name?.toLowerCase().includes(searchLower);
+                const emailMatch = user.email.toLowerCase().includes(searchLower);
+                const nameMatch = user.full_name.toLowerCase().includes(searchLower);
                 const phoneMatch = user.phone_number?.includes(searchTerm);
                 return emailMatch || nameMatch || phoneMatch;
             });
@@ -155,97 +163,149 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
             filtered = filtered.filter(user => user.role === roleFilter);
         }
 
-        setFilteredUsers(filtered);
-        setCurrentPage(1);
+        return filtered;
     }, [users, searchTerm, roleFilter]);
 
-    // CHANGED
-    const promoteToAdmin = async (userId: string) => {
+    const totalPages = Math.ceil(filteredUsers.length / pageSize);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const currentUsers = filteredUsers.slice(startIndex, endIndex);
+
+    // Load users from RPC - removed useCallback to prevent reload issues
+    const loadUsers = async () => {
+        try {
+            setLoading(true);
+            console.log('Loading users via RPC function...');
+
+            const { data, error } = await supabase
+                .rpc('admin_get_users_with_roles');
+
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            if (!data || data.length === 0) {
+                setUsers([]);
+                return;
+            }
+
+            const processedUsers: UserProfile[] = data.map((u: any) => ({
+                id: u.id,
+                full_name: u.full_name || 'Chưa cập nhật tên',
+                image_url: u.image_url,
+                phone_number: u.phone_number,
+                created_at: u.created_at,
+                updated_at: u.updated_at,
+                role: u.role || 'user',
+                email: u.email || '',
+                email_confirmed_at: u.email_confirmed_at,
+                last_sign_in_at: u.last_sign_in_at,
+            }));
+
+            // Sort by role priority, then by creation date
+            const sortedUsers = processedUsers.sort((a, b) => {
+                const roleOrder = { superadmin: 0, admin: 1, mentor: 2, user: 3 };
+                const aOrder = roleOrder[a.role] ?? 4;
+                const bOrder = roleOrder[b.role] ?? 4;
+
+                if (aOrder !== bOrder) return aOrder - bOrder;
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
+
+            setUsers(sortedUsers);
+            console.log(`Successfully loaded ${sortedUsers.length} users`);
+        } catch (err) {
+            console.error('Error loading users:', err);
+            showNotification('error', 'Không thể tải danh sách người dùng: ' + getErrorMessage(err));
+            setUsers([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Debounced load users function
+    const debouncedLoadUsers = useMemo(
+        () => debounce(() => {
+            if (!loadingDebounce) {
+                setLoadingDebounce(true);
+                loadUsers().finally(() => {
+                    setTimeout(() => setLoadingDebounce(false), 1000);
+                });
+            }
+        }, 300),
+        [loadingDebounce]
+    );
+
+    // Reset to first page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, roleFilter]);
+
+    // Update user role via RPC
+    const updateUserRole = async (userId: string, newRole: 'user' | 'admin') => {
         try {
             setActionLoading(userId);
-            console.log('Promoting user to admin:', userId);
+            console.log(`Updating user ${userId} role to ${newRole}`);
 
-            // ✅ Đổi sang RPC đúng
             const { data, error } = await supabase.rpc('admin_update_user_role', {
                 target_user_id: userId,
-                new_role: 'admin',
+                new_role: newRole,
             });
 
             console.log('Update RPC Response:', { data, error });
 
-            if (error) throw new Error(error.message);
-            if (!data?.success) throw new Error(data?.error || 'Failed to update role');
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            if (!data?.success) {
+                throw new Error(data?.error || 'Failed to update role');
+            }
 
             // Update local state
             setUsers(prev => prev.map(user =>
-                user.id === userId ? { ...user, role: 'admin' as const } : user
+                user.id === userId ? { ...user, role: newRole } : user
             ));
 
-            showNotification('success', 'Đã nâng cấp người dùng thành Admin');
+            const actionText = newRole === 'admin' ? 'nâng cấp lên Admin' : 'hạ cấp về User';
+            showNotification('success', `Đã ${actionText} thành công`);
+
         } catch (error) {
-            console.error('Error promoting user:', error);
-            showNotification('error', getErrorMessage(error));
+            console.error('Error updating user role:', error);
+            showNotification('error', `Không thể cập nhật quyền: ${getErrorMessage(error)}`);
         } finally {
             setActionLoading(null);
             setConfirmAction(null);
         }
     };
 
-
-    // Demote user to user - Sử dụng RPC function
-    // CHANGED
-    const demoteToUser = async (userId: string) => {
-        try {
-            setActionLoading(userId);
-            console.log('Demoting user to user:', userId);
-
-            // ✅ Đổi sang RPC đúng
-            const { data, error } = await supabase.rpc('admin_update_user_role', {
-                target_user_id: userId,
-                new_role: 'user',
-            });
-
-            console.log('Update RPC Response:', { data, error });
-
-            if (error) throw new Error(error.message);
-            if (!data?.success) throw new Error(data?.error || 'Failed to update role');
-
-            // Update local state
-            setUsers(prev => prev.map(user =>
-                user.id === userId ? { ...user, role: 'user' as const } : user
-            ));
-
-            showNotification('success', 'Đã hạ cấp Admin về User');
-        } catch (error) {
-            console.error('Error demoting user:', error);
-            showNotification('error', getErrorMessage(error));
-        } finally {
-            setActionLoading(null);
-            setConfirmAction(null);
-        }
-    };
-
-
-    // Get role badge
-    const getRoleBadge = (role?: string) => {
+    // Get role badge with proper styling
+    const getRoleBadge = (role: string) => {
         switch (role) {
             case 'superadmin':
                 return (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
                         <Crown className="w-3 h-3 mr-1" />
                         Super Admin
                     </span>
                 );
             case 'admin':
                 return (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                         <ShieldCheck className="w-3 h-3 mr-1" />
                         Admin
                     </span>
                 );
+            case 'mentor':
+                return (
+                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        <GraduationCap className="w-3 h-3 mr-1" />
+                        Mentor
+                    </span>
+                );
             default:
                 return (
-                    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
                         <User className="w-3 h-3 mr-1" />
                         User
                     </span>
@@ -253,20 +313,85 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
         }
     };
 
-    // Can perform actions
-    const canPromote = (user: UserProfile) => user.role === 'user';
-    const canDemote = (user: UserProfile) => user.role === 'admin' && user.id !== currentUser?.id;
+    // Check if user can be promoted (user -> admin)
+    const canPromote = (user: UserProfile) => {
+        return user.role === 'user' && user.id !== currentUser?.id;
+    };
+
+    // Check if user can be demoted (admin -> user)
+    const canDemote = (user: UserProfile) => {
+        return user.role === 'admin' && user.id !== currentUser?.id;
+    };
+
+    // Check if user has any actions available
+    const hasActions = (user: UserProfile) => {
+        return canPromote(user) || canDemote(user);
+    };
 
     // Handle page change
     const handlePageChange = (newPage: number) => {
-        if (newPage > 0 && newPage <= totalPages) {
+        if (newPage >= 1 && newPage <= totalPages) {
             setCurrentPage(newPage);
         }
     };
 
+    // Generate pagination numbers
+    const getPaginationNumbers = () => {
+        const delta = 2; // Show 2 pages before and after current page
+        const pages = [];
+        const start = Math.max(1, currentPage - delta);
+        const end = Math.min(totalPages, currentPage + delta);
+
+        // Add first page if not in range
+        if (start > 1) {
+            pages.push(1);
+            if (start > 2) pages.push('...');
+        }
+
+        // Add pages in range
+        for (let i = start; i <= end; i++) {
+            pages.push(i);
+        }
+
+        // Add last page if not in range
+        if (end < totalPages) {
+            if (end < totalPages - 1) pages.push('...');
+            pages.push(totalPages);
+        }
+
+        return pages;
+    };
+
+    // Handle confirm action
+    const handleAction = (user: UserProfile, action: 'promote' | 'demote') => {
+        const newRole = action === 'promote' ? 'admin' : 'user';
+        setConfirmAction({
+            userId: user.id,
+            action,
+            userEmail: user.email,
+            userName: user.full_name,
+            currentRole: user.role,
+            newRole
+        });
+    };
+
+    // Execute confirmed action
+    const executeAction = () => {
+        if (confirmAction) {
+            updateUserRole(confirmAction.userId, confirmAction.newRole as 'user' | 'admin');
+        }
+    };
+
+    // Load users on component mount
     useEffect(() => {
         loadUsers();
-    }, []);
+
+        // Cleanup function to prevent memory leaks
+        return () => {
+            setLoading(false);
+            setActionLoading(null);
+        };
+    }, []); // Empty dependency array - only run once
 
     if (loading) {
         return (
@@ -278,11 +403,11 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
     }
 
     return (
-        <>
-            {/* Filters */}
+        <ErrorBoundaryWrapper onRetry={loadUsers}>
+            {/* Filters Section */}
             <div className="p-6 border-b border-gray-200">
                 <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-                    {/* Search */}
+                    {/* Search Input */}
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
@@ -298,28 +423,29 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                     <select
                         value={roleFilter}
                         onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                         <option value="all">Tất cả quyền hạn</option>
                         <option value="superadmin">Super Admin</option>
                         <option value="admin">Admin</option>
+                        <option value="mentor">Mentor</option>
                         <option value="user">User</option>
                     </select>
 
                     {/* Refresh Button */}
                     <button
-                        onClick={loadUsers}
-                        disabled={loading}
+                        onClick={debouncedLoadUsers}
+                        disabled={loading || loadingDebounce}
                         className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`w-4 h-4 ${(loading || loadingDebounce) ? 'animate-spin' : ''}`} />
                         Làm mới
                     </button>
+                </div>
 
-                    {/* Stats */}
-                    <div className="text-sm text-gray-600">
-                        Hiển thị {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} / {filteredUsers.length} người dùng
-                    </div>
+                {/* Stats */}
+                <div className="mt-4 text-sm text-gray-600">
+                    Hiển thị {Math.min(startIndex + 1, filteredUsers.length)}-{Math.min(endIndex, filteredUsers.length)} / {filteredUsers.length} người dùng
                 </div>
             </div>
 
@@ -332,7 +458,7 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                             Người dùng
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
+                            Thông tin liên hệ
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Quyền hạn
@@ -340,32 +466,33 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Ngày tham gia
                         </th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Thao tác
                         </th>
                     </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                     {currentUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50">
+                        <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                            {/* User Info */}
                             <td className="px-6 py-4">
                                 <div className="flex items-center">
                                     {user.image_url ? (
                                         <Image
                                             src={user.image_url}
-                                            alt=""
+                                            alt={user.full_name}
                                             width={40}
                                             height={40}
-                                            className="w-10 h-10 rounded-full mr-4"
+                                            className="w-10 h-10 rounded-full object-cover mr-4"
                                         />
                                     ) : (
-                                        <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center mr-4">
+                                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-4">
                                             <User className="w-5 h-5 text-gray-500" />
                                         </div>
                                     )}
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">
-                                            {user.full_name || 'Chưa cập nhật tên'}
+                                            {user.full_name}
                                         </div>
                                         {user.id === currentUser?.id && (
                                             <div className="text-xs text-blue-600 font-medium">
@@ -375,40 +502,48 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                                     </div>
                                 </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                    <Mail className="w-4 h-4 text-gray-400 mr-2" />
-                                    <div>
-                                        <span className="text-sm text-gray-900">{user.email || 'Chưa có email'}</span>
-                                        {user.phone_number && (
-                                            <div className="flex items-center text-xs text-gray-500 mt-1">
-                                                <Phone className="w-3 h-3 mr-1" />
-                                                {user.phone_number}
-                                            </div>
-                                        )}
+
+                            {/* Contact Info */}
+                            <td className="px-6 py-4">
+                                <div className="space-y-1">
+                                    <div className="flex items-center text-sm text-gray-900">
+                                        <Mail className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
+                                        <span className="truncate">{user.email}</span>
                                     </div>
+                                    {user.phone_number && (
+                                        <div className="flex items-center text-sm text-gray-500">
+                                            <Phone className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
+                                            <span>{user.phone_number}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </td>
+
+                            {/* Role */}
                             <td className="px-6 py-4 whitespace-nowrap">
                                 {getRoleBadge(user.role)}
                             </td>
+
+                            {/* Join Date */}
                             <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center text-sm text-gray-500">
                                     <Calendar className="w-4 h-4 mr-2" />
-                                    {new Date(user.created_at).toLocaleDateString('vi-VN')}
+                                    {new Date(user.created_at).toLocaleDateString('vi-VN', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit'
+                                    })}
                                 </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <div className="flex items-center justify-end gap-2">
+
+                            {/* Actions */}
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                                <div className="flex items-center justify-center gap-2">
                                     {canPromote(user) && (
                                         <button
-                                            onClick={() => setConfirmAction({
-                                                userId: user.id,
-                                                action: 'promote',
-                                                userEmail: user.email || ''
-                                            })}
+                                            onClick={() => handleAction(user, 'promote')}
                                             disabled={actionLoading === user.id}
-                                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50 disabled:opacity-50"
+                                            className="text-blue-600 hover:text-blue-900 p-2 rounded-lg hover:bg-blue-50 disabled:opacity-50 transition-colors"
                                             title="Nâng lên Admin"
                                         >
                                             {actionLoading === user.id ? (
@@ -418,15 +553,12 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                                             )}
                                         </button>
                                     )}
+
                                     {canDemote(user) && (
                                         <button
-                                            onClick={() => setConfirmAction({
-                                                userId: user.id,
-                                                action: 'demote',
-                                                userEmail: user.email || ''
-                                            })}
+                                            onClick={() => handleAction(user, 'demote')}
                                             disabled={actionLoading === user.id}
-                                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 disabled:opacity-50"
+                                            className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
                                             title="Hạ xuống User"
                                         >
                                             {actionLoading === user.id ? (
@@ -436,8 +568,14 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                                             )}
                                         </button>
                                     )}
-                                    {!canPromote(user) && !canDemote(user) && (
-                                        <span className="text-xs text-gray-400">Không có thao tác</span>
+
+                                    {!hasActions(user) && (
+                                        <span className="text-xs text-gray-400 px-2 py-1">
+                                                {user.role === 'mentor' ? 'Không điều chỉnh được' :
+                                                    user.role === 'superadmin' ? 'Super Admin' :
+                                                        user.id === currentUser?.id ? 'Tài khoản của bạn' :
+                                                            'Không có thao tác'}
+                                            </span>
                                     )}
                                 </div>
                             </td>
@@ -452,56 +590,54 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                 <div className="px-6 py-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">
                         <div className="text-sm text-gray-700">
-                            Hiển thị {startIndex + 1} đến {Math.min(endIndex, filteredUsers.length)} trong tổng số {filteredUsers.length} người dùng
+                            Hiển thị <span className="font-medium">{Math.min(startIndex + 1, filteredUsers.length)}</span> đến{' '}
+                            <span className="font-medium">{Math.min(endIndex, filteredUsers.length)}</span> trong tổng số{' '}
+                            <span className="font-medium">{filteredUsers.length}</span> người dùng
                         </div>
-                        <div className="flex items-center gap-2">
+
+                        <nav className="flex items-center gap-2">
+                            {/* Previous Button */}
                             <button
                                 onClick={() => handlePageChange(currentPage - 1)}
                                 disabled={currentPage === 1}
-                                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 <ChevronLeft className="w-4 h-4" />
                                 Trước
                             </button>
 
+                            {/* Page Numbers */}
                             <div className="flex gap-1">
-                                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                                    let page;
-                                    if (totalPages <= 5) {
-                                        page = i + 1;
-                                    } else if (currentPage <= 3) {
-                                        page = i + 1;
-                                    } else if (currentPage >= totalPages - 2) {
-                                        page = totalPages - 4 + i;
-                                    } else {
-                                        page = currentPage - 2 + i;
-                                    }
-
-                                    return (
-                                        <button
-                                            key={i}
-                                            onClick={() => handlePageChange(page)}
-                                            className={`px-3 py-2 text-sm font-medium rounded-md ${
-                                                currentPage === page
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                })}
+                                {getPaginationNumbers().map((page, index) => (
+                                    <React.Fragment key={index}>
+                                        {page === '...' ? (
+                                            <span className="px-3 py-2 text-sm text-gray-500">...</span>
+                                        ) : (
+                                            <button
+                                                onClick={() => handlePageChange(page as number)}
+                                                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                                    currentPage === page
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {page}
+                                            </button>
+                                        )}
+                                    </React.Fragment>
+                                ))}
                             </div>
 
+                            {/* Next Button */}
                             <button
                                 onClick={() => handlePageChange(currentPage + 1)}
                                 disabled={currentPage === totalPages}
-                                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 Sau
                                 <ChevronRight className="w-4 h-4" />
                             </button>
-                        </div>
+                        </nav>
                     </div>
                 </div>
             )}
@@ -515,12 +651,23 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
                         Không tìm thấy người dùng
                     </h3>
-                    <p className="text-gray-600">
+                    <p className="text-gray-600 mb-4">
                         {searchTerm || roleFilter !== 'all'
                             ? 'Không có người dùng nào phù hợp với bộ lọc hiện tại.'
                             : 'Không có người dùng nào trong hệ thống.'
                         }
                     </p>
+                    {(searchTerm || roleFilter !== 'all') && (
+                        <button
+                            onClick={() => {
+                                setSearchTerm('');
+                                setRoleFilter('all');
+                            }}
+                            className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                        >
+                            Xóa bộ lọc
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -549,7 +696,7 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                                         }
                                     </h3>
                                     <p className="text-sm text-gray-600">
-                                        {confirmAction.userEmail}
+                                        {confirmAction.userName} ({confirmAction.userEmail})
                                     </p>
                                 </div>
                             </div>
@@ -565,8 +712,8 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                                         : 'text-red-800'
                                 }`}>
                                     {confirmAction.action === 'promote'
-                                        ? 'Người dùng này sẽ được nâng cấp thành Admin và có thể truy cập các tính năng quản trị.'
-                                        : 'Admin này sẽ bị hạ cấp về User và mất quyền truy cập các tính năng quản trị.'
+                                        ? `Người dùng này sẽ được nâng từ ${confirmAction.currentRole} lên ${confirmAction.newRole} và có thể truy cập các tính năng quản trị.`
+                                        : `Người dùng này sẽ bị hạ từ ${confirmAction.currentRole} xuống ${confirmAction.newRole} và mất quyền truy cập các tính năng quản trị.`
                                     }
                                 </p>
                             </div>
@@ -580,13 +727,7 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                                     Hủy
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        if (confirmAction.action === 'promote') {
-                                            promoteToAdmin(confirmAction.userId);
-                                        } else {
-                                            demoteToUser(confirmAction.userId);
-                                        }
-                                    }}
+                                    onClick={executeAction}
                                     disabled={actionLoading === confirmAction.userId}
                                     className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 ${
                                         confirmAction.action === 'promote'
@@ -604,7 +745,7 @@ const UserManagementTab: React.FC<UserManagementTabProps> = ({ showNotification 
                     </div>
                 </div>
             )}
-        </>
+        </ErrorBoundaryWrapper>
     );
 };
 
