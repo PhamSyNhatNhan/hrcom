@@ -445,6 +445,7 @@ const PostPage: React.FC = () => {
     );
 
     // Save post
+    // Fixed savePost function - thay thế function cũ trong PostPage
     const savePost = async () => {
         if (!user) return;
 
@@ -458,6 +459,7 @@ const PostPage: React.FC = () => {
 
             const content = editorRef.current?.getContent() || formData.content || '';
 
+            // Prepare post data - PRESERVE ORIGINAL AUTHOR when editing
             const postData = {
                 title: formData.title,
                 description: formData.description,
@@ -466,13 +468,15 @@ const PostPage: React.FC = () => {
                 thumbnail: thumbnailUrl || null,
                 published: formData.published,
                 published_at: formData.published ? new Date().toISOString() : null,
-                author_id: user.id
+                // Only set author_id for NEW posts, preserve original author for edits
+                ...(editingPost ? {} : { author_id: user.id })
             };
 
             let result;
             let postId;
 
             if (editingPost) {
+                // EDITING existing post - do NOT change author_id
                 result = await supabase
                     .from('posts')
                     .update(postData)
@@ -483,11 +487,13 @@ const PostPage: React.FC = () => {
                 if (result.error) throw result.error;
                 postId = editingPost.id;
 
+                // Update tags: remove existing and add new ones
                 await supabase
                     .from('post_tags')
                     .delete()
                     .eq('post_id', postId);
             } else {
+                // CREATING new post - set author_id to current user
                 result = await supabase
                     .from('posts')
                     .insert([postData])
@@ -498,6 +504,7 @@ const PostPage: React.FC = () => {
                 postId = result.data.id;
             }
 
+            // Add selected tags
             if (formData.selectedTags.length > 0) {
                 const tagInserts = formData.selectedTags.map(tagId => ({
                     post_id: postId,

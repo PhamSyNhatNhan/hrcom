@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
 import {
     Edit,
     Trash2,
@@ -40,8 +41,12 @@ interface Post {
     profiles: {
         full_name: string;
         image_url?: string;
+        id: string; // Add this to get user role info
     };
     tags?: Tag[];
+    // Fields for mentor posts that went through submission process
+    from_submission?: boolean;
+    submission_status?: 'approved' | 'rejected' | 'pending';
 }
 
 interface PostsTabProps {
@@ -71,6 +76,7 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                                                                               onEditPost,
                                                                               showNotification
                                                                           }, ref) => {
+    const { user } = useAuthStore();
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -78,17 +84,18 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
     const [totalPages, setTotalPages] = useState(0);
     const pageSize = 20;
 
-    // Load posts with pagination and filters
+    // Load posts with filters to exclude unapproved mentor posts
     const loadPosts = async (page: number = 1) => {
         try {
             setLoading(true);
 
-            // Build query
+            // Get posts with author profiles and role information
             let query = supabase
                 .from('posts')
                 .select(`
                     *,
-                    profiles (
+                    profiles!posts_author_id_fkey (
+                        id,
                         full_name,
                         image_url
                     ),
@@ -124,26 +131,82 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                 .range(from, to)
                 .order('created_at', { ascending: false });
 
-            const { data, error, count } = await query;
+            const { data: postsData, error, count } = await query;
 
             if (error) throw error;
 
-            // Transform the data to include tags array
-            let postsWithTags = (data || []).map(post => ({
+            if (!postsData || postsData.length === 0) {
+                setPosts([]);
+                setTotalCount(0);
+                setTotalPages(0);
+                return;
+            }
+
+            // Get user roles to identify admin/superadmin vs mentor posts
+            const authorIds = [...new Set(postsData.map(post => post.author_id))];
+            const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+
+            // Create a map of user_id -> role
+            const userRoles: { [key: string]: string } = {};
+            if (!authError && authUsers?.users) {
+                authUsers.users.forEach(authUser => {
+                    const role = authUser.user_metadata?.role || authUser.app_metadata?.role || 'user';
+                    userRoles[authUser.id] = role;
+                });
+            }
+
+            // Get submission status for mentor posts
+            const { data: submissions, error: submissionError } = await supabase
+                .from('post_submissions')
+                .select('post_id, status')
+                .in('post_id', postsData.map(post => post.id));
+
+            const submissionMap: { [key: string]: string } = {};
+            if (!submissionError && submissions) {
+                submissions.forEach(sub => {
+                    submissionMap[sub.post_id] = sub.status;
+                });
+            }
+
+            // Filter posts based on author role and submission status
+            const filteredPosts = postsData.filter(post => {
+                const authorRole = userRoles[post.author_id] || 'user';
+
+                // Admin and superadmin posts are always shown
+                if (authorRole === 'admin' || authorRole === 'superadmin') {
+                    return true;
+                }
+
+                // For mentor posts, only show approved ones
+                const submissionStatus = submissionMap[post.id];
+                if (submissionStatus) {
+                    return submissionStatus === 'approved';
+                }
+
+                // If no submission record exists but it's published,
+                // it might be an old post or created by admin, so show it
+                return post.published;
+            });
+
+            // Transform the data to include tags array and submission info
+            const postsWithTags = filteredPosts.map(post => ({
                 ...post,
-                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || []
+                tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || [],
+                from_submission: !!submissionMap[post.id],
+                submission_status: submissionMap[post.id] as 'approved' | 'rejected' | 'pending'
             }));
 
-            // Client-side filter by tag (since Supabase doesn't support nested filtering easily)
+            // Client-side filter by tag
+            let finalPosts = postsWithTags;
             if (filterTag !== 'all') {
-                postsWithTags = postsWithTags.filter(post =>
+                finalPosts = postsWithTags.filter(post =>
                     post.tags && post.tags.some((tag: Tag) => tag.id === filterTag)
                 );
             }
 
-            setPosts(postsWithTags);
-            setTotalCount(count || 0);
-            setTotalPages(Math.ceil((count || 0) / pageSize));
+            setPosts(finalPosts);
+            setTotalCount(filteredPosts.length); // Use filtered count
+            setTotalPages(Math.ceil(filteredPosts.length / pageSize));
 
         } catch (error) {
             console.error('Error loading posts:', error);
@@ -153,16 +216,22 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
         }
     };
 
-    // Toggle publish status
-    const togglePublishStatus = async (postId: string, currentStatus: boolean) => {
+    // Toggle publish status - only allow for admin/superadmin posts or approved submissions
+    const togglePublishStatus = async (post: Post) => {
         try {
+            // Check if user can edit this post
+            if (!canEditPost(post)) {
+                showNotification('warning', 'Bạn không có quyền chỉnh sửa bài viết này');
+                return;
+            }
+
             const { error } = await supabase
                 .from('posts')
                 .update({
-                    published: !currentStatus,
-                    published_at: !currentStatus ? new Date().toISOString() : null
+                    published: !post.published,
+                    published_at: !post.published ? new Date().toISOString() : null
                 })
-                .eq('id', postId);
+                .eq('id', post.id);
 
             if (error) throw error;
 
@@ -174,15 +243,20 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
         }
     };
 
-    // Delete post
-    const deletePost = async (postId: string) => {
+    // Delete post - only allow for admin/superadmin posts
+    const deletePost = async (post: Post) => {
+        if (!canDeletePost(post)) {
+            showNotification('warning', 'Bạn không có quyền xóa bài viết này');
+            return;
+        }
+
         if (!confirm('Bạn có chắc chắn muốn xóa bài viết này?')) return;
 
         try {
             const { error } = await supabase
                 .from('posts')
                 .delete()
-                .eq('id', postId);
+                .eq('id', post.id);
 
             if (error) throw error;
 
@@ -200,6 +274,32 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
             console.error('Error deleting post:', error);
             showNotification('error', 'Lỗi khi xóa bài viết: ' + getErrorMessage(error));
         }
+    };
+
+    // Check if current user can edit a post
+    const canEditPost = (post: Post): boolean => {
+        if (!user) return false;
+
+        // Admin and superadmin can edit any post
+        if (user.role === 'admin' || user.role === 'superadmin') {
+            return true;
+        }
+
+        // Authors can edit their own posts (but mentor posts will go through submission process)
+        return post.author_id === user.id;
+    };
+
+    // Check if current user can delete a post
+    const canDeletePost = (post: Post): boolean => {
+        if (!user) return false;
+
+        // Only admin and superadmin can delete posts
+        if (user.role === 'admin' || user.role === 'superadmin') {
+            return true;
+        }
+
+        // Authors can delete their own unpublished posts if they're not from submissions
+        return post.author_id === user.id && !post.published && !post.from_submission;
     };
 
     // Handle page change
@@ -261,6 +361,9 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                             Trạng thái
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Nguồn
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Ngày tạo
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -297,13 +400,13 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                                 </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                        post.type === 'activity'
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-blue-100 text-blue-800'
-                                    }`}>
-                                        {post.type === 'activity' ? 'Hoạt động' : 'Blog'}
-                                    </span>
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    post.type === 'activity'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                    {post.type === 'activity' ? 'Hoạt động' : 'Blog'}
+                                </span>
                             </td>
                             <td className="px-6 py-4">
                                 <div className="flex flex-wrap gap-1">
@@ -313,17 +416,17 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                                                 key={tag.id}
                                                 className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800"
                                             >
-                                                    <Tag className="w-3 h-3 mr-1" />
+                                                <Tag className="w-3 h-3 mr-1" />
                                                 {tag.name}
-                                                </span>
+                                            </span>
                                         ))
                                     ) : (
                                         <span className="text-xs text-gray-400">Chưa có tag</span>
                                     )}
                                     {post.tags && post.tags.length > 2 && (
                                         <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-800">
-                                                +{post.tags.length - 2}
-                                            </span>
+                                            +{post.tags.length - 2}
+                                        </span>
                                     )}
                                 </div>
                             </td>
@@ -332,12 +435,13 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                                 <button
-                                    onClick={() => togglePublishStatus(post.id, post.published)}
+                                    onClick={() => togglePublishStatus(post)}
+                                    disabled={!canEditPost(post)}
                                     className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
                                         post.published
                                             ? 'bg-green-100 text-green-800 hover:bg-green-200'
                                             : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                    }`}
+                                    } ${!canEditPost(post) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     {post.published ? (
                                         <>
@@ -352,25 +456,44 @@ const PostsTab = React.forwardRef<{ reload: () => void }, PostsTabProps>(({
                                     )}
                                 </button>
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                                {post.from_submission ? (
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Mentor (Đã duyệt)
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                        Admin
+                                    </span>
+                                )}
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {new Date(post.created_at).toLocaleDateString('vi-VN')}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div className="flex items-center justify-end gap-2">
-                                    <button
-                                        onClick={() => onEditPost(post)}
-                                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                                        title="Chỉnh sửa"
-                                    >
-                                        <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => deletePost(post.id)}
-                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                                        title="Xóa"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    {canEditPost(post) && (
+                                        <button
+                                            onClick={() => onEditPost(post)}
+                                            className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                                            title="Chỉnh sửa"
+                                        >
+                                            <Edit className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                    {canDeletePost(post) && (
+                                        <button
+                                            onClick={() => deletePost(post)}
+                                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                                            title="Xóa"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                    {!canEditPost(post) && !canDeletePost(post) && (
+                                        <span className="text-xs text-gray-400">Không có quyền</span>
+                                    )}
                                 </div>
                             </td>
                         </tr>

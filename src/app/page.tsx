@@ -17,6 +17,8 @@ import { PartnerCard } from '@/component/PartnerCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
 import Link from "next/link";
 import { supabase } from '@/utils/supabase/client';
+import { useAuthStore } from '@/stores/authStore';
+
 
 const fallbackStats = [
     {icon: UserCheck, value: '89', label: 'Mentor đồng hành',},
@@ -150,15 +152,28 @@ interface BannerFromDB {
     display_order: number;
 }
 
+// FIXED: Use same interface as MentorPage and MentorCard
+interface MentorSkill {
+    id: string;
+    name: string;
+    description?: string;
+}
+
 interface MentorFromDB {
     id: string;
     full_name: string;
     headline?: string;
     avatar?: string;
-    skill?: string[];
+    skill?: string[]; // Legacy field
+    skills?: MentorSkill[]; // New structure
     description?: string;
     published: boolean;
     created_at: string;
+    // Statistics
+    total_bookings?: number;
+    completed_bookings?: number;
+    average_rating?: number;
+    total_reviews?: number;
 }
 
 // Homepage data structure
@@ -200,10 +215,14 @@ const HomePage = () => {
     const [homepageLoading, setHomepageLoading] = useState(true);
     const [homepageError, setHomepageError] = useState<string | null>(null);
 
+
     // Mentor states
     const [featuredMentors, setFeaturedMentors] = useState<MentorFromDB[]>([]);
     const [mentorsLoading, setMentorsLoading] = useState(true);
     const [mentorsError, setMentorsError] = useState<string | null>(null);
+
+    const { user } = useAuthStore();
+
 
     // Load homepage data using the SQL function
     useEffect(() => {
@@ -247,25 +266,93 @@ const HomePage = () => {
         loadHomepageData();
     }, []);
 
-    // Load featured mentors from database
+    // FIXED: Load featured mentors with statistics (same as MentorPage)
     useEffect(() => {
         const loadFeaturedMentors = async () => {
             try {
                 setMentorsLoading(true);
                 setMentorsError(null);
 
-                const { data, error } = await supabase
+                // Fetch basic mentor data
+                const { data: mentorsData, error: fetchError } = await supabase
                     .from('mentors')
                     .select('*')
                     .eq('published', true)
                     .order('created_at', { ascending: false })
                     .limit(4);
 
-                if (error) {
-                    throw error;
+                if (fetchError) {
+                    throw fetchError;
                 }
 
-                setFeaturedMentors(data || []);
+                if (!mentorsData || mentorsData.length === 0) {
+                    setFeaturedMentors([]);
+                    return;
+                }
+
+                // Fetch additional data for each mentor in parallel (same logic as MentorPage)
+                const mentorsWithStats = await Promise.all(
+                    mentorsData.map(async (mentor) => {
+                        try {
+                            // Fetch skills from mentor_skill_relations
+                            const { data: skillsData } = await supabase
+                                .from('mentor_skill_relations')
+                                .select(`
+                                    mentor_skills (
+                                        id,
+                                        name,
+                                        description
+                                    )
+                                `)
+                                .eq('mentor_id', mentor.id);
+
+                            // Fetch booking statistics
+                            const { data: bookingsData } = await supabase
+                                .from('mentor_bookings')
+                                .select('id, status')
+                                .eq('mentor_id', mentor.id);
+
+                            // Fetch reviews and calculate average rating
+                            const { data: reviewsData } = await supabase
+                                .from('mentor_reviews')
+                                .select('rating')
+                                .eq('mentor_id', mentor.id)
+                                .eq('is_published', true);
+
+                            const totalBookings = bookingsData?.length || 0;
+                            const completedBookings = bookingsData?.filter((b: any) => b.status === 'completed').length || 0;
+                            const totalReviews = reviewsData?.length || 0;
+                            const averageRating = totalReviews > 0 && reviewsData
+                                ? reviewsData.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0) / totalReviews
+                                : 0;
+
+                            // Transform skills data
+                            const skills = skillsData?.map((item: any) => item.mentor_skills).filter(Boolean) || [];
+
+                            return {
+                                ...mentor,
+                                skills,
+                                total_bookings: totalBookings,
+                                completed_bookings: completedBookings,
+                                average_rating: averageRating,
+                                total_reviews: totalReviews
+                            } as MentorFromDB;
+                        } catch (err) {
+                            console.error(`Error fetching data for mentor ${mentor.id}:`, err);
+                            // Return mentor with basic data if stats fetch fails
+                            return {
+                                ...mentor,
+                                skills: [],
+                                total_bookings: 0,
+                                completed_bookings: 0,
+                                average_rating: 0,
+                                total_reviews: 0
+                            } as MentorFromDB;
+                        }
+                    })
+                );
+
+                setFeaturedMentors(mentorsWithStats);
             } catch (err) {
                 console.error('Error loading featured mentors:', err);
                 setMentorsError('Không thể tải danh sách mentor');
@@ -528,26 +615,27 @@ const HomePage = () => {
             </section>
 
             {/* CTA Section */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-600 to-blue-700 text-white">
-                <div className="max-w-4xl mx-auto text-center">
-                    <h2 className="text-4xl font-bold mb-6">Tham Gia HR Companion Ngay Hôm Nay</h2>
-                    <p className="text-xl mb-8">
-                        Giải quyết vấn đề nhân sự, nâng cao hiệu suất & phát triển đội ngũ mạnh mẽ.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                        <Link href="/auth/register">
-                            <Button variant="secondary" size="lg" className="bg-white text-cyan-600">
-                                Đăng Ký Miễn Phí
-                            </Button>
-                        </Link>
-                        <Link href="https://www.facebook.com/HRCompanion.vn/">
-                            <Button variant="outline" size="lg" className="border-white text-white">
-                                Trở Thành Chuyên Gia
-                            </Button>
-                        </Link>
+            {!user && (
+                <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-600 to-blue-700 text-white">
+                    <div className="max-w-4xl mx-auto text-center">
+                        <h2 className="text-4xl font-bold mb-6">Tham Gia HR Companion Ngay Hôm Nay</h2>
+                        <p className="text-xl mb-8">
+                            Giải quyết vấn đề nhân sự, nâng cao hiệu suất & phát triển đội ngũ mạnh mẽ.
+                        </p>
+                        <div className="flex justify-center">
+                            <Link href="/auth/register">
+                                <Button
+                                    variant="secondary"
+                                    size="lg"
+                                    className="bg-white text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700 transform hover:scale-105 transition-all duration-300 shadow-xl px-8 py-4 text-lg font-semibold border-2 border-transparent hover:border-cyan-200"
+                                >
+                                    Bắt Đầu Ngay
+                                </Button>
+                            </Link>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            )}
         </div>
     );
 };

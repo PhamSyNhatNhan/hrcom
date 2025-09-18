@@ -325,7 +325,7 @@ const RootLayout = ({ children }: LayoutProps) => {
 
                                             {/* Superadmin only */}
                                             {user?.role === 'superadmin' && (
-                                                <Link href="/src/app/admin/modify" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200">
+                                                <Link href="/admin/modify" onClick={handleNavLinkClick} className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200">
                                                     Khác
                                                 </Link>
                                             )}
