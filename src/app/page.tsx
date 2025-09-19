@@ -473,7 +473,7 @@ const HomePage = () => {
             </section>
 
             {/* Activity Section */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+            <section id="activity-section" className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
                         title="HOẠT ĐỘNG NỔI BẬT HR COMPANION"

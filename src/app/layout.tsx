@@ -555,67 +555,174 @@ const RootLayout = ({ children }: LayoutProps) => {
 
 
 
-    const Footer = () => (
-        <footer className="bg-gray-900 text-gray-300 py-16 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-                    <Link href="/about">
-                        <div>
-                            <div className="flex items-center space-x-2 mb-6">
-                                <div className="w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center">
-                                    <Users className="w-6 h-6 text-white" />
+    const Footer = () => {
+        const { user } = useAuthStore();
+
+        return (
+            <footer className="bg-gray-900 text-gray-300 pt-16 pb-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
+                        {/* Về HR Companion */}
+                        <div className="lg:col-span-2">
+                            <div className="flex items-center space-x-3 mb-6">
+                                <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center">
+                                    <Users className="w-7 h-7 text-white" />
                                 </div>
                                 <span className="text-2xl font-bold text-white">HR Companion</span>
                             </div>
-                            <p className="text-gray-400 leading-relaxed mb-6">
-                                Được triển khai từ năm 2021, The HR Companion là dự án cộng đồng phi lợi nhận được vận hành bởi những người làm nhân sự tâm huyết, tận tụy với sứ mệnh giúp đỡ tất cả mọi người cải thiện, sửa các lỗi thường gặp khi viết...
+                            <p className="text-gray-400 leading-relaxed mb-6 text-sm text-justify">
+                                Doanh nghiệp xã hội - dự án cộng đồng phi lợi nhuận được vận hành bởi những người làm nhân sự tâm huyết,
+                                với sứ mệnh nâng cao kỹ năng ứng tuyển và giúp ứng viên chinh phục cơ hội việc làm mơ ước.
+                            </p>
+
+                            {/* Social Media Links */}
+                            <div className="flex space-x-4">
+                                <Link
+                                    href="https://www.linkedin.com/company/hr-companion-vn/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-10 h-10 bg-[#0077B5] rounded-lg flex items-center justify-center hover:bg-[#005885] transition-colors duration-300 group"
+                                >
+                                    <Linkedin className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                                </Link>
+                                <Link
+                                    href="https://www.facebook.com/HRCompanion.vn/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-10 h-10 bg-[#1877F2] rounded-lg flex items-center justify-center hover:bg-[#145cc4] transition-colors duration-300 group"
+                                >
+                                    <Facebook className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                                </Link>
+                                <Link
+                                    href="https://zalo.me/0979334143"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-10 h-10 bg-[#0068FF] rounded-lg flex items-center justify-center hover:bg-[#0052cc] transition-colors duration-300 group"
+                                >
+                                    <Zap className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Dịch Vụ */}
+                        <div>
+                            <h3 className="text-white font-bold text-lg mb-6">Dịch Vụ</h3>
+                            <ul className="space-y-4">
+                                <li>
+                                    <Link href="/mentor" className="hover:text-cyan-400 transition-colors duration-300 flex items-center group">
+                                        <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-3 group-hover:bg-cyan-400"></span>
+                                        Mentor & Cố vấn
+                                    </Link>
+                                </li>
+                                {(user?.role === 'user' || !user?.role) && (
+                                    <li>
+                                        <Link href="/mentor_booking" className="hover:text-cyan-400 transition-colors duration-300 flex items-center group">
+                                            <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-3 group-hover:bg-cyan-400"></span>
+                                            Đặt lịch tư vấn
+                                        </Link>
+                                    </li>
+                                )}
+                                <li>
+                                    <Link href="/#activity-section" className="hover:text-cyan-400 transition-colors duration-300 flex items-center group">
+                                        <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-3 group-hover:bg-cyan-400"></span>
+                                        Hoạt động đào tạo
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link href="/#partner-section" className="hover:text-cyan-400 transition-colors duration-300 flex items-center group">
+                                        <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-3 group-hover:bg-cyan-400"></span>
+                                        Đối tác
+                                    </Link>
+                                </li>
+                            </ul>
+                        </div>
+
+                        {/* Thông Tin */}
+                        <div>
+                            <h3 className="text-white font-bold text-lg mb-6">Thông Tin</h3>
+                            <ul className="space-y-4">
+                                <li>
+                                    <Link href="/news" className="hover:text-cyan-400 transition-colors duration-300 flex items-center group">
+                                        <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-3 group-hover:bg-cyan-400"></span>
+                                        Tin tức & Sự kiện
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link href="/blog" className="hover:text-cyan-400 transition-colors duration-300 flex items-center group">
+                                        <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full mr-3 group-hover:bg-cyan-400"></span>
+                                        Blog HR Companion
+                                    </Link>
+                                </li>
+                            </ul>
+                        </div>
+
+                        {/* Kết Nối */}
+                        <div>
+                            <h3 className="text-white font-bold text-lg mb-6">Kết Nối</h3>
+                            <div className="space-y-4">
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center mt-0.5">
+                                        <span className="w-2 h-2 bg-white rounded-full"></span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-400">Email hỗ trợ</p>
+                                        <Link
+                                            href="mailto:hrcompanion.vn@gmail.com"
+                                            className="text-cyan-400 hover:text-cyan-300 transition-colors text-sm"
+                                        >
+                                            hrcompanion.vn@gmail.com
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center mt-0.5">
+                                        <span className="w-2 h-2 bg-white rounded-full"></span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-400">Zalo hỗ trợ</p>
+                                        <Link
+                                            href="https://zalo.me/0979334143"
+                                            target="_blank"
+                                            className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                                        >
+                                            0979.334.143
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center mt-0.5">
+                                        <span className="w-2 h-2 bg-white rounded-full"></span>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-400">Facebook Community</p>
+                                        <Link
+                                            href="https://www.facebook.com/groups/hrcompanion"
+                                            target="_blank"
+                                            className="text-cyan-400 hover:text-cyan-300 transition-colors text-sm"
+                                        >
+                                            HR Companion Community
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom Section */}
+                    <div className="pt-8 border-t border-gray-800">
+                        <div className="text-center">
+                            <p className="text-gray-400 text-sm">
+                                &copy; 2025 HR Companion - Doanh nghiệp xã hội vì cộng đồng.
+                                <span className="block md:inline md:ml-2">Được vận hành bởi NhanSangThanh.</span>
                             </p>
                         </div>
-                    </Link>
-
-                    <div>
-                        <h3 className="text-white font-bold mb-4">Dịch Vụ</h3>
-                        <ul className="space-y-3">
-                            <li><Link href="/mentor" className="hover:text-cyan-400 transition-colors">Mentor</Link></li>
-                            <li><Link href="/activity" className="hover:text-cyan-400 transition-colors">Hoạt động</Link></li>
-                            <li><Link href="/#partner-section" className="hover:text-cyan-400 transition-colors">Đối tác</Link></li>
-                            <li><Link href="/blog" className="hover:text-cyan-400 transition-colors">Blog HR Companion</Link></li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 className="text-white font-bold mb-4">Hỗ Trợ</h3>
-                        <ul className="space-y-3">
-                            <li><Link href="/contact" className="hover:text-cyan-400 transition-colors">Liên hệ</Link></li>
-                            <li><Link href="/about" className="hover:text-cyan-400 transition-colors">Về chúng tôi</Link></li>
-                            <li><Link href="/news" className="hover:text-cyan-400 transition-colors">Tin tức & Sự kiện</Link></li>
-                            <li><Link href="/terms" className="hover:text-cyan-400 transition-colors">Điều Khoản</Link></li>
-                            <li><Link href="/privacy" className="hover:text-cyan-400 transition-colors">Bảo Mật</Link></li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 className="text-white font-bold mb-4">Theo Dõi</h3>
-                        <p className="text-gray-400 mb-4">Nhận thông tin mới nhất từ HR Companion</p>
-                        <div className="flex space-x-2">
-                            <input
-                                type="email"
-                                placeholder="Email của bạn"
-                                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-cyan-500"
-                            />
-                            <button className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-cyan-600 hover:to-blue-700 transition-all duration-300">
-                                <ArrowRight className="w-5 h-5" />
-                            </button>
-                        </div>
                     </div>
                 </div>
-
-                <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-                    <p>&copy; 2025 HR Companion Inc. Powerder by NhanSangThanh.</p>
-                </div>
-            </div>
-        </footer>
-    );
+            </footer>
+        );
+    };
 
     return (
         <html lang="vi">
