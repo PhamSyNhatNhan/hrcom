@@ -7,112 +7,34 @@ import { Button } from '@/component/Button';
 import {
     Plus,
     Search,
-    Edit,
-    Trash2,
-    Eye,
-    EyeOff,
-    Upload,
     X,
     Save,
-    GripVertical,
     Users,
     BookOpen,
-    FileText,
-    Mic,
     Building,
     Image as ImageIcon,
-    ExternalLink,
     RefreshCw,
     AlertCircle,
     CheckCircle,
-    Loader2
+    Loader2,
+    Upload
 } from 'lucide-react';
 import Image from 'next/image';
-
-// Bắt lỗi
-function getErrorMessage(err: unknown): string {
-    if (err instanceof Error) return err.message;
-    if (typeof err === 'object' && err && 'message' in err) {
-        const m = (err as { message?: unknown }).message;
-        return typeof m === 'string' ? m : JSON.stringify(m);
-    }
-    return typeof err === 'string' ? err : JSON.stringify(err);
-}
-
-// Interfaces
-interface Statistic {
-    id: string;
-    name: string;
-    icon: string;
-    label: string;
-    value: string;
-    display_order: number;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-interface Activity {
-    id: string;
-    title: string;
-    description: string;
-    thumbnail: string;
-    display_order: number;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-interface Partner {
-    id: string;
-    name: string;
-    description: string;
-    logo_url: string;
-    website_url: string;
-    display_order: number;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-interface Banner {
-    id: string;
-    name: string;
-    image_url: string;
-    link_url: string;
-    open_new_tab: boolean;
-    display_order: number;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-type EditingItem = Statistic | Activity | Partner | Banner | null;
-type TableType = 'statistics' | 'activities' | 'partners' | 'banners';
-
-// Dùng một FormState chung cho modal (mọi field đều optional)
-type FormState = Partial<
-    Pick<
-        Statistic & Activity & Partner & Banner,
-        | 'id'
-        | 'name'
-        | 'icon'
-        | 'label'
-        | 'value'
-        | 'title'
-        | 'description'
-        | 'thumbnail'
-        | 'logo_url'
-        | 'website_url'
-        | 'image_url'
-        | 'link_url'
-        | 'open_new_tab'
-        | 'display_order'
-        | 'published'
-        | 'created_at'
-        | 'updated_at'
-    >
->;
+import {
+    Statistic,
+    Activity,
+    Partner,
+    Banner,
+    EditingItem,
+    TableType,
+    FormState,
+    NotificationState,
+    getErrorMessage
+} from '@/types/dashboard';
+import { StatisticsTab, StatisticsForm } from '@/component/admin/dashboard/StatisticsTab';
+import { ActivitiesTab } from '@/component/admin/dashboard/ActivitiesTab';
+import { PartnersTab } from '@/component/admin/dashboard/PartnersTab';
+import { BannersTab } from '@/component/admin/dashboard/BannersTab';
 
 const DashboardModifyPage = () => {
     const { user } = useAuthStore();
@@ -130,12 +52,8 @@ const DashboardModifyPage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [uploading, setUploading] = useState(false);
 
-    // Form states
     const [formData, setFormData] = useState<FormState>({});
-    const [notification, setNotification] = useState<{
-        type: 'success' | 'error' | 'warning';
-        message: string;
-    } | null>(null);
+    const [notification, setNotification] = useState<NotificationState | null>(null);
 
     // Load data
     useEffect(() => {
@@ -200,13 +118,11 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Show notification
     const showNotification = (type: 'success' | 'error' | 'warning', message: string) => {
         setNotification({ type, message });
         setTimeout(() => setNotification(null), 5000);
     };
 
-    // Upload image
     const uploadImage = async (file: File): Promise<string> => {
         try {
             const fileExt = file.name.split('.').pop();
@@ -224,7 +140,18 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Save item
+    const handleImageUpload = async (file: File, fieldName: 'thumbnail' | 'logo_url' | 'image_url') => {
+        try {
+            setUploading(true);
+            const imageUrl = await uploadImage(file);
+            setFormData((prev: FormState) => ({ ...prev, [fieldName]: imageUrl }));
+        } catch (error) {
+            showNotification('error', 'Lỗi khi upload ảnh');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const saveItem = async () => {
         if (!user) return;
 
@@ -233,8 +160,13 @@ const DashboardModifyPage = () => {
 
             // Validate required fields
             if (activeTab === 'statistics') {
-                if (!formData.name || !formData.icon || !formData.label || !formData.value) {
+                if (!formData.name || !formData.icon || !formData.label) {
                     showNotification('error', 'Vui lòng điền đầy đủ thông tin bắt buộc');
+                    return;
+                }
+                // Validate value for manual data source
+                if ((!formData.data_source || formData.data_source === 'manual') && !formData.value) {
+                    showNotification('error', 'Vui lòng nhập giá trị cho nguồn dữ liệu thủ công');
                     return;
                 }
             } else if (activeTab === 'activities') {
@@ -254,14 +186,17 @@ const DashboardModifyPage = () => {
                 }
             }
 
-            // Prepare data for saving (clone ra object có index signature)
             const baseData: Record<string, unknown> = {
                 ...formData,
                 display_order: formData.display_order ?? 0,
                 published: formData.published ?? false
             };
 
-            // Remove undefined values
+            // Set default data_source for statistics
+            if (activeTab === 'statistics' && !baseData.data_source) {
+                baseData.data_source = 'manual';
+            }
+
             Object.keys(baseData).forEach((key) => {
                 if (baseData[key] === undefined) {
                     delete baseData[key];
@@ -293,7 +228,6 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Delete item
     const deleteItem = async (id: string) => {
         if (!confirm('Bạn có chắc chắn muốn xóa item này?')) return;
 
@@ -309,7 +243,6 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Toggle publish status
     const togglePublishStatus = async (id: string, currentStatus: boolean) => {
         try {
             const { error } = await supabase.from(activeTab).update({ published: !currentStatus }).eq('id', id);
@@ -323,7 +256,6 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Edit item
     const editItem = (item: EditingItem) => {
         setEditingItem(item);
         setFormData({
@@ -334,7 +266,6 @@ const DashboardModifyPage = () => {
         setShowForm(true);
     };
 
-    // Reset form
     const resetForm = () => {
         setShowForm(false);
         setEditingItem(null);
@@ -344,7 +275,6 @@ const DashboardModifyPage = () => {
         });
     };
 
-    // Get current data based on active tab
     const getCurrentData = () => {
         switch (activeTab) {
             case 'statistics':
@@ -360,7 +290,6 @@ const DashboardModifyPage = () => {
         }
     };
 
-    // Filter data based on search
     const filteredData = getCurrentData().filter((item: any) => {
         const searchFields =
             activeTab === 'statistics'
@@ -374,62 +303,258 @@ const DashboardModifyPage = () => {
         return searchFields.some((field) => field?.toLowerCase().includes(searchTerm.toLowerCase()));
     });
 
-    // Get icon component
-    const getIconComponent = (iconName: string) => {
-        switch (iconName) {
-            case 'UserCheck':
-                return <Users className="w-5 h-5" />;
-            case 'BookOpenCheck':
-                return <BookOpen className="w-5 h-5" />;
-            case 'FileText':
-                return <FileText className="w-5 h-5" />;
-            case 'Mic':
-                return <Mic className="w-5 h-5" />;
-            default:
-                return <AlertCircle className="w-5 h-5" />;
-        }
-    };
-
     useEffect(() => {
         if (showForm) {
-            // Lock body scroll khi modal mở
             document.body.style.overflow = 'hidden';
-            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
+            document.body.style.paddingRight = '15px';
         } else {
-            // Unlock body scroll khi modal đóng
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
         }
 
-        // Cleanup khi component unmount
         return () => {
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
         };
     }, [showForm]);
 
-    // Render form based on active tab - với hiệu ứng blur
+    // Render form based on active tab
+    const renderFormFields = () => {
+        if (activeTab === 'statistics') {
+            return <StatisticsForm formData={formData} setFormData={setFormData} />;
+        } else if (activeTab === 'activities') {
+            return (
+                <>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Tiêu đề</label>
+                        <input
+                            type="text"
+                            value={formData.title || ''}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
+                        <textarea
+                            value={formData.description || ''}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                            rows={4}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh đại diện</label>
+                        <div className="flex items-center gap-4">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) await handleImageUpload(file, 'thumbnail');
+                                }}
+                                className="hidden"
+                                id="activity-image"
+                                disabled={uploading}
+                            />
+                            <label
+                                htmlFor="activity-image"
+                                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                            >
+                                <Upload className="w-4 h-4" />
+                                {uploading ? 'Đang tải...' : 'Chọn ảnh'}
+                            </label>
+                            {formData.thumbnail && (
+                                <div className="relative w-16 h-16">
+                                    <Image src={formData.thumbnail} alt="Preview" fill className="object-cover rounded-lg" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
+                        <input
+                            type="number"
+                            value={formData.display_order ?? 0}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                </>
+            );
+        } else if (activeTab === 'partners') {
+            return (
+                <>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Tên đối tác</label>
+                        <input
+                            type="text"
+                            value={formData.name || ''}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
+                        <textarea
+                            value={formData.description || ''}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                            rows={3}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Logo</label>
+                        <div className="flex items-center gap-4">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) await handleImageUpload(file, 'logo_url');
+                                }}
+                                className="hidden"
+                                id="partner-logo"
+                                disabled={uploading}
+                            />
+                            <label
+                                htmlFor="partner-logo"
+                                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                            >
+                                <Upload className="w-4 h-4" />
+                                {uploading ? 'Đang tải...' : 'Chọn logo'}
+                            </label>
+                            {formData.logo_url && (
+                                <div className="relative w-16 h-16">
+                                    <Image src={formData.logo_url} alt="Preview" fill className="object-cover rounded-lg" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
+                            <input
+                                type="url"
+                                value={formData.website_url || ''}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, website_url: e.target.value }))}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
+                            <input
+                                type="number"
+                                value={formData.display_order ?? 0}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+                </>
+            );
+        } else if (activeTab === 'banners') {
+            return (
+                <>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Tên banner</label>
+                        <input
+                            type="text"
+                            value={formData.name || ''}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh banner</label>
+                        <div className="flex items-center gap-4">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) await handleImageUpload(file, 'image_url');
+                                }}
+                                className="hidden"
+                                id="banner-image"
+                                disabled={uploading}
+                            />
+                            <label
+                                htmlFor="banner-image"
+                                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                            >
+                                <Upload className="w-4 h-4" />
+                                {uploading ? 'Đang tải...' : 'Chọn ảnh'}
+                            </label>
+                            {formData.image_url && (
+                                <div className="relative w-16 h-16">
+                                    <Image src={formData.image_url} alt="Preview" fill className="object-cover rounded-lg" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Liên kết</label>
+                            <input
+                                type="url"
+                                value={formData.link_url || ''}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, link_url: e.target.value }))}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
+                            <input
+                                type="number"
+                                value={formData.display_order ?? 0}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, display_order: parseInt(e.target.value) }))}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            id="open_new_tab"
+                            checked={formData.open_new_tab || false}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, open_new_tab: e.target.checked }))}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="open_new_tab" className="text-sm font-medium text-gray-700">
+                            Mở ở tab mới
+                        </label>
+                    </div>
+                </>
+            );
+        }
+    };
+
     const renderForm = () => {
+        if (!showForm) return null;
+
+        const getTabTitle = () => {
+            switch (activeTab) {
+                case 'statistics':
+                    return 'thống kê';
+                case 'activities':
+                    return 'hoạt động';
+                case 'partners':
+                    return 'đối tác';
+                case 'banners':
+                    return 'banner';
+            }
+        };
+
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div
-                    className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
-                    onClick={resetForm}
-                />
+                <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={resetForm} />
 
                 <div className="relative bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200">
-                    {/* Modal Header */}
                     <div className="p-6 border-b border-gray-200">
                         <div className="flex items-center justify-between">
                             <h3 className="text-xl font-bold">
-                                {editingItem ? 'Chỉnh sửa' : 'Tạo mới'}{' '}
-                                {activeTab === 'statistics'
-                                    ? 'thống kê'
-                                    : activeTab === 'activities'
-                                        ? 'hoạt động'
-                                        : activeTab === 'partners'
-                                            ? 'đối tác'
-                                            : 'banner'}
+                                {editingItem ? 'Chỉnh sửa' : 'Tạo mới'} {getTabTitle()}
                             </h3>
                             <button onClick={resetForm} className="text-gray-400 hover:text-gray-600">
                                 <X className="w-6 h-6" />
@@ -437,319 +562,15 @@ const DashboardModifyPage = () => {
                         </div>
                     </div>
 
-                    {/* Modal Body */}
                     <div className="p-6 space-y-4">
-                        {/* Statistics Form */}
-                        {activeTab === 'statistics' && (
-                            <>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Tên</label>
-                                        <input
-                                            type="text"
-                                            value={formData.name || ''}
-                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, name: e.target.value }))}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
-                                        <select
-                                            value={formData.icon || ''}
-                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, icon: e.target.value }))}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="">Chọn icon</option>
-                                            <option value="UserCheck">UserCheck</option>
-                                            <option value="BookOpenCheck">BookOpenCheck</option>
-                                            <option value="FileText">FileText</option>
-                                            <option value="Mic">Mic</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Nhãn hiển thị</label>
-                                    <input
-                                        type="text"
-                                        value={formData.label || ''}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, label: e.target.value }))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Giá trị</label>
-                                        <input
-                                            type="text"
-                                            value={formData.value || ''}
-                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, value: e.target.value }))}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
-                                        <input
-                                            type="number"
-                                            value={formData.display_order ?? 0}
-                                            onChange={(e) =>
-                                                setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
-                                            }
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                        {renderFormFields()}
 
-                        {/* Activities Form */}
-                        {activeTab === 'activities' && (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tiêu đề</label>
-                                    <input
-                                        type="text"
-                                        value={formData.title || ''}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, title: e.target.value }))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
-                                    <textarea
-                                        value={formData.description || ''}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, description: e.target.value }))}
-                                        rows={4}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh đại diện</label>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    try {
-                                                        setUploading(true);
-                                                        const imageUrl = await uploadImage(file);
-                                                        setFormData((prev: FormState) => ({ ...prev, thumbnail: imageUrl }));
-                                                    } catch (error) {
-                                                        showNotification('error', 'Lỗi khi upload ảnh');
-                                                    } finally {
-                                                        setUploading(false);
-                                                    }
-                                                }
-                                            }}
-                                            className="hidden"
-                                            id="activity-image"
-                                        />
-                                        <label
-                                            htmlFor="activity-image"
-                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                                        >
-                                            <Upload className="w-4 h-4" />
-                                            Chọn ảnh
-                                        </label>
-                                        {formData.thumbnail && (
-                                            <div className="relative w-16 h-16">
-                                                <Image src={formData.thumbnail} alt="Preview" fill className="object-cover rounded-lg" />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
-                                    <input
-                                        type="number"
-                                        value={formData.display_order ?? 0}
-                                        onChange={(e) =>
-                                            setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
-                                        }
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                            </>
-                        )}
-
-                        {/* Partners Form */}
-                        {activeTab === 'partners' && (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tên đối tác</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name || ''}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, name: e.target.value }))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
-                                    <textarea
-                                        value={formData.description || ''}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, description: e.target.value }))}
-                                        rows={3}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Logo</label>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    try {
-                                                        setUploading(true);
-                                                        const imageUrl = await uploadImage(file);
-                                                        setFormData((prev: FormState) => ({ ...prev, logo_url: imageUrl }));
-                                                    } catch (error) {
-                                                        showNotification('error', 'Lỗi khi upload ảnh');
-                                                    } finally {
-                                                        setUploading(false);
-                                                    }
-                                                }
-                                            }}
-                                            className="hidden"
-                                            id="partner-logo"
-                                        />
-                                        <label
-                                            htmlFor="partner-logo"
-                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                                        >
-                                            <Upload className="w-4 h-4" />
-                                            Chọn logo
-                                        </label>
-                                        {formData.logo_url && (
-                                            <div className="relative w-16 h-16">
-                                                <Image src={formData.logo_url} alt="Preview" fill className="object-cover rounded-lg" />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
-                                        <input
-                                            type="url"
-                                            value={formData.website_url || ''}
-                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, website_url: e.target.value }))}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
-                                        <input
-                                            type="number"
-                                            value={formData.display_order ?? 0}
-                                            onChange={(e) =>
-                                                setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
-                                            }
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        {/* Banners Form */}
-                        {activeTab === 'banners' && (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tên banner</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name || ''}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, name: e.target.value }))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh banner</label>
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    try {
-                                                        setUploading(true);
-                                                        const imageUrl = await uploadImage(file);
-                                                        setFormData((prev: FormState) => ({ ...prev, image_url: imageUrl }));
-                                                    } catch (error) {
-                                                        showNotification('error', 'Lỗi khi upload ảnh');
-                                                    } finally {
-                                                        setUploading(false);
-                                                    }
-                                                }
-                                            }}
-                                            className="hidden"
-                                            id="banner-image"
-                                        />
-                                        <label
-                                            htmlFor="banner-image"
-                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
-                                        >
-                                            <Upload className="w-4 h-4" />
-                                            Chọn ảnh
-                                        </label>
-                                        {formData.image_url && (
-                                            <div className="relative w-16 h-16">
-                                                <Image src={formData.image_url} alt="Preview" fill className="object-cover rounded-lg" />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Liên kết</label>
-                                        <input
-                                            type="url"
-                                            value={formData.link_url || ''}
-                                            onChange={(e) => setFormData((prev: FormState) => ({ ...prev, link_url: e.target.value }))}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Thứ tự</label>
-                                        <input
-                                            type="number"
-                                            value={formData.display_order ?? 0}
-                                            onChange={(e) =>
-                                                setFormData((prev: FormState) => ({ ...prev, display_order: parseInt(e.target.value) }))
-                                            }
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-                                {/* Checkbox cho "Mở ở tab mới" - chỉ có ở banners */}
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        id="open_new_tab"
-                                        checked={formData.open_new_tab || false}
-                                        onChange={(e) => setFormData((prev: FormState) => ({ ...prev, open_new_tab: e.target.checked }))}
-                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                    />
-                                    <label htmlFor="open_new_tab" className="text-sm font-medium text-gray-700">
-                                        Mở ở tab mới
-                                    </label>
-                                </div>
-                            </>
-                        )}
-
-                        {/* Checkbox Published - cho tất cả các tab */}
                         <div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
                                 id="published"
                                 checked={formData.published || false}
-                                onChange={(e) => setFormData((prev: FormState) => ({ ...prev, published: e.target.checked }))}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, published: e.target.checked }))}
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                             />
                             <label htmlFor="published" className="text-sm font-medium text-gray-700">
@@ -758,7 +579,6 @@ const DashboardModifyPage = () => {
                         </div>
                     </div>
 
-                    {/* Modal Footer */}
                     <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
                         <Button variant="outline" onClick={resetForm}>
                             Hủy
@@ -795,7 +615,6 @@ const DashboardModifyPage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-            {/* Notification - Z-index cao nhất */}
             {notification && (
                 <div
                     className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm w-full ${
@@ -876,7 +695,8 @@ const DashboardModifyPage = () => {
                                         setEditingItem(null);
                                         setFormData({
                                             display_order: getCurrentData().length + 1,
-                                            published: false
+                                            published: false,
+                                            data_source: activeTab === 'statistics' ? 'manual' : undefined
                                         });
                                         setShowForm(true);
                                     }}
@@ -922,7 +742,8 @@ const DashboardModifyPage = () => {
                                     setEditingItem(null);
                                     setFormData({
                                         display_order: getCurrentData().length + 1,
-                                        published: false
+                                        published: false,
+                                        data_source: activeTab === 'statistics' ? 'manual' : undefined
                                     });
                                     setShowForm(true);
                                 }}
@@ -933,226 +754,40 @@ const DashboardModifyPage = () => {
                             </Button>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        <GripVertical className="w-4 h-4" />
-                                    </th>
-                                    {activeTab === 'statistics' && (
-                                        <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Icon
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Nhãn
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Giá trị
-                                            </th>
-                                        </>
-                                    )}
-                                    {activeTab === 'activities' && (
-                                        <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Ảnh
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Tiêu đề
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Mô tả
-                                            </th>
-                                        </>
-                                    )}
-                                    {activeTab === 'partners' && (
-                                        <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Logo
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Tên
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Website
-                                            </th>
-                                        </>
-                                    )}
-                                    {activeTab === 'banners' && (
-                                        <>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Ảnh
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Tên
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Liên kết
-                                            </th>
-                                        </>
-                                    )}
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Trạng thái
-                                    </th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Thao tác
-                                    </th>
-                                </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredData.map((item: any) => (
-                                    <tr key={item.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center text-gray-400">
-                                                <GripVertical className="w-4 h-4" />
-                                                <span className="ml-2 text-sm">{item.display_order}</span>
-                                            </div>
-                                        </td>
-
-                                        {activeTab === 'statistics' && (
-                                            <>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
-                                                        {getIconComponent(item.icon)}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-medium text-gray-900">{item.label}</div>
-                                                    <div className="text-sm text-gray-500">{item.name}</div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm font-bold text-blue-600">{item.value}</div>
-                                                </td>
-                                            </>
-                                        )}
-
-                                        {activeTab === 'activities' && (
-                                            <>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    {item.thumbnail && (
-                                                        <div className="relative w-16 h-16">
-                                                            <Image src={item.thumbnail} alt={item.title} fill className="object-cover rounded-lg" />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-medium text-gray-900 line-clamp-2">{item.title}</div>
-                                                </td>
-                                                <td className="px-6 py-4 max-w-xs">
-                                                    <div className="text-sm text-gray-500 line-clamp-3">{item.description}</div>
-                                                </td>
-                                            </>
-                                        )}
-
-                                        {activeTab === 'partners' && (
-                                            <>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    {item.logo_url && (
-                                                        <div className="relative w-16 h-16">
-                                                            <Image src={item.logo_url} alt={item.name} fill className="object-contain rounded-lg" />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                                                    {item.description && (
-                                                        <div className="text-sm text-gray-500 line-clamp-2">{item.description}</div>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    {item.website_url && (
-                                                        <a
-                                                            href={item.website_url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                                                        >
-                                                            <ExternalLink className="w-3 h-3" />
-                                                            <span className="text-sm truncate max-w-32">{item.website_url}</span>
-                                                        </a>
-                                                    )}
-                                                </td>
-                                            </>
-                                        )}
-
-                                        {activeTab === 'banners' && (
-                                            <>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    {item.image_url && (
-                                                        <div className="relative w-20 h-12">
-                                                            <Image src={item.image_url} alt={item.name} fill className="object-cover rounded-lg" />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                                                    {item.open_new_tab && (
-                                                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Tab mới</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    {item.link_url && (
-                                                        <a
-                                                            href={item.link_url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                                                        >
-                                                            <ExternalLink className="w-3 h-3" />
-                                                            <span className="text-sm truncate max-w-32">{item.link_url}</span>
-                                                        </a>
-                                                    )}
-                                                </td>
-                                            </>
-                                        )}
-
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <button
-                                                onClick={() => togglePublishStatus(item.id, item.published)}
-                                                className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
-                                                    item.published
-                                                        ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                                        : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                                                }`}
-                                            >
-                                                {item.published ? (
-                                                    <>
-                                                        <Eye className="w-3 h-3 mr-1" />
-                                                        Đã xuất bản
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <EyeOff className="w-3 h-3 mr-1" />
-                                                        Bản nháp
-                                                    </>
-                                                )}
-                                            </button>
-                                        </td>
-
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => editItem(item)}
-                                                    className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                                                    title="Chỉnh sửa"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => deleteItem(item.id)}
-                                                    className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                                                    title="Xóa"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <>
+                            {activeTab === 'statistics' && (
+                                <StatisticsTab
+                                    statistics={filteredData as Statistic[]}
+                                    onEdit={editItem}
+                                    onDelete={deleteItem}
+                                    onTogglePublish={togglePublishStatus}
+                                />
+                            )}
+                            {activeTab === 'activities' && (
+                                <ActivitiesTab
+                                    activities={filteredData as Activity[]}
+                                    onEdit={editItem}
+                                    onDelete={deleteItem}
+                                    onTogglePublish={togglePublishStatus}
+                                />
+                            )}
+                            {activeTab === 'partners' && (
+                                <PartnersTab
+                                    partners={filteredData as Partner[]}
+                                    onEdit={editItem}
+                                    onDelete={deleteItem}
+                                    onTogglePublish={togglePublishStatus}
+                                />
+                            )}
+                            {activeTab === 'banners' && (
+                                <BannersTab
+                                    banners={filteredData as Banner[]}
+                                    onEdit={editItem}
+                                    onDelete={deleteItem}
+                                    onTogglePublish={togglePublishStatus}
+                                />
+                            )}
+                        </>
                     )}
                 </div>
 
@@ -1174,7 +809,7 @@ const DashboardModifyPage = () => {
             </div>
 
             {/* Form Modal */}
-            {showForm && renderForm()}
+            {renderForm()}
         </div>
     );
 };
