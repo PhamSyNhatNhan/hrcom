@@ -11,22 +11,29 @@ import { MentorCard } from '@/component/MentorCard';
 import { Button } from '@/component/Button';
 import { SectionHeader } from '@/component/SectionHeader';
 import { ImageCarousel } from '@/component/ImageCarousel';
-import { ActivityCard} from '@/component/ActivityCard';
+import { ActivityCard } from '@/component/ActivityCard';
 import { PostCard } from '@/component/PostCard';
 import { PartnerCard } from '@/component/PartnerCard';
 import { usePublishedPosts } from '@/hooks/usePosts';
 import Link from "next/link";
 import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from "@/stores/authStore";
+import type {
+    HomepageData,
+    ActivityCardProps,
+    PartnerCardProps,
+    StatCardProps
+} from '@/types/dashboard_user';
 
-const fallbackStats = [
-    {icon: UserCheck, value: '89', label: 'Mentor đồng hành',},
-    {icon: BookOpenCheck, value: '120', label: 'Hướng dẫn',},
-    {icon: FileText, value: '15000+', label: 'SV tham gia chỉnh sửa CV',},
-    {icon: Mic, value: '15000+', label: 'Đăng ký cuộc phỏng vấn',},
+// Fallback data
+const fallbackStats: StatCardProps[] = [
+    { icon: UserCheck, value: '89', label: 'Mentor đồng hành' },
+    { icon: BookOpenCheck, value: '120', label: 'Hướng dẫn' },
+    { icon: FileText, value: '15000+', label: 'SV tham gia chỉnh sửa CV' },
+    { icon: Mic, value: '15000+', label: 'Đăng ký cuộc phỏng vấn' },
 ];
 
-const fallbackPartners = [
+const fallbackPartners: PartnerCardProps[] = [
     { imageSrc: '/partner/Logo-JobUp.jpg', href: '#' },
     { imageSrc: '/partner/logo-topcv.jpg', href: '#' },
     { imageSrc: '/partner/CareerBuilder_with-tagline-in-Vietnam.png', href: '#' },
@@ -39,58 +46,51 @@ const fallbackPartners = [
     { imageSrc: '/partner/Logo-TMU.jpg', href: '#' },
 ];
 
-const fallbackActivities = [
+const fallbackActivities: ActivityCardProps[] = [
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-1-900x540.jpg',
-        imageAlt: 'img alt',
+        imageAlt: 'Đào tạo viết CV & phỏng vấn',
         title: 'Đào tạo viết CV & phỏng vấn',
-        description:
-            'Tổ chức các khoá đào tạo kỹ năng viết CV & phỏng vấn ứng tuyển chuyên nghiệp',
+        description: 'Tổ chức các khoá đào tạo kỹ năng viết CV & phỏng vấn ứng tuyển chuyên nghiệp',
     },
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-10-900x540.jpg',
-        imageAlt: 'img alt',
+        imageAlt: 'Đào tạo kỹ năng mềm',
         title: 'Đào tạo kỹ năng mềm',
-        description:
-            'Triển khai các hoạt động đào tạo kỹ năng mềm cho sinh viên và người đi làm',
+        description: 'Triển khai các hoạt động đào tạo kỹ năng mềm cho sinh viên và người đi làm',
     },
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-11-900x540.jpg',
-        imageAlt: 'img alt',
+        imageAlt: 'Kết nối doanh nghiệp - trường học',
         title: 'Kết nối doanh nghiệp - trường học',
-        description:
-            'Là cầu nối triển khai các hoạt động hợp tác giữa các doanh nghiệp và các trường ĐH-CĐ',
+        description: 'Là cầu nối triển khai các hoạt động hợp tác giữa các doanh nghiệp và các trường ĐH-CĐ',
     },
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-12-900x540.jpg',
-        imageAlt: 'img alt',
+        imageAlt: 'Giới thiệu việc làm & kết nối tuyển dụng',
         title: 'Giới thiệu việc làm & kết nối tuyển dụng',
-        description:
-            'Hỗ trợ giới thiệu việc làm, kết nối ứng viên và nhà tuyển dụng',
+        description: 'Hỗ trợ giới thiệu việc làm, kết nối ứng viên và nhà tuyển dụng',
     },
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-14-900x540.jpg',
-        imageAlt: 'img alt',
+        imageAlt: 'Quỹ học bổng & hỗ trợ',
         title: 'Quỹ học bổng & hỗ trợ',
-        description:
-            'Thành lập, vận hành và kết nối các quỹ học bổng, quỹ hỗ trợ dành cho các bạn khó khăn',
+        description: 'Thành lập, vận hành và kết nối các quỹ học bổng, quỹ hỗ trợ dành cho các bạn khó khăn',
     },
     {
         href: '/activity',
         imageSrc: '/hrcompanion1-17.jpg',
-        imageAlt: 'img alt',
+        imageAlt: 'Mạng lưới tư vấn & mentor đồng hành',
         title: 'Mạng lưới tư vấn & mentor đồng hành',
-        description:
-            'Thiết lập mạng tư vấn viên, mentor đồng hành cùng DN và ứng viên',
+        description: 'Thiết lập mạng tư vấn viên, mentor đồng hành cùng DN và ứng viên',
     },
 ];
 
-// Fallback banners
 const fallbackBanners = [
     {
         id: 'fallback-1',
@@ -114,74 +114,6 @@ const fallbackBanners = [
         open_new_tab: true
     }
 ];
-
-// Interfaces for database data
-interface StatisticFromDB {
-    id: string;
-    name: string;
-    icon: string;
-    label: string;
-    value: string;
-    display_order: number;
-}
-
-interface ActivityFromDB {
-    id: string;
-    title: string;
-    description: string;
-    thumbnail: string;
-    display_order: number;
-}
-
-interface PartnerFromDB {
-    id: string;
-    name: string;
-    description?: string;
-    logo_url: string;
-    website_url?: string;
-    display_order: number;
-}
-
-interface BannerFromDB {
-    id: string;
-    name: string;
-    image_url: string;
-    link_url?: string;
-    open_new_tab: boolean;
-    display_order: number;
-}
-
-// FIXED: Use same interface as MentorPage and MentorCard
-interface MentorSkill {
-    id: string;
-    name: string;
-    description?: string;
-}
-
-interface MentorFromDB {
-    id: string;
-    full_name: string;
-    headline?: string;
-    avatar?: string;
-    skill?: string[]; // Legacy field
-    skills?: MentorSkill[]; // New structure
-    description?: string;
-    published: boolean;
-    created_at: string;
-    // Statistics
-    total_bookings?: number;
-    completed_bookings?: number;
-    average_rating?: number;
-    total_reviews?: number;
-}
-
-// Homepage data structure
-interface HomepageData {
-    statistics: StatisticFromDB[];
-    activities: ActivityFromDB[];
-    partners: PartnerFromDB[];
-    banners: BannerFromDB[];
-}
 
 // Helper function to map icon names to components
 const getIconComponent = (iconName: string) => {
@@ -209,31 +141,26 @@ const HomePage = () => {
         limit: 4
     });
 
-    // Homepage data states
+    // Single state for all homepage data
     const [homepageData, setHomepageData] = useState<HomepageData | null>(null);
-    const [homepageLoading, setHomepageLoading] = useState(true);
-    const [homepageError, setHomepageError] = useState<string | null>(null);
-
-
-    // Mentor states
-    const [featuredMentors, setFeaturedMentors] = useState<MentorFromDB[]>([]);
-    const [mentorsLoading, setMentorsLoading] = useState(true);
-    const [mentorsError, setMentorsError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const { user } = useAuthStore();
     const isLoggedIn = !!user;
 
-    // Load homepage data using the SQL function
+    // Load ALL homepage data with SINGLE RPC call
     useEffect(() => {
         const loadHomepageData = async () => {
             try {
-                setHomepageLoading(true);
-                setHomepageError(null);
+                setLoading(true);
+                setError(null);
 
-                const { data, error } = await supabase.rpc('get_homepage_data');
+                // Single RPC call to get all homepage data including mentors
+                const { data, error: rpcError } = await supabase.rpc('get_homepage_data');
 
-                if (error) {
-                    throw error;
+                if (rpcError) {
+                    throw rpcError;
                 }
 
                 if (data) {
@@ -244,127 +171,31 @@ const HomePage = () => {
                         statistics: [],
                         activities: [],
                         partners: [],
-                        banners: []
+                        banners: [],
+                        mentors: []
                     });
                 }
             } catch (err) {
                 console.error('Error loading homepage data:', err);
-                setHomepageError('Không thể tải dữ liệu trang chủ');
+                setError('Không thể tải dữ liệu trang chủ');
                 // Set fallback data on error
                 setHomepageData({
                     statistics: [],
                     activities: [],
                     partners: [],
-                    banners: []
+                    banners: [],
+                    mentors: []
                 });
             } finally {
-                setHomepageLoading(false);
+                setLoading(false);
             }
         };
 
         loadHomepageData();
     }, []);
 
-    // FIXED: Load featured mentors with statistics (same as MentorPage)
-    useEffect(() => {
-        const loadFeaturedMentors = async () => {
-            try {
-                setMentorsLoading(true);
-                setMentorsError(null);
-
-                // Fetch basic mentor data
-                const { data: mentorsData, error: fetchError } = await supabase
-                    .from('mentors')
-                    .select('*')
-                    .eq('published', true)
-                    .order('created_at', { ascending: false })
-                    .limit(4);
-
-                if (fetchError) {
-                    throw fetchError;
-                }
-
-                if (!mentorsData || mentorsData.length === 0) {
-                    setFeaturedMentors([]);
-                    return;
-                }
-
-                // Fetch additional data for each mentor in parallel (same logic as MentorPage)
-                const mentorsWithStats = await Promise.all(
-                    mentorsData.map(async (mentor) => {
-                        try {
-                            // Fetch skills from mentor_skill_relations
-                            const { data: skillsData } = await supabase
-                                .from('mentor_skill_relations')
-                                .select(`
-                                    mentor_skills (
-                                        id,
-                                        name,
-                                        description
-                                    )
-                                `)
-                                .eq('mentor_id', mentor.id);
-
-                            // Fetch booking statistics
-                            const { data: bookingsData } = await supabase
-                                .from('mentor_bookings')
-                                .select('id, status')
-                                .eq('mentor_id', mentor.id);
-
-                            // Fetch reviews and calculate average rating
-                            const { data: reviewsData } = await supabase
-                                .from('mentor_reviews')
-                                .select('rating')
-                                .eq('mentor_id', mentor.id)
-                                .eq('is_published', true);
-
-                            const totalBookings = bookingsData?.length || 0;
-                            const completedBookings = bookingsData?.filter((b: any) => b.status === 'completed').length || 0;
-                            const totalReviews = reviewsData?.length || 0;
-                            const averageRating = totalReviews > 0 && reviewsData
-                                ? reviewsData.reduce((sum: number, r: any) => sum + Number(r.rating || 0), 0) / totalReviews
-                                : 0;
-
-                            // Transform skills data
-                            const skills = skillsData?.map((item: any) => item.mentor_skills).filter(Boolean) || [];
-
-                            return {
-                                ...mentor,
-                                skills,
-                                total_bookings: totalBookings,
-                                completed_bookings: completedBookings,
-                                average_rating: averageRating,
-                                total_reviews: totalReviews
-                            } as MentorFromDB;
-                        } catch (err) {
-                            console.error(`Error fetching data for mentor ${mentor.id}:`, err);
-                            // Return mentor with basic data if stats fetch fails
-                            return {
-                                ...mentor,
-                                skills: [],
-                                total_bookings: 0,
-                                completed_bookings: 0,
-                                average_rating: 0,
-                                total_reviews: 0
-                            } as MentorFromDB;
-                        }
-                    })
-                );
-
-                setFeaturedMentors(mentorsWithStats);
-            } catch (err) {
-                console.error('Error loading featured mentors:', err);
-                setMentorsError('Không thể tải danh sách mentor');
-            } finally {
-                setMentorsLoading(false);
-            }
-        };
-
-        loadFeaturedMentors();
-    }, []);
-
-    // Get data with fallbacks
-    const stats = homepageData?.statistics?.length
+    // Transform data with fallbacks
+    const stats: StatCardProps[] = homepageData?.statistics?.length
         ? homepageData.statistics.map(stat => ({
             icon: getIconComponent(stat.icon),
             value: stat.value,
@@ -372,7 +203,7 @@ const HomePage = () => {
         }))
         : fallbackStats;
 
-    const activities = homepageData?.activities?.length
+    const activities: ActivityCardProps[] = homepageData?.activities?.length
         ? homepageData.activities.map(activity => ({
             href: '/activity',
             imageSrc: activity.thumbnail,
@@ -382,7 +213,7 @@ const HomePage = () => {
         }))
         : fallbackActivities;
 
-    const partners = homepageData?.partners?.length
+    const partners: PartnerCardProps[] = homepageData?.partners?.length
         ? homepageData.partners.map(partner => ({
             imageSrc: partner.logo_url,
             href: partner.website_url || '#'
@@ -393,16 +224,18 @@ const HomePage = () => {
         ? homepageData.banners
         : fallbackBanners;
 
+    const mentors = homepageData?.mentors || [];
+
     return (
         <div>
             {/* Intro Section */}
             <section className="relative bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
-                {/* Background Image Carousel - responsive aspect ratio */}
+                {/* Background Image Carousel */}
                 <div className="relative w-full aspect-[16/9] sm:h-[500px]">
-                    {homepageLoading ? (
+                    {loading ? (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
-                            <span className="ml-2 text-gray-600">Đang tải banner...</span>
+                            <span className="ml-2 text-gray-600">Đang tải...</span>
                         </div>
                     ) : (
                         <ImageCarousel
@@ -415,7 +248,7 @@ const HomePage = () => {
                         />
                     )}
 
-                    {/* Overlay gradient - tạo nền xám nhẹ cho toàn bộ banner nhưng không chặn click */}
+                    {/* Overlay gradient */}
                     <div className="absolute inset-0 bg-black/30 pointer-events-none" />
                 </div>
 
@@ -445,7 +278,7 @@ const HomePage = () => {
                             </div>
 
                             {/* Stats Section */}
-                            {homepageLoading ? (
+                            {loading ? (
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                                     {[1, 2, 3, 4].map((i) => (
                                         <div key={i} className="text-center animate-pulse">
@@ -480,7 +313,7 @@ const HomePage = () => {
                         subtitle="Kết nối – Tư vấn – Đồng hành cùng mentor nhân sự giàu kinh nghiệm"
                     />
 
-                    {homepageLoading ? (
+                    {loading ? (
                         <div className="mt-16 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                             {[1, 2, 3, 4, 5, 6].map((i) => (
                                 <div key={i} className="animate-pulse">
@@ -498,7 +331,7 @@ const HomePage = () => {
                 </div>
             </section>
 
-            {/* Mentor Section */}
+            {/* Mentor Section - Now using data from single RPC call */}
             <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
@@ -506,23 +339,22 @@ const HomePage = () => {
                         subtitle="Mentor hay Cố vấn chuyên môn là chuyên gia cung cấp nhiều kiến thức chuyên môn và một loạt các kỹ năng đa dạng khi tuyển dụng, đảm bảo rằng bất kỳ hoạt động hàng ngày nào của công ty đều hoạt động trơn tru."
                     />
 
-                    {/* Mentor Loading State */}
-                    {mentorsLoading ? (
+                    {loading ? (
                         <div className="flex justify-center items-center py-12">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
                             <span className="ml-2 text-gray-600">Đang tải mentor...</span>
                         </div>
-                    ) : mentorsError ? (
+                    ) : error ? (
                         <div className="text-center py-12">
-                            <p className="text-red-600 mb-4">{mentorsError}</p>
+                            <p className="text-red-600 mb-4">{error}</p>
                             <Link href="/mentor">
                                 <Button variant="secondary">Xem tất cả mentor</Button>
                             </Link>
                         </div>
-                    ) : featuredMentors.length > 0 ? (
+                    ) : mentors.length > 0 ? (
                         <>
                             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-                                {featuredMentors.map((mentor) => (
+                                {mentors.map((mentor) => (
                                     <MentorCard key={mentor.id} mentor={mentor} />
                                 ))}
                             </div>
@@ -551,7 +383,7 @@ const HomePage = () => {
                         subtitle="HR Companion tự hào hợp tác cùng các tổ chức, doanh nghiệp và chuyên gia để lan tỏa giá trị bền vững trong quản trị nhân sự."
                     />
 
-                    {homepageLoading ? (
+                    {loading ? (
                         <div className="flex flex-wrap justify-center gap-6">
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
                                 <div key={i} className="w-40 sm:w-48 md:w-52 animate-pulse">
@@ -571,7 +403,7 @@ const HomePage = () => {
                 </div>
             </section>
 
-            {/* Blog Section - Use database posts */}
+            {/* Blog Section */}
             <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-cyan-50 to-blue-50 pb-16">
                 <div className="max-w-7xl mx-auto">
                     <SectionHeader
