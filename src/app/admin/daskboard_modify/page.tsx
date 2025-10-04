@@ -17,7 +17,8 @@ import {
     AlertCircle,
     CheckCircle,
     Loader2,
-    Upload
+    Upload,
+    Info
 } from 'lucide-react';
 import Image from 'next/image';
 import {
@@ -164,7 +165,6 @@ const DashboardModifyPage = () => {
                     showNotification('error', 'Vui lòng điền đầy đủ thông tin bắt buộc');
                     return;
                 }
-                // Validate value for manual data source
                 if ((!formData.data_source || formData.data_source === 'manual') && !formData.value) {
                     showNotification('error', 'Vui lòng nhập giá trị cho nguồn dữ liệu thủ công');
                     return;
@@ -192,7 +192,6 @@ const DashboardModifyPage = () => {
                 published: formData.published ?? false
             };
 
-            // Set default data_source for statistics
             if (activeTab === 'statistics' && !baseData.data_source) {
                 baseData.data_source = 'manual';
             }
@@ -318,6 +317,197 @@ const DashboardModifyPage = () => {
         };
     }, [showForm]);
 
+    // Guidelines component
+    const GuidelinesPanel = () => {
+        const getGuidelines = () => {
+            switch (activeTab) {
+                case 'statistics':
+                    return {
+                        title: 'Hướng dẫn Thống kê',
+                        sections: [
+                            {
+                                title: 'Nguồn dữ liệu',
+                                items: [
+                                    'Manual: Nhập giá trị cố định (VD: 89, 120, 15000+)',
+                                    'Auto: Hệ thống tự động đếm từ database',
+                                    'Có thể lọc theo type (posts) hoặc status (bookings)'
+                                ]
+                            },
+                            {
+                                title: 'Icon',
+                                items: [
+                                    'Chọn icon phù hợp với nội dung thống kê',
+                                    'Icon sẽ hiển thị trong vòng tròn màu gradient',
+                                    'Kích thước hiển thị: 32x32px'
+                                ]
+                            },
+                            {
+                                title: 'Hiển thị',
+                                items: [
+                                    'Thống kê hiển thị trong thẻ trắng bo tròn',
+                                    'Bố cục: Icon - Số liệu - Nhãn (từ trên xuống)',
+                                    'Số liệu được làm nổi bật với font size lớn'
+                                ]
+                            }
+                        ]
+                    };
+                case 'activities':
+                    return {
+                        title: 'Hướng dẫn Hoạt động',
+                        sections: [
+                            {
+                                title: 'Kích thước ảnh đại diện',
+                                items: [
+                                    'Tỷ lệ khuyến nghị: 3:4 (dọc) hoặc 4:3 (ngang)',
+                                    'Kích thước tối ưu: 900x540px hoặc 900x1200px',
+                                    'Định dạng: JPG, PNG',
+                                    'Dung lượng: Dưới 500KB để tải nhanh'
+                                ]
+                            },
+                            {
+                                title: 'Nội dung',
+                                items: [
+                                    'Tiêu đề: Ngắn gọn, súc tích (tối đa 2 dòng)',
+                                    'Mô tả: Chi tiết về hoạt động (tối đa 3 dòng)',
+                                    'Ảnh nên thể hiện rõ nội dung hoạt động'
+                                ]
+                            },
+                            {
+                                title: 'Hiển thị trang chủ',
+                                items: [
+                                    'Layout: Grid 3 cột (desktop), 2 cột (tablet), 1 cột (mobile)',
+                                    'Ảnh chiếm 60% chiều cao card',
+                                    'Phần text có blur overlay màu trắng ở dưới',
+                                    'Hover effect: Scale 1.05x'
+                                ]
+                            }
+                        ]
+                    };
+                case 'partners':
+                    return {
+                        title: 'Hướng dẫn Đối tác',
+                        sections: [
+                            {
+                                title: 'Kích thước logo',
+                                items: [
+                                    'Tỷ lệ khuyến nghị: 16:9 hoặc vuông 1:1',
+                                    'Kích thước tối ưu: 400x225px hoặc 300x300px',
+                                    'Định dạng: PNG (với nền trong suốt) hoặc JPG',
+                                    'Dung lượng: Dưới 200KB'
+                                ]
+                            },
+                            {
+                                title: 'Logo design',
+                                items: [
+                                    'Nền trong suốt hoặc trắng',
+                                    'Logo rõ ràng, dễ nhìn',
+                                    'Không bị méo, vỡ hình',
+                                    'Chất lượng cao (không bị mờ)'
+                                ]
+                            },
+                            {
+                                title: 'Hiển thị trang chủ',
+                                items: [
+                                    'Layout: Flex wrap, canh giữa',
+                                    'Kích thước hiển thị: 192-208px width',
+                                    'Height: 96-128px',
+                                    'Logo được padding 16px, nền trắng',
+                                    'Hover effect: Scale 1.05x'
+                                ]
+                            }
+                        ]
+                    };
+                case 'banners':
+                    return {
+                        title: 'Hướng dẫn Banner',
+                        sections: [
+                            {
+                                title: 'Kích thước banner',
+                                items: [
+                                    'Tỷ lệ khuyến nghị: 16:9 (widescreen)',
+                                    'Kích thước desktop: 1920x1080px',
+                                    'Kích thước mobile: 1200x675px',
+                                    'Định dạng: JPG (nén tối ưu)',
+                                    'Dung lượng: 200-500KB'
+                                ]
+                            },
+                            {
+                                title: 'Thiết kế banner',
+                                items: [
+                                    'Nội dung quan trọng ở trung tâm (safe zone)',
+                                    'Tránh text quá nhỏ hoặc chi tiết quá nhiều',
+                                    'Độ tương phản tốt giữa text và background',
+                                    'Responsive: Text vẫn đọc được trên mobile'
+                                ]
+                            },
+                            {
+                                title: 'Hiển thị trang chủ',
+                                items: [
+                                    'Carousel tự động chuyển slide (4s)',
+                                    'Height: 300px (mobile) - 500px (desktop)',
+                                    'Có dots indicator và arrow navigation',
+                                    'Hover: Hiển thị tên banner và link indicator',
+                                    'Click: Mở link (tab mới nếu được chọn)'
+                                ]
+                            },
+                            {
+                                title: 'Best practices',
+                                items: [
+                                    'Tối đa 5-7 banner để tránh quá dài',
+                                    'Thứ tự ưu tiên: Banner quan trọng đầu tiên',
+                                    'Test trên nhiều thiết bị',
+                                    'Cập nhật định kỳ để giữ nội dung mới'
+                                ]
+                            }
+                        ]
+                    };
+                default:
+                    return null;
+            }
+        };
+
+        const guidelines = getGuidelines();
+        if (!guidelines) return null;
+
+        return (
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
+                <div className="flex items-start gap-3 mb-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                        <Info className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">{guidelines.title}</h3>
+                        <p className="text-sm text-gray-600">
+                            Vui lòng đọc kỹ hướng dẫn để đảm bảo nội dung hiển thị đẹp và chuyên nghiệp
+                        </p>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    {guidelines.sections.map((section, idx) => (
+                        <div key={idx} className="bg-white rounded-lg p-4 shadow-sm">
+                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+                                    {idx + 1}
+                                </span>
+                                {section.title}
+                            </h4>
+                            <ul className="space-y-2">
+                                {section.items.map((item, itemIdx) => (
+                                    <li key={itemIdx} className="flex items-start gap-2 text-sm text-gray-700">
+                                        <span className="text-blue-500 mt-1">•</span>
+                                        <span>{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ))}
+                </div>
+
+            </div>
+        );
+    };
+
     // Render form based on active tab
     const renderFormFields = () => {
         if (activeTab === 'statistics') {
@@ -344,7 +534,10 @@ const DashboardModifyPage = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh đại diện</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Ảnh đại diện
+                            <span className="ml-2 text-xs text-blue-600">(Khuyến nghị: 900x540px hoặc 900x1200px)</span>
+                        </label>
                         <div className="flex items-center gap-4">
                             <input
                                 type="file"
@@ -404,7 +597,10 @@ const DashboardModifyPage = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Logo</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Logo
+                            <span className="ml-2 text-xs text-blue-600">(Khuyến nghị: 400x225px hoặc 300x300px, PNG với nền trong suốt)</span>
+                        </label>
                         <div className="flex items-center gap-4">
                             <input
                                 type="file"
@@ -466,7 +662,10 @@ const DashboardModifyPage = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Ảnh banner</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Ảnh banner
+                            <span className="ml-2 text-xs text-blue-600">(Khuyến nghị: 1920x1080px, tỷ lệ 16:9)</span>
+                        </label>
                         <div className="flex items-center gap-4">
                             <input
                                 type="file"
@@ -805,6 +1004,11 @@ const DashboardModifyPage = () => {
                             <div className="text-sm text-green-600">{stat.published} đã xuất bản</div>
                         </div>
                     ))}
+                </div>
+
+                {/* Guidelines Panel - Moved to Bottom */}
+                <div className="mt-8">
+                    <GuidelinesPanel />
                 </div>
             </div>
 
