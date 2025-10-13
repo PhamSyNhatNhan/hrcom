@@ -4,15 +4,21 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
-import { CheckCircle, XCircle, AlertCircle, X, Calendar, BarChart3, Settings } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, X, Calendar, BarChart3 } from 'lucide-react';
 import { BookingTab } from '@/component/admin/mentor_booking/BookingTab';
+import { EventsTab } from '@/component/admin/mentor_booking/EventsTab';
 import {
     MentorBooking,
     BookingFilters,
-    PaginationState,
+    PaginationState as BookingPaginationState,
     NotificationState,
     TabType
 } from '@/types/mentor_booking_admin';
+import {
+    EventRegistration,
+    EventFilters,
+    PaginationState as EventPaginationState
+} from '@/types/events_admin';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -22,21 +28,34 @@ const AdminMentorBookingPage = () => {
     // Tab state
     const [activeTab, setActiveTab] = useState<TabType>('bookings');
 
-    // States
+    // Booking states
     const [bookings, setBookings] = useState<MentorBooking[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    // Filter states
-    const [filters, setFilters] = useState<BookingFilters>({
+    const [bookingLoading, setBookingLoading] = useState(true);
+    const [bookingFilters, setBookingFilters] = useState<BookingFilters>({
         searchTerm: '',
         statusFilter: 'all',
         sessionTypeFilter: 'all',
         dateFrom: '',
         dateTo: ''
     });
+    const [bookingPagination, setBookingPagination] = useState<BookingPaginationState>({
+        currentPage: 1,
+        totalPages: 1,
+        totalCount: 0,
+        itemsPerPage: ITEMS_PER_PAGE
+    });
 
-    // Pagination states
-    const [pagination, setPagination] = useState<PaginationState>({
+    // Event registration states
+    const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
+    const [eventLoading, setEventLoading] = useState(true);
+    const [eventFilters, setEventFilters] = useState<EventFilters>({
+        searchTerm: '',
+        statusFilter: 'all',
+        eventTypeFilter: 'all',
+        dateFrom: '',
+        dateTo: ''
+    });
+    const [eventPagination, setEventPagination] = useState<EventPaginationState>({
         currentPage: 1,
         totalPages: 1,
         totalCount: 0,
@@ -46,39 +65,44 @@ const AdminMentorBookingPage = () => {
     // Notification
     const [notification, setNotification] = useState<NotificationState | null>(null);
 
-    // Load data
+    // Load data based on active tab
     useEffect(() => {
         if (user && (user.role === 'admin' || user.role === 'superadmin')) {
             if (activeTab === 'bookings') {
                 loadBookings();
+            } else if (activeTab === 'events') {
+                loadRegistrations();
             }
-            // Add other tab loading logic here in the future
         }
-    }, [user, activeTab, pagination.currentPage, filters]);
+    }, [user, activeTab, bookingPagination.currentPage, bookingFilters, eventPagination.currentPage, eventFilters]);
 
-    // Reset page when filters change
+    // Reset page when filters change for bookings
     useEffect(() => {
-        if (pagination.currentPage !== 1) {
-            setPagination(prev => ({ ...prev, currentPage: 1 }));
+        if (activeTab === 'bookings' && bookingPagination.currentPage !== 1) {
+            setBookingPagination(prev => ({ ...prev, currentPage: 1 }));
         }
-    }, [filters.searchTerm, filters.statusFilter, filters.sessionTypeFilter, filters.dateFrom, filters.dateTo]);
+    }, [bookingFilters.searchTerm, bookingFilters.statusFilter, bookingFilters.sessionTypeFilter, bookingFilters.dateFrom, bookingFilters.dateTo]);
+
+    // Reset page when filters change for events
+    useEffect(() => {
+        if (activeTab === 'events' && eventPagination.currentPage !== 1) {
+            setEventPagination(prev => ({ ...prev, currentPage: 1 }));
+        }
+    }, [eventFilters.searchTerm, eventFilters.statusFilter, eventFilters.eventTypeFilter, eventFilters.dateFrom, eventFilters.dateTo]);
 
     // Load bookings via RPC
     const loadBookings = async () => {
         try {
-            setLoading(true);
+            setBookingLoading(true);
 
-            // Calculate pagination
-            const from = (pagination.currentPage - 1) * ITEMS_PER_PAGE;
-
-            // Prepare date filters
-            const dateFromFilter = filters.dateFrom ? new Date(filters.dateFrom).toISOString() : null;
-            const dateToFilter = filters.dateTo ? new Date(filters.dateTo + 'T23:59:59').toISOString() : null;
+            const from = (bookingPagination.currentPage - 1) * ITEMS_PER_PAGE;
+            const dateFromFilter = bookingFilters.dateFrom ? new Date(bookingFilters.dateFrom).toISOString() : null;
+            const dateToFilter = bookingFilters.dateTo ? new Date(bookingFilters.dateTo + 'T23:59:59').toISOString() : null;
 
             const { data, error } = await supabase.rpc('mentor_booking_admin_get_list', {
-                p_search_term: filters.searchTerm || null,
-                p_status: filters.statusFilter === 'all' ? null : filters.statusFilter,
-                p_session_type: filters.sessionTypeFilter === 'all' ? null : filters.sessionTypeFilter,
+                p_search_term: bookingFilters.searchTerm || null,
+                p_status: bookingFilters.statusFilter === 'all' ? null : bookingFilters.statusFilter,
+                p_session_type: bookingFilters.sessionTypeFilter === 'all' ? null : bookingFilters.sessionTypeFilter,
                 p_date_from: dateFromFilter,
                 p_date_to: dateToFilter,
                 p_limit: ITEMS_PER_PAGE,
@@ -87,12 +111,11 @@ const AdminMentorBookingPage = () => {
 
             if (error) throw error;
 
-            // Extract bookings and count from RPC result
             const bookingsData = data?.bookings || [];
             const totalCount = data?.total_count || 0;
 
             setBookings(bookingsData);
-            setPagination(prev => ({
+            setBookingPagination(prev => ({
                 ...prev,
                 totalCount,
                 totalPages: Math.ceil(totalCount / ITEMS_PER_PAGE)
@@ -101,7 +124,45 @@ const AdminMentorBookingPage = () => {
             console.error('Error loading bookings:', error);
             showNotification('error', 'Không thể tải danh sách đặt lịch');
         } finally {
-            setLoading(false);
+            setBookingLoading(false);
+        }
+    };
+
+    // Load event registrations via RPC
+    const loadRegistrations = async () => {
+        try {
+            setEventLoading(true);
+
+            const from = (eventPagination.currentPage - 1) * ITEMS_PER_PAGE;
+            const dateFromFilter = eventFilters.dateFrom ? new Date(eventFilters.dateFrom).toISOString() : null;
+            const dateToFilter = eventFilters.dateTo ? new Date(eventFilters.dateTo + 'T23:59:59').toISOString() : null;
+
+            const { data, error } = await supabase.rpc('events_admin_get_list', {
+                p_search_term: eventFilters.searchTerm || null,
+                p_status: eventFilters.statusFilter === 'all' ? null : eventFilters.statusFilter,
+                p_event_type: eventFilters.eventTypeFilter === 'all' ? null : eventFilters.eventTypeFilter,
+                p_date_from: dateFromFilter,
+                p_date_to: dateToFilter,
+                p_limit: ITEMS_PER_PAGE,
+                p_offset: from
+            });
+
+            if (error) throw error;
+
+            const registrationsData = data?.registrations || [];
+            const totalCount = data?.total_count || 0;
+
+            setRegistrations(registrationsData);
+            setEventPagination(prev => ({
+                ...prev,
+                totalCount,
+                totalPages: Math.ceil(totalCount / ITEMS_PER_PAGE)
+            }));
+        } catch (error) {
+            console.error('Error loading registrations:', error);
+            showNotification('error', 'Không thể tải danh sách đăng ký');
+        } finally {
+            setEventLoading(false);
         }
     };
 
@@ -112,29 +173,34 @@ const AdminMentorBookingPage = () => {
     };
 
     // Handle filters change
-    const handleFiltersChange = (newFilters: Partial<BookingFilters>) => {
-        setFilters(prev => ({ ...prev, ...newFilters }));
+    const handleBookingFiltersChange = (newFilters: Partial<BookingFilters>) => {
+        setBookingFilters(prev => ({ ...prev, ...newFilters }));
+    };
+
+    const handleEventFiltersChange = (newFilters: Partial<EventFilters>) => {
+        setEventFilters(prev => ({ ...prev, ...newFilters }));
     };
 
     // Handle page change
-    const handlePageChange = (page: number) => {
-        setPagination(prev => ({ ...prev, currentPage: page }));
+    const handleBookingPageChange = (page: number) => {
+        setBookingPagination(prev => ({ ...prev, currentPage: page }));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleEventPageChange = (page: number) => {
+        setEventPagination(prev => ({ ...prev, currentPage: page }));
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     // Handle tab change
     const handleTabChange = (tab: TabType) => {
         setActiveTab(tab);
-        setPagination(prev => ({ ...prev, currentPage: 1 }));
-        // Reset filters when changing tabs if needed
-        if (tab !== 'bookings') {
-            setFilters({
-                searchTerm: '',
-                statusFilter: 'all',
-                sessionTypeFilter: 'all',
-                dateFrom: '',
-                dateTo: ''
-            });
+
+        // Reset pagination for the new tab
+        if (tab === 'bookings') {
+            setBookingPagination(prev => ({ ...prev, currentPage: 1 }));
+        } else if (tab === 'events') {
+            setEventPagination(prev => ({ ...prev, currentPage: 1 }));
         }
     };
 
@@ -175,8 +241,8 @@ const AdminMentorBookingPage = () => {
 
             <div className="max-w-7xl mx-auto">
                 <SectionHeader
-                    title="QUẢN LÝ BOOKING MENTOR"
-                    subtitle="Quản lý tất cả booking mentor và đánh giá từ người dùng"
+                    title="QUẢN LÝ BOOKING & EVENTS"
+                    subtitle="Quản lý tất cả booking mentor và đăng ký sự kiện từ người dùng"
                 />
 
                 {/* Tab Navigation */}
@@ -193,7 +259,7 @@ const AdminMentorBookingPage = () => {
                             >
                                 <div className="flex items-center gap-2">
                                     <Calendar className="w-4 h-4" />
-                                    Quản lý Booking
+                                    Quản lý Booking Mentor
                                 </div>
                             </button>
 
@@ -204,17 +270,12 @@ const AdminMentorBookingPage = () => {
                                         ? 'border-blue-500 text-blue-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
-                                disabled
                             >
                                 <div className="flex items-center gap-2">
                                     <BarChart3 className="w-4 h-4" />
-                                    Events
-                                    <span className="ml-1 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
-                                        Sắp ra mắt
-                                    </span>
+                                    Quản lý Đăng ký Events
                                 </div>
                             </button>
-
                         </nav>
                     </div>
                 </div>
@@ -223,32 +284,28 @@ const AdminMentorBookingPage = () => {
                 {activeTab === 'bookings' && (
                     <BookingTab
                         bookings={bookings}
-                        loading={loading}
-                        filters={filters}
-                        pagination={pagination}
-                        onFiltersChange={handleFiltersChange}
-                        onPageChange={handlePageChange}
+                        loading={bookingLoading}
+                        filters={bookingFilters}
+                        pagination={bookingPagination}
+                        onFiltersChange={handleBookingFiltersChange}
+                        onPageChange={handleBookingPageChange}
                         onRefresh={loadBookings}
                         onShowNotification={showNotification}
                     />
                 )}
 
                 {activeTab === 'events' && (
-                    <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-                        <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">
-                            Thống kê & Báo cáo
-                        </h3>
-                        <p className="text-gray-600 mb-4">
-                            Tính năng này đang được phát triển và sẽ sớm ra mắt.
-                        </p>
-                        <p className="text-sm text-gray-500">
-                            Bạn sẽ có thể xem biểu đồ thống kê, báo cáo chi tiết về booking và đánh giá mentor.
-                        </p>
-                    </div>
+                    <EventsTab
+                        registrations={registrations}
+                        loading={eventLoading}
+                        filters={eventFilters}
+                        pagination={eventPagination}
+                        onFiltersChange={handleEventFiltersChange}
+                        onPageChange={handleEventPageChange}
+                        onRefresh={loadRegistrations}
+                        onShowNotification={showNotification}
+                    />
                 )}
-
-
             </div>
         </div>
     );
