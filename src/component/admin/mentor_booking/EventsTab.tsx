@@ -2827,7 +2827,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                             <button
                                                 key={star}
                                                 type="button"
-                                                onClick={() => setReviewFormData(prev => ({ ...prev, rating: star }))}
+                                                onClick={() => setReviewFormData((prev: any) => ({ ...prev, rating: star }))}
                                                 className={`text-2xl transition-colors ${
                                                     star <= (reviewFormData.rating || 0)
                                                         ? 'text-yellow-400 hover:text-yellow-500'
@@ -2850,7 +2850,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                     </label>
                                     <textarea
                                         value={reviewFormData.comment || ''}
-                                        onChange={(e) => setReviewFormData(prev => ({ ...prev, comment: e.target.value }))}
+                                        onChange={(e) => setReviewFormData((prev: any) => ({ ...prev, comment: e.target.value }))}
                                         rows={5}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         placeholder="Nội dung đánh giá..."
@@ -2863,7 +2863,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                         type="checkbox"
                                         id="is_published"
                                         checked={reviewFormData.is_published || false}
-                                        onChange={(e) => setReviewFormData(prev => ({ ...prev, is_published: e.target.checked }))}
+                                        onChange={(e) => setReviewFormData((prev: any) => ({ ...prev, is_published: e.target.checked }))}
                                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                         disabled={submitting}
                                     />
