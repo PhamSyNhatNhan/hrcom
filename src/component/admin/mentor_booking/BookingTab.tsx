@@ -1476,7 +1476,7 @@ export const BookingTab: React.FC<BookingTabProps> = ({
                                         type="checkbox"
                                         id="is_published"
                                         checked={reviewFormData.is_published || false}
-                                        onChange={(e) => setReviewFormData(prev => ({ ...prev, is_published: e.target.checked }))}
+                                        onChange={(e) => setReviewFormData((prev: any) => ({ ...prev, is_published: e.target.checked }))}
                                         className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                         disabled={submitting}
                                     />
