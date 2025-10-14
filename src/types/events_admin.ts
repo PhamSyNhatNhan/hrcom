@@ -17,6 +17,16 @@ export interface Event {
     published: boolean;
     created_at: string;
     updated_at: string;
+    // Thêm các trường count
+    participant_count?: number;
+    confirmed_count?: number;
+    checked_in_count?: number;
+    // Thêm post relation nếu có
+    post?: {
+        id: string;
+        title: string;
+        description?: string;
+    };
 }
 
 export interface Profile {
@@ -103,8 +113,19 @@ export interface EventReview {
     is_published: boolean;
     created_at: string;
     updated_at: string;
+    // Thêm relations cho review list
+    user?: {
+        id: string;
+        full_name: string;
+        image_url?: string;
+    };
+    registration?: {
+        id: string;
+        contact_email: string;
+    };
 }
 
+// THÊM MỚI: Interface cho Check-in Code
 export interface EventCheckInCode {
     id: string;
     event_id: string;
@@ -116,6 +137,9 @@ export interface EventCheckInCode {
     notes?: string;
     created_at: string;
     updated_at: string;
+    // Thêm các trường từ RPC
+    creator_name?: string;
+    usage_count: number;
 }
 
 export interface EventFilters {
