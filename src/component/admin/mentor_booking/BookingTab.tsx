@@ -1462,7 +1462,7 @@ export const BookingTab: React.FC<BookingTabProps> = ({
                                     </label>
                                     <textarea
                                         value={reviewFormData.comment || ''}
-                                        onChange={(e) => setReviewFormData(prev => ({ ...prev, comment: e.target.value }))}
+                                        onChange={(e) => setReviewFormData((prev: any) => ({ ...prev, comment: e.target.value }))}
                                         rows={5}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         placeholder="Nội dung đánh giá..."
