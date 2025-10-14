@@ -103,9 +103,11 @@ const RootLayout = ({ children }: LayoutProps) => {
         // New states for dropdown menus
         const [isMentorMenuOpen, setIsMentorMenuOpen] = useState(false);
         const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+        const [isActivityMenuOpen, setIsActivityMenuOpen] = useState(false);
         // Mobile dropdown states
         const [isMobileMentorMenuOpen, setIsMobileMentorMenuOpen] = useState(false);
         const [isMobileAdminMenuOpen, setIsMobileAdminMenuOpen] = useState(false);
+        const [isMobileActivityMenuOpen, setIsMobileActivityMenuOpen] = useState(false);
 
         // Prevent hydration mismatch by ensuring user-specific UI renders only on the client
         const [isMounted, setIsMounted] = useState(false);
@@ -131,8 +133,10 @@ const RootLayout = ({ children }: LayoutProps) => {
             setIsMenuOpen(false);
             setIsMentorMenuOpen(false);
             setIsAdminMenuOpen(false);
+            setIsActivityMenuOpen(false);
             setIsMobileMentorMenuOpen(false);
             setIsMobileAdminMenuOpen(false);
+            setIsMobileActivityMenuOpen(false);
         };
 
         const handleLogout = async () => {
@@ -143,7 +147,6 @@ const RootLayout = ({ children }: LayoutProps) => {
 
             if (error) {
                 console.error('Error signing out:', error);
-                // Optionally, show an error message to the user here
             } else {
                 router.push('/'); // Redirect to home page after successful logout
             }
@@ -161,6 +164,9 @@ const RootLayout = ({ children }: LayoutProps) => {
                 }
                 if (!target.closest('.admin-menu-container')) {
                     setIsAdminMenuOpen(false);
+                }
+                if (!target.closest('.activity-menu-container')) {
+                    setIsActivityMenuOpen(false);
                 }
             };
             document.addEventListener('mousedown', handleClickOutside);
@@ -191,6 +197,7 @@ const RootLayout = ({ children }: LayoutProps) => {
         // Check if any mentor/admin routes are active
         const isMentorRouteActive = pathname.startsWith('/mentor_page');
         const isAdminRouteActive = pathname.startsWith('/admin');
+        const isActivityRouteActive = pathname.startsWith('/mentor_booking') || pathname.startsWith('/events');
 
         return (
             <>
@@ -267,18 +274,44 @@ const RootLayout = ({ children }: LayoutProps) => {
 
                                 {/* Đặt lịch - only for regular users */}
                                 {isMounted && (user?.role === 'user' || !user?.role) && (
-                                    isLoggedIn ? (
-                                        <Link href="/mentor_booking" className={navLinkClass('/appointment')}>
-                                            Đặt lịch
-                                        </Link>
-                                    ) : (
-                                        <Link
-                                            href="/auth/login?redirectTo=/mentor_booking"
-                                            className={navLinkClass('/appointment')}
+                                    <div className="relative activity-menu-container">
+                                        <button
+                                            onClick={() => setIsActivityMenuOpen(!isActivityMenuOpen)}
+                                            className={`flex items-center gap-1 ${navLinkClass('/activity')} ${
+                                                isActivityRouteActive ? 'text-cyan-600 font-semibold' : ''
+                                            }`}
                                         >
                                             Đặt lịch
-                                        </Link>
-                                    )
+                                            <ChevronDown
+                                                className={`w-4 h-4 transition-transform duration-300 ${
+                                                    isActivityMenuOpen ? 'rotate-180' : ''
+                                                }`}
+                                            />
+                                        </button>
+
+                                        <div
+                                            className={`absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg transition-all duration-300 z-50 ${
+                                                isActivityMenuOpen
+                                                    ? 'opacity-100 scale-100 translate-y-0'
+                                                    : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
+                                            } transform origin-top`}
+                                        >
+                                            <Link
+                                                href="/mentor_booking"
+                                                onClick={handleNavLinkClick}
+                                                className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-t-xl border-b border-gray-100 transition-colors duration-200"
+                                            >
+                                                Đặt lịch Mentor
+                                            </Link>
+                                            <Link
+                                                href="/events"
+                                                onClick={handleNavLinkClick}
+                                                className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl transition-colors duration-200"
+                                            >
+                                                Sự kiện
+                                            </Link>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {/* Mentor Dropdown */}
@@ -388,25 +421,49 @@ const RootLayout = ({ children }: LayoutProps) => {
                                 <Link href="/news" className={`block py-2 pl-4 ${navLinkClass('/news')}`} onClick={handleNavLinkClick}>Tin tức & Sự kiện</Link>
                                 <Link href="/blog" className={`block py-2 pl-4 ${navLinkClass('/blog')}`} onClick={handleNavLinkClick}>Blog HR Companion</Link>
 
-                                {/* Đặt lịch - Mobile version */}
                                 {isMounted && (user?.role === 'user' || !user?.role) && (
-                                    isLoggedIn ? (
-                                        <Link
-                                            href="/mentor_booking"
-                                            className={`block py-2 pl-4 ${navLinkClass('/appointment')}`}
-                                            onClick={handleNavLinkClick}
+                                    <div>
+                                        <button
+                                            onClick={() => setIsMobileActivityMenuOpen(!isMobileActivityMenuOpen)}
+                                            className={`flex items-center justify-between w-full py-2 pl-4 transition-colors duration-200 ${navLinkClass('/activity')} ${
+                                                isActivityRouteActive ? 'text-cyan-600 font-semibold' : ''
+                                            }`}
                                         >
                                             Đặt lịch
-                                        </Link>
-                                    ) : (
-                                        <Link
-                                            href="/auth/login?redirectTo=/mentor_booking"
-                                            className={`block py-2 pl-4 ${navLinkClass('/appointment')}`}
-                                            onClick={handleNavLinkClick}
+                                            <ChevronDown
+                                                className={`w-4 h-4 mr-4 transition-transform duration-300 ${
+                                                    isMobileActivityMenuOpen ? 'rotate-180' : ''
+                                                }`}
+                                            />
+                                        </button>
+
+                                        <div
+                                            className={`grid transition-all duration-300 ease-in-out ${
+                                                isMobileActivityMenuOpen
+                                                    ? 'grid-rows-[1fr] opacity-100'
+                                                    : 'grid-rows-[0fr] opacity-0'
+                                            }`}
                                         >
-                                            Đặt lịch
-                                        </Link>
-                                    )
+                                            <div className="overflow-hidden">
+                                                <div className="py-1 space-y-0">
+                                                    <Link
+                                                        href="/mentor_booking"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/mentor_booking')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Đặt lịch Mentor
+                                                    </Link>
+                                                    <Link
+                                                        href="/events"
+                                                        className={`block py-2 pl-8 transition-all duration-200 hover:bg-gray-50 hover:pl-10 ${navLinkClass('/events')}`}
+                                                        onClick={handleNavLinkClick}
+                                                    >
+                                                        Sự kiện
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {/* Mentor Dropdown - Mobile */}
