@@ -604,3 +604,5 @@ export const getPostTypeLabel = (type: string): string => {
 export const getPostStatusLabel = (published: boolean): string => {
     return published ? 'Đã xuất bản' : 'Bản nháp';
 };
+
+export type { Post } from '@/types/posts_user';
