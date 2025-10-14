@@ -511,7 +511,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     };
 
     const generateNewCode = () => {
-        setCheckInCodeFormData(prev => ({
+        setCheckInCodeFormData((prev: any) => ({
             ...prev,
             code: Math.random().toString(36).substring(2, 8).toUpperCase()
         }));
