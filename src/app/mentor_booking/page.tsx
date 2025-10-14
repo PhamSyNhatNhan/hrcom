@@ -10,21 +10,17 @@ import {
     Clock,
     Users,
     BookOpen,
-    Save,
     Send,
     Edit,
     X,
     Plus,
-    Minus,
     Search,
     User,
-    Building,
     Phone,
     Mail,
     AlertCircle,
     CheckCircle,
     XCircle,
-    RefreshCw,
     Trash2,
     ChevronRight,
     ChevronLeft,
@@ -36,85 +32,25 @@ import {
     ArrowRight
 } from 'lucide-react';
 import Image from 'next/image';
+import type {
+    Mentor,
+    MentorSkillRelation,
+    MentorBooking,
+    BookingFormData,
+    ReviewFormData,
+    Notification
+} from '@/types/mentor_booking_user';
 
-// Interfaces
-interface Mentor {
-    id: string;
-    full_name: string;
-    headline?: string;
-    avatar?: string;
-    description?: string;
-    phone_number?: string;
-    email: string;
-}
-
-interface MentorSkill {
-    id: string;
-    name: string;
-    description?: string;
-}
-
-interface MentorSkillRelation {
-    skill_id: string;
-    mentor_skills: MentorSkill;
-}
-
-interface MentorReview {
-    id?: string;
-    booking_id: string;
-    user_id: string;
-    mentor_id: string;
-    rating: number;
-    comment?: string;
-    is_published: boolean;
-    created_at?: string;
-    updated_at?: string;
-}
-
-interface MentorBooking {
-    id?: string;
-    user_id: string;
-    mentor_id: string;
-    scheduled_date?: string;
-    duration: number;
-    session_type: 'online' | 'offline' | 'hybrid';
-    contact_email: string;
-    contact_phone?: string;
-    user_notes?: string;
-    mentor_notes?: string;
-    admin_notes?: string;
-    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-    created_at?: string;
-    updated_at?: string;
-    completed_at?: string;
-    mentors?: Mentor;
-    mentor_reviews?: MentorReview[];
-    has_review?: boolean;
-}
-
-interface BookingFormData {
-    mentor_id: string;
-    selectedSkills: string[];
-    otherSkills: string;
-    session_type: 'online' | 'offline' | 'hybrid';
-    scheduled_date: string;
-    duration: number;
-    contact_email: string;
-    contact_phone: string;
-    user_notes: string;
-}
-
-// Multi-step booking component
 const MentorBookingContent = () => {
     const { user } = useAuthStore();
     const router = useRouter();
     const searchParams = useSearchParams();
     const editId = searchParams.get('edit');
 
-    // States
     const [mentors, setMentors] = useState<Mentor[]>([]);
     const [mentorSkills, setMentorSkills] = useState<Record<string, MentorSkillRelation[]>>({});
     const [bookings, setBookings] = useState<MentorBooking[]>([]);
+    const [totalBookings, setTotalBookings] = useState(0);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [showForm, setShowForm] = useState(false);
@@ -122,16 +58,14 @@ const MentorBookingContent = () => {
     const [editingBooking, setEditingBooking] = useState<MentorBooking | null>(null);
     const [searchMentor, setSearchMentor] = useState('');
 
-    // Review states
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [reviewingBooking, setReviewingBooking] = useState<MentorBooking | null>(null);
-    const [reviewData, setReviewData] = useState({
+    const [reviewData, setReviewData] = useState<ReviewFormData>({
         rating: 0,
         comment: '',
         is_published: true
     });
 
-    // Form data
     const [formData, setFormData] = useState<BookingFormData>({
         mentor_id: '',
         selectedSkills: [],
@@ -144,12 +78,7 @@ const MentorBookingContent = () => {
         user_notes: ''
     });
 
-    const [notification, setNotification] = useState<{
-        type: 'success' | 'error' | 'warning';
-        message: string;
-    } | null>(null);
-
-    // Pagination
+    const [notification, setNotification] = useState<Notification | null>(null);
     const [mentorPage, setMentorPage] = useState(1);
     const MENTORS_PER_PAGE = 6;
 
@@ -162,18 +91,15 @@ const MentorBookingContent = () => {
         { id: 6, title: 'Xác nhận', icon: <CheckCircle className="w-5 h-5" /> }
     ];
 
-    // Load data
     useEffect(() => {
         if (user) {
             loadMentors();
             loadUserBookings();
 
-            // Handle edit mode
             if (editId) {
                 loadBookingForEdit(editId);
             }
 
-            // Handle mentor pre-selection from URL
             const mentorId = searchParams.get('mentor');
             if (mentorId && !editId) {
                 setFormData(prev => ({
@@ -184,71 +110,48 @@ const MentorBookingContent = () => {
                 setShowForm(true);
             }
         }
-    }, [user, editId]); // <- BỎ showForm khỏi dependency
+    }, [user, editId]);
+
+    useEffect(() => {
+        if (showForm || showReviewModal) {
+            document.body.style.overflow = 'hidden';
+            document.body.style.paddingRight = '15px';
+        } else {
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        }
+
+        return () => {
+            document.body.style.overflow = 'unset';
+            document.body.style.paddingRight = '0px';
+        };
+    }, [showForm, showReviewModal]);
 
     const loadMentors = async () => {
         try {
             const { data: mentorsData, error: mentorsError } = await supabase
-                .from('mentors')
-                .select('*')
-                .eq('published', true)
-                .order('full_name');
+                .rpc('mentor_booking_user_get_mentors_with_skills');
 
             if (mentorsError) throw mentorsError;
-            setMentors(Array.isArray(mentorsData) ? mentorsData : []);
 
-            // Load skills for each mentor
-            if (mentorsData && mentorsData.length > 0) {
-                const skillsPromises = mentorsData.map(async (mentor) => {
-                    const { data: skillsData, error: skillsError } = await supabase
-                        .from('mentor_skill_relations')
-                        .select(`
-                            skill_id,
-                            mentor_skills (
-                                id,
-                                name,
-                                description
-                            )
-                        `)
-                        .eq('mentor_id', mentor.id);
+            const mentorsArray = Array.isArray(mentorsData) ? mentorsData : [];
+            setMentors(mentorsArray);
 
-                    if (skillsError) throw skillsError;
-                    return { mentorId: mentor.id, skills: skillsData || [] };
-                });
+            const skillsMap: Record<string, MentorSkillRelation[]> = {};
+            mentorsArray.forEach((mentor: any) => {
+                if (mentor.skills && Array.isArray(mentor.skills)) {
+                    skillsMap[mentor.id] = mentor.skills.map((skill: any) => ({
+                        skill_id: skill.skill_id,
+                        mentor_skills: {
+                            id: skill.skill_id,
+                            name: skill.name,
+                            description: skill.description
+                        }
+                    }));
+                }
+            });
 
-                const skillsResults = await Promise.all(skillsPromises);
-
-                // skillsResults: Array<{ mentorId: string; skills: RawMentorSkillRelation[] }>
-                const skillsMap: Record<string, MentorSkillRelation[]> = {};
-
-                skillsResults.forEach(({ mentorId, skills }) => {
-                    const normalized: MentorSkillRelation[] = (skills ?? [])
-                        .map((s): MentorSkillRelation | null => {
-                            // Nếu mentor_skills là mảng, lấy phần tử đầu; nếu là object, dùng luôn
-                            const ms = Array.isArray(s.mentor_skills)
-                                ? s.mentor_skills[0]
-                                : s.mentor_skills;
-
-                            // Bỏ qua bản ghi rỗng / không hợp lệ
-                            if (!ms || !ms.id || !ms.name) return null;
-
-                            return {
-                                skill_id: String(s.skill_id),
-                                mentor_skills: {
-                                    id: String(ms.id),
-                                    name: String(ms.name),
-                                    description: ms.description ?? null,
-                                },
-                            };
-                        })
-                        .filter((x): x is MentorSkillRelation => x !== null);
-
-                    skillsMap[mentorId] = normalized;
-                });
-
-                setMentorSkills(skillsMap);
-
-            }
+            setMentorSkills(skillsMap);
         } catch (error) {
             console.error('Error loading mentors:', error);
             showNotification('error', 'Không thể tải danh sách mentor');
@@ -256,48 +159,33 @@ const MentorBookingContent = () => {
         }
     };
 
-    const loadUserBookings = async () => {
+    const loadUserBookings = async (limit: number = 50, offset: number = 0) => {
         try {
             setLoading(true);
             const { data, error } = await supabase
-                .from('mentor_bookings')
-                .select(`
-                *,
-                mentors (
-                    id,
-                    full_name,
-                    avatar,
-                    headline
-                ),
-                mentor_reviews!left (
-                    id
-                )
-            `)
-                .eq('user_id', user?.id)
-                .order('created_at', { ascending: false });
+                .rpc('mentor_booking_user_get_bookings', {
+                    p_user_id: user?.id,
+                    p_limit: limit,
+                    p_offset: offset
+                });
 
             if (error) throw error;
 
-            // Sửa lại logic mapping
-            const bookingsWithReview = data?.map(booking => {
-                // Kiểm tra nhiều trường hợp có thể
-                const reviews = booking.mentor_reviews;
-                const hasReview = Array.isArray(reviews) ? reviews.length > 0 : !!reviews;
-
-                console.log(`Booking ${booking.id}:`, {
-                    reviews,
-                    isArray: Array.isArray(reviews),
-                    length: Array.isArray(reviews) ? reviews.length : 'not array',
-                    hasReview
-                });
-
-                return {
-                    ...booking,
-                    has_review: hasReview
-                };
-            }) || [];
+            const bookingsWithReview = (data || []).map((booking: any) => ({
+                ...booking,
+                mentors: {
+                    id: booking.mentor_id,
+                    full_name: booking.mentor_name,
+                    avatar: booking.mentor_avatar,
+                    headline: booking.mentor_headline,
+                    email: ''
+                }
+            }));
 
             setBookings(bookingsWithReview);
+            if (data && data.length > 0) {
+                setTotalBookings(Number(data[0].total_count) || 0);
+            }
         } catch (error) {
             console.error('Error loading bookings:', error);
             showNotification('error', 'Không thể tải danh sách đặt lịch');
@@ -310,27 +198,27 @@ const MentorBookingContent = () => {
     const loadBookingForEdit = async (bookingId: string) => {
         try {
             const { data, error } = await supabase
-                .from('mentor_bookings')
-                .select('*')
-                .eq('id', bookingId)
-                .eq('user_id', user?.id)
-                .single();
+                .rpc('mentor_booking_user_get_booking', {
+                    p_booking_id: bookingId,
+                    p_user_id: user?.id
+                });
 
             if (error) throw error;
 
-            if (data) {
-                setEditingBooking(data);
+            if (data && data.length > 0) {
+                const booking = data[0];
+                setEditingBooking(booking);
                 setFormData({
-                    mentor_id: data.mentor_id || '',
-                    selectedSkills: [], // Skills are not stored in the current structure, would need separate handling
+                    mentor_id: booking.mentor_id || '',
+                    selectedSkills: [],
                     otherSkills: '',
-                    session_type: data.session_type || 'online',
-                    scheduled_date: data.scheduled_date ?
-                        new Date(data.scheduled_date).toISOString().slice(0, 16) : '',
-                    duration: data.duration || 60,
-                    contact_email: data.contact_email || '',
-                    contact_phone: data.contact_phone || '',
-                    user_notes: data.user_notes || ''
+                    session_type: booking.session_type || 'online',
+                    scheduled_date: booking.scheduled_date ?
+                        new Date(booking.scheduled_date).toISOString().slice(0, 16) : '',
+                    duration: booking.duration || 60,
+                    contact_email: booking.contact_email || '',
+                    contact_phone: booking.contact_phone || '',
+                    user_notes: booking.user_notes || ''
                 });
                 setShowForm(true);
             }
@@ -360,9 +248,9 @@ const MentorBookingContent = () => {
             case 4:
                 return formData.contact_email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contact_email);
             case 5:
-                return true; // Notes are optional
+                return true;
             case 6:
-                return true; // Final confirmation
+                return true;
             default:
                 return false;
         }
@@ -386,31 +274,36 @@ const MentorBookingContent = () => {
         try {
             setSubmitting(true);
 
-            const bookingData = {
-                user_id: user?.id,
-                mentor_id: formData.mentor_id,
-                scheduled_date: new Date(formData.scheduled_date).toISOString(),
-                duration: formData.duration,
-                session_type: formData.session_type,
-                contact_email: formData.contact_email,
-                contact_phone: formData.contact_phone || null,
-                user_notes: `${formData.selectedSkills.length > 0 ? 'Kỹ năng: ' + formData.selectedSkills.join(', ') : ''}${formData.otherSkills ? (formData.selectedSkills.length > 0 ? '; ' : '') + 'Kỹ năng khác: ' + formData.otherSkills : ''}${formData.user_notes ? '; Ghi chú: ' + formData.user_notes : ''}`,
-                status: 'pending'
-            };
+            const userNotes = `${formData.selectedSkills.length > 0 ? 'Kỹ năng: ' + formData.selectedSkills.join(', ') : ''}${formData.otherSkills ? (formData.selectedSkills.length > 0 ? '; ' : '') + 'Kỹ năng khác: ' + formData.otherSkills : ''}${formData.user_notes ? '; Ghi chú: ' + formData.user_notes : ''}`;
 
             if (editingBooking) {
-                const { error } = await supabase
-                    .from('mentor_bookings')
-                    .update(bookingData)
-                    .eq('id', editingBooking.id)
-                    .eq('user_id', user?.id);
+                const { data, error } = await supabase.rpc('mentor_booking_user_update_booking', {
+                    p_booking_id: editingBooking.id,
+                    p_user_id: user?.id,
+                    p_mentor_id: formData.mentor_id,
+                    p_scheduled_date: new Date(formData.scheduled_date).toISOString(),
+                    p_duration: formData.duration,
+                    p_session_type: formData.session_type,
+                    p_contact_email: formData.contact_email,
+                    p_contact_phone: formData.contact_phone || null,
+                    p_user_notes: userNotes
+                });
 
                 if (error) throw error;
+                if (!data) throw new Error('Không thể cập nhật đặt lịch');
+
                 showNotification('success', 'Đã cập nhật đặt lịch thành công');
             } else {
-                const { error } = await supabase
-                    .from('mentor_bookings')
-                    .insert([bookingData]);
+                const { data, error } = await supabase.rpc('mentor_booking_user_create_booking', {
+                    p_user_id: user?.id,
+                    p_mentor_id: formData.mentor_id,
+                    p_scheduled_date: new Date(formData.scheduled_date).toISOString(),
+                    p_duration: formData.duration,
+                    p_session_type: formData.session_type,
+                    p_contact_email: formData.contact_email,
+                    p_contact_phone: formData.contact_phone || null,
+                    p_user_notes: userNotes
+                });
 
                 if (error) throw error;
                 showNotification('success', 'Đã gửi đặt lịch thành công');
@@ -442,7 +335,6 @@ const MentorBookingContent = () => {
             user_notes: ''
         });
 
-        // Xóa cả edit param và mentor param từ URL
         if (editId || searchParams.get('mentor')) {
             router.replace('/mentor_booking');
         }
@@ -479,13 +371,13 @@ const MentorBookingContent = () => {
         if (!confirm('Bạn có chắc chắn muốn xóa đặt lịch này?')) return;
 
         try {
-            const { error } = await supabase
-                .from('mentor_bookings')
-                .delete()
-                .eq('id', booking.id!)
-                .eq('user_id', user?.id);
+            const { data, error } = await supabase.rpc('mentor_booking_user_delete_booking', {
+                p_booking_id: booking.id,
+                p_user_id: user?.id
+            });
 
             if (error) throw error;
+            if (!data) throw new Error('Không thể xóa đặt lịch');
 
             showNotification('success', 'Đã xóa đặt lịch thành công');
             await loadUserBookings();
@@ -495,7 +387,6 @@ const MentorBookingContent = () => {
         }
     };
 
-    // Review functions
     const openReviewModal = (booking: MentorBooking) => {
         setReviewingBooking(booking);
         setReviewData({
@@ -512,7 +403,6 @@ const MentorBookingContent = () => {
             return;
         }
 
-        // Kiểm tra đã có review chưa
         if (reviewingBooking.has_review) {
             showNotification('warning', 'Bạn đã đánh giá buổi tư vấn này rồi');
             setShowReviewModal(false);
@@ -522,16 +412,14 @@ const MentorBookingContent = () => {
         try {
             setSubmitting(true);
 
-            const { error } = await supabase
-                .from('mentor_reviews')
-                .insert([{
-                    booking_id: reviewingBooking.id,
-                    user_id: user?.id,
-                    mentor_id: reviewingBooking.mentor_id,
-                    rating: reviewData.rating,
-                    comment: reviewData.comment || null,
-                    is_published: reviewData.is_published
-                }]);
+            const { data, error } = await supabase.rpc('mentor_booking_user_create_review', {
+                p_booking_id: reviewingBooking.id,
+                p_user_id: user?.id,
+                p_mentor_id: reviewingBooking.mentor_id,
+                p_rating: reviewData.rating,
+                p_comment: reviewData.comment || null,
+                p_is_published: reviewData.is_published
+            });
 
             if (error) throw error;
 
@@ -546,7 +434,6 @@ const MentorBookingContent = () => {
         }
     };
 
-    // Filter and paginate mentors
     const filteredMentors = mentors.filter(mentor =>
         mentor.full_name.toLowerCase().includes(searchMentor.toLowerCase()) ||
         mentor.headline?.toLowerCase().includes(searchMentor.toLowerCase())
@@ -556,11 +443,9 @@ const MentorBookingContent = () => {
     const startIndex = (mentorPage - 1) * MENTORS_PER_PAGE;
     const paginatedMentors = filteredMentors.slice(startIndex, startIndex + MENTORS_PER_PAGE);
 
-    // Get selected mentor
     const selectedMentor = mentors.find(m => m.id === formData.mentor_id);
     const selectedMentorSkills = mentorSkills[formData.mentor_id] || [];
 
-    // Status display functions
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -591,34 +476,14 @@ const MentorBookingContent = () => {
         }
     };
 
-
-    useEffect(() => {
-        if (showForm) {
-            // Lock body scroll khi modal mở
-            document.body.style.overflow = 'hidden';
-            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
-        } else {
-            // Unlock body scroll khi modal đóng
-            document.body.style.overflow = 'unset';
-            document.body.style.paddingRight = '0px';
-        }
-
-        // Cleanup khi component unmount
-        return () => {
-            document.body.style.overflow = 'unset';
-            document.body.style.paddingRight = '0px';
-        };
-    }, [showForm]);
-
     const renderStepContent = () => {
         switch (currentStep) {
-            case 1: // Select Mentor
+            case 1:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Chọn Mentor</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Chọn Mentor</h3>
 
-                            {/* Search */}
                             <div className="relative mb-4">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                 <input
@@ -626,12 +491,11 @@ const MentorBookingContent = () => {
                                     placeholder="Tìm kiếm mentor..."
                                     value={searchMentor}
                                     onChange={(e) => setSearchMentor(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
                                 />
                             </div>
 
-                            {/* Mentor Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                            <div className="grid grid-cols-1 gap-3 max-h-[60vh] overflow-y-auto">
                                 {paginatedMentors.map((mentor) => (
                                     <div
                                         key={mentor.id}
@@ -639,33 +503,33 @@ const MentorBookingContent = () => {
                                         className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                                             formData.mentor_id === mentor.id
                                                 ? 'border-blue-500 bg-blue-50'
-                                                : 'border-gray-200 hover:border-gray-300'
+                                                : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                                         }`}
                                     >
-                                        <div className="flex items-start gap-4">
+                                        <div className="flex items-start gap-3">
                                             {mentor.avatar ? (
                                                 <Image
                                                     src={mentor.avatar}
                                                     alt={mentor.full_name}
-                                                    width={60}
-                                                    height={60}
-                                                    className="rounded-full object-cover"
+                                                    width={56}
+                                                    height={56}
+                                                    className="flex-shrink-0"
+                                                    style={{ objectFit: 'cover', borderRadius: '50%' }}
                                                 />
                                             ) : (
-                                                <div className="w-15 h-15 bg-gray-200 rounded-full flex items-center justify-center">
-                                                    <User className="w-8 h-8 text-gray-400" />
+                                                <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <User className="w-7 h-7 text-gray-400" />
                                                 </div>
                                             )}
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-gray-900">{mentor.full_name}</h4>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-semibold text-gray-900 text-base">{mentor.full_name}</h4>
                                                 {mentor.headline && (
-                                                    <p className="text-sm text-gray-600 mb-2">{mentor.headline}</p>
+                                                    <p className="text-sm text-gray-600 mb-2 line-clamp-1">{mentor.headline}</p>
                                                 )}
                                                 {mentor.description && (
                                                     <p className="text-sm text-gray-500 line-clamp-2">{mentor.description}</p>
                                                 )}
 
-                                                {/* Skills preview */}
                                                 {mentorSkills[mentor.id] && mentorSkills[mentor.id].length > 0 && (
                                                     <div className="mt-2 flex flex-wrap gap-1">
                                                         {mentorSkills[mentor.id].slice(0, 3).map((skillRel) => (
@@ -689,25 +553,24 @@ const MentorBookingContent = () => {
                                 ))}
                             </div>
 
-                            {/* Pagination */}
                             {totalMentorPages > 1 && (
                                 <div className="flex justify-center items-center gap-4 mt-4">
                                     <button
                                         onClick={() => setMentorPage(p => Math.max(1, p - 1))}
                                         disabled={mentorPage === 1}
-                                        className="px-3 py-1 border rounded disabled:opacity-50"
+                                        className="p-2 border rounded-lg disabled:opacity-50 active:bg-gray-50"
                                     >
-                                        <ChevronLeft className="w-4 h-4" />
+                                        <ChevronLeft className="w-5 h-5" />
                                     </button>
-                                    <span className="text-sm text-gray-600">
+                                    <span className="text-sm text-gray-600 min-w-[60px] text-center">
                                         {mentorPage} / {totalMentorPages}
                                     </span>
                                     <button
                                         onClick={() => setMentorPage(p => Math.min(totalMentorPages, p + 1))}
                                         disabled={mentorPage === totalMentorPages}
-                                        className="px-3 py-1 border rounded disabled:opacity-50"
+                                        className="p-2 border rounded-lg disabled:opacity-50 active:bg-gray-50"
                                     >
-                                        <ChevronRight className="w-4 h-4" />
+                                        <ChevronRight className="w-5 h-5" />
                                     </button>
                                 </div>
                             )}
@@ -715,25 +578,24 @@ const MentorBookingContent = () => {
                     </div>
                 );
 
-            case 2: // Select Skills
+            case 2:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Chọn Kỹ năng</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Chọn Kỹ năng</h3>
 
                             {selectedMentor && (
                                 <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                                     <p className="text-sm text-blue-800">
-                                        Mentor đã chọn: <span className="font-semibold">{selectedMentor.full_name}</span>
+                                        Mentor: <span className="font-semibold">{selectedMentor.full_name}</span>
                                     </p>
                                 </div>
                             )}
 
-                            {/* Mentor Skills */}
                             {selectedMentorSkills.length > 0 && (
-                                <div className="mb-6">
-                                    <h4 className="font-medium text-gray-900 mb-3">Kỹ năng của mentor</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="mb-4">
+                                    <h4 className="font-medium text-gray-900 mb-3 text-base">Kỹ năng của mentor</h4>
+                                    <div className="grid grid-cols-1 gap-3 max-h-[50vh] overflow-y-auto">
                                         {selectedMentorSkills.map((skillRel) => (
                                             <div
                                                 key={skillRel.skill_id}
@@ -747,11 +609,11 @@ const MentorBookingContent = () => {
                                                 className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                                                     formData.selectedSkills.includes(skillRel.mentor_skills.name)
                                                         ? 'border-blue-500 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-gray-300'
+                                                        : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                                                 }`}
                                             >
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                                <div className="flex items-start gap-3">
+                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
                                                         formData.selectedSkills.includes(skillRel.mentor_skills.name)
                                                             ? 'border-blue-500 bg-blue-500'
                                                             : 'border-gray-300'
@@ -760,46 +622,43 @@ const MentorBookingContent = () => {
                                                             <Check className="w-3 h-3 text-white" />
                                                         )}
                                                     </div>
-                                                    <span className="font-medium">{skillRel.mentor_skills.name}</span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="font-medium text-base block">{skillRel.mentor_skills.name}</span>
+                                                        {skillRel.mentor_skills.description && (
+                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                {skillRel.mentor_skills.description}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                {skillRel.mentor_skills.description && (
-                                                    <p className="text-sm text-gray-600 mt-1 ml-6">
-                                                        {skillRel.mentor_skills.description}
-                                                    </p>
-                                                )}
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Other Skills */}
                             <div>
-                                <h4 className="font-medium text-gray-900 mb-3">Kỹ năng khác (tùy chọn)</h4>
+                                <h4 className="font-medium text-gray-900 mb-3 text-base">Kỹ năng khác (tùy chọn)</h4>
                                 <textarea
                                     value={formData.otherSkills}
                                     onChange={(e) => handleInputChange('otherSkills', e.target.value)}
                                     rows={3}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Nhập kỹ năng khác bạn muốn học (cách nhau bằng dấu phẩy)..."
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
+                                    placeholder="VD: Phỏng vấn, Xây dựng CV, Lập kế hoạch nghề nghiệp"
                                 />
-                                <p className="text-sm text-gray-500 mt-1">
-                                    VD: Phỏng vấn, Xây dựng CV, Lập kế hoạch nghề nghiệp
-                                </p>
                             </div>
 
-                            {/* Selected Skills Summary */}
                             {(formData.selectedSkills.length > 0 || formData.otherSkills) && (
                                 <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                                    <h5 className="font-medium text-green-800 mb-2">Kỹ năng đã chọn:</h5>
+                                    <h5 className="font-medium text-green-800 mb-2 text-sm">Kỹ năng đã chọn:</h5>
                                     <div className="flex flex-wrap gap-2">
                                         {formData.selectedSkills.map((skill, index) => (
-                                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                                            <span key={index} className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
                                                 {skill}
                                             </span>
                                         ))}
                                         {formData.otherSkills && (
-                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                                            <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
                                                 Khác: {formData.otherSkills}
                                             </span>
                                         )}
@@ -810,16 +669,15 @@ const MentorBookingContent = () => {
                     </div>
                 );
 
-            case 3: // Session Type & Time
+            case 3:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Hình thức và Thời gian</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Hình thức và Thời gian</h3>
 
-                            {/* Session Type */}
-                            <div className="mb-6">
-                                <h4 className="font-medium text-gray-900 mb-3">Hình thức tư vấn</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="mb-4">
+                                <h4 className="font-medium text-gray-900 mb-3 text-base">Hình thức tư vấn</h4>
+                                <div className="grid grid-cols-1 gap-3">
                                     {[
                                         {
                                             value: 'online',
@@ -846,10 +704,10 @@ const MentorBookingContent = () => {
                                             className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
                                                 formData.session_type === type.value
                                                     ? 'border-blue-500 bg-blue-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                    : 'border-gray-200 hover:border-gray-300 active:bg-gray-50'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-3 mb-2">
+                                            <div className="flex items-center gap-3">
                                                 <div className={`p-2 rounded-lg ${
                                                     formData.session_type === type.value
                                                         ? 'bg-blue-100 text-blue-600'
@@ -857,16 +715,17 @@ const MentorBookingContent = () => {
                                                 }`}>
                                                     {type.icon}
                                                 </div>
-                                                <span className="font-semibold">{type.label}</span>
+                                                <div className="flex-1">
+                                                    <span className="font-semibold text-base block">{type.label}</span>
+                                                    <p className="text-sm text-gray-600">{type.description}</p>
+                                                </div>
                                             </div>
-                                            <p className="text-sm text-gray-600">{type.description}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* Date & Time */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Ngày và giờ mong muốn *
@@ -875,7 +734,7 @@ const MentorBookingContent = () => {
                                         type="datetime-local"
                                         value={formData.scheduled_date}
                                         onChange={(e) => handleInputChange('scheduled_date', e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
                                         min={new Date().toISOString().slice(0, 16)}
                                     />
                                 </div>
@@ -884,46 +743,33 @@ const MentorBookingContent = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Thời lượng (phút) *
                                     </label>
-                                    <select
-                                        value={formData.duration}
-                                        onChange={(e) => handleInputChange('duration', parseInt(e.target.value))}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value={30}>30 phút</option>
-                                        <option value={60}>60 phút</option>
-                                        <option value={90}>90 phút</option>
-                                        <option value={120}>120 phút</option>
-                                    </select>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {[30, 60, 90, 120].map((duration) => (
+                                            <button
+                                                key={duration}
+                                                type="button"
+                                                onClick={() => handleInputChange('duration', duration)}
+                                                className={`py-3 text-base font-medium rounded-lg border-2 transition-colors ${
+                                                    formData.duration === duration
+                                                        ? 'bg-blue-100 text-blue-700 border-blue-500'
+                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 active:bg-gray-50'
+                                                }`}
+                                            >
+                                                {duration}p
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Quick Duration Buttons */}
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                <span className="text-sm text-gray-600 mr-2">Thời lượng phổ biến:</span>
-                                {[30, 60, 90, 120].map((duration) => (
-                                    <button
-                                        key={duration}
-                                        type="button"
-                                        onClick={() => handleInputChange('duration', duration)}
-                                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                                            formData.duration === duration
-                                                ? 'bg-blue-100 text-blue-700 border-blue-300'
-                                                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                                        }`}
-                                    >
-                                        {duration}p
-                                    </button>
-                                ))}
                             </div>
                         </div>
                     </div>
                 );
 
-            case 4: // Contact Information
+            case 4:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin liên hệ</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Thông tin liên hệ</h3>
 
                             <div className="space-y-4">
                                 <div>
@@ -934,7 +780,7 @@ const MentorBookingContent = () => {
                                         type="email"
                                         value={formData.contact_email}
                                         onChange={(e) => handleInputChange('contact_email', e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
                                         placeholder="example@email.com"
                                         required
                                     />
@@ -951,11 +797,11 @@ const MentorBookingContent = () => {
                                         type="tel"
                                         value={formData.contact_phone}
                                         onChange={(e) => handleInputChange('contact_phone', e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
                                         placeholder="0123456789"
                                     />
                                     <p className="text-sm text-gray-500 mt-1">
-                                        Số điện thoại để liên lạc nhanh hơn (nếu cần)
+                                        Số điện thoại để liên lạc nhanh hơn
                                     </p>
                                 </div>
                             </div>
@@ -963,11 +809,11 @@ const MentorBookingContent = () => {
                     </div>
                 );
 
-            case 5: // Notes
+            case 5:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Ghi chú thêm</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Ghi chú thêm</h3>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -976,90 +822,95 @@ const MentorBookingContent = () => {
                                 <textarea
                                     value={formData.user_notes}
                                     onChange={(e) => handleInputChange('user_notes', e.target.value)}
-                                    rows={5}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    placeholder="Chia sẻ thêm về mục tiêu, tình huống cụ thể bạn cần tư vấn, hoặc bất kỳ thông tin nào giúp mentor chuẩn bị tốt hơn cho buổi tư vấn..."
+                                    rows={6}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
+                                    placeholder="Chia sẻ thêm về mục tiêu, tình huống cụ thể bạn cần tư vấn, hoặc bất kỳ thông tin nào giúp mentor chuẩn bị tốt hơn..."
                                 />
                                 <p className="text-sm text-gray-500 mt-1">
-                                    Thông tin này sẽ giúp mentor hiểu rõ hơn về nhu cầu của bạn và chuẩn bị tốt hơn cho buổi tư vấn.
+                                    Thông tin này sẽ giúp mentor chuẩn bị tốt hơn cho buổi tư vấn
                                 </p>
                             </div>
                         </div>
                     </div>
                 );
 
-            case 6: // Confirmation
+            case 6:
                 return (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Xác nhận đặt lịch</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Xác nhận đặt lịch</h3>
 
-                            {/* Summary */}
-                            <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-                                <div className="flex items-start gap-4">
+                            <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                                <div className="flex items-start gap-3">
                                     {selectedMentor?.avatar ? (
                                         <Image
                                             src={selectedMentor.avatar}
                                             alt={selectedMentor.full_name}
-                                            width={60}
-                                            height={60}
-                                            className="rounded-full object-cover"
+                                            width={56}
+                                            height={56}
+                                            className="flex-shrink-0"
+                                            style={{ objectFit: 'cover', borderRadius: '50%' }}
                                         />
                                     ) : (
-                                        <div className="w-15 h-15 bg-gray-200 rounded-full flex items-center justify-center">
-                                            <User className="w-8 h-8 text-gray-400" />
+                                        <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <User className="w-7 h-7 text-gray-400" />
                                         </div>
                                     )}
-                                    <div>
-                                        <h4 className="font-semibold text-gray-900">{selectedMentor?.full_name}</h4>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-semibold text-gray-900 text-base">{selectedMentor?.full_name}</h4>
                                         {selectedMentor?.headline && (
                                             <p className="text-sm text-gray-600">{selectedMentor.headline}</p>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4 text-gray-400" />
-                                        <span>
-                                            <strong>Thời gian:</strong> {formData.scheduled_date ?
-                                            new Date(formData.scheduled_date).toLocaleString('vi-VN') :
-                                            'Chưa chọn'
-                                        }
-                                        </span>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex items-start gap-2">
+                                        <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1 min-w-0">
+                                            <span className="font-medium">Thời gian: </span>
+                                            <span className="break-words">
+                                                {formData.scheduled_date ?
+                                                    new Date(formData.scheduled_date).toLocaleString('vi-VN') :
+                                                    'Chưa chọn'
+                                                }
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-gray-400" />
-                                        <span><strong>Thời lượng:</strong> {formData.duration} phút</span>
+                                        <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                        <span><span className="font-medium">Thời lượng:</span> {formData.duration} phút</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {formData.session_type === 'online' && <Video className="w-4 h-4 text-gray-400" />}
-                                        {formData.session_type === 'offline' && <Coffee className="w-4 h-4 text-gray-400" />}
-                                        {formData.session_type === 'hybrid' && <MapPin className="w-4 h-4 text-gray-400" />}
+                                        {formData.session_type === 'online' && <Video className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                        {formData.session_type === 'offline' && <Coffee className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                        {formData.session_type === 'hybrid' && <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />}
                                         <span>
-                                            <strong>Hình thức:</strong> {
+                                            <span className="font-medium">Hình thức:</span> {
                                             formData.session_type === 'online' ? 'Online' :
                                                 formData.session_type === 'offline' ? 'Offline' : 'Hybrid'
                                         }
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Mail className="w-4 h-4 text-gray-400" />
-                                        <span><strong>Email:</strong> {formData.contact_email}</span>
+                                    <div className="flex items-start gap-2">
+                                        <Mail className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                                        <div className="flex-1 min-w-0">
+                                            <span className="font-medium">Email: </span>
+                                            <span className="break-words">{formData.contact_email}</span>
+                                        </div>
                                     </div>
                                     {formData.contact_phone && (
                                         <div className="flex items-center gap-2">
-                                            <Phone className="w-4 h-4 text-gray-400" />
-                                            <span><strong>SĐT:</strong> {formData.contact_phone}</span>
+                                            <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                            <span><span className="font-medium">SĐT:</span> {formData.contact_phone}</span>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Skills */}
                                 {(formData.selectedSkills.length > 0 || formData.otherSkills) && (
                                     <div>
-                                        <strong className="text-sm text-gray-700">Kỹ năng muốn học:</strong>
-                                        <div className="flex flex-wrap gap-2 mt-2">
+                                        <div className="font-medium text-sm text-gray-700 mb-2">Kỹ năng muốn học:</div>
+                                        <div className="flex flex-wrap gap-2">
                                             {formData.selectedSkills.map((skill, index) => (
                                                 <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                                                     {skill}
@@ -1074,11 +925,10 @@ const MentorBookingContent = () => {
                                     </div>
                                 )}
 
-                                {/* Notes */}
                                 {formData.user_notes && (
                                     <div>
-                                        <strong className="text-sm text-gray-700">Ghi chú:</strong>
-                                        <p className="text-sm text-gray-600 mt-1 bg-white p-3 rounded border">
+                                        <div className="font-medium text-sm text-gray-700 mb-1">Ghi chú:</div>
+                                        <p className="text-sm text-gray-600 bg-white p-3 rounded border break-words">
                                             {formData.user_notes}
                                         </p>
                                     </div>
@@ -1088,13 +938,12 @@ const MentorBookingContent = () => {
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                                 <div className="flex items-start gap-3">
                                     <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                                    <div className="text-sm">
+                                    <div className="text-sm flex-1">
                                         <p className="font-medium text-yellow-800 mb-1">Lưu ý quan trọng:</p>
                                         <ul className="text-yellow-700 space-y-1 list-disc list-inside">
                                             <li>Đây chỉ là yêu cầu đặt lịch, mentor sẽ xác nhận sau</li>
-                                            <li>Bạn sẽ nhận được thông báo qua email khi có phản hồi</li>
-                                            <li>Có thể mentor sẽ đề xuất thay đổi thời gian phù hợp hơn</li>
-                                            <li>Vui lòng kiểm tra email thường xuyên</li>
+                                            <li>Bạn sẽ nhận thông báo qua email khi có phản hồi</li>
+                                            <li>Mentor có thể đề xuất thời gian phù hợp hơn</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -1110,9 +959,9 @@ const MentorBookingContent = () => {
 
     if (!user) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-screen flex items-center justify-center p-4">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Vui lòng đăng nhập</h2>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Vui lòng đăng nhập</h2>
                     <p className="text-gray-600">Bạn cần đăng nhập để sử dụng tính năng đặt lịch mentor.</p>
                 </div>
             </div>
@@ -1120,22 +969,21 @@ const MentorBookingContent = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-            {/* Notification */}
+        <div className="min-h-screen bg-gray-50 py-6 px-4 sm:py-8 sm:px-6 lg:px-8">
             {notification && (
-                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+                <div className={`fixed top-4 right-4 left-4 sm:left-auto sm:w-auto max-w-md z-50 p-4 rounded-lg shadow-lg ${
                     notification.type === 'success' ? 'bg-green-100 text-green-800' :
                         notification.type === 'error' ? 'bg-red-100 text-red-800' :
                             'bg-yellow-100 text-yellow-800'
                 }`}>
-                    <div className="flex items-center">
-                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2" />}
-                        {notification.type === 'error' && <XCircle className="w-5 h-5 mr-2" />}
-                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 mr-2" />}
-                        <span>{notification.message}</span>
+                    <div className="flex items-start gap-3">
+                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                        {notification.type === 'error' && <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                        <span className="flex-1 text-sm sm:text-base">{notification.message}</span>
                         <button
                             onClick={() => setNotification(null)}
-                            className="ml-4 text-gray-500 hover:text-gray-700"
+                            className="text-gray-500 hover:text-gray-700 flex-shrink-0"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -1149,32 +997,29 @@ const MentorBookingContent = () => {
                     subtitle="Đăng ký lịch tư vấn 1-1 với các mentor chuyên nghiệp"
                 />
 
-                {/* Action Buttons */}
-                <div className="mb-6 sm:mb-8">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0">
-                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 order-2 sm:order-1">
-                            Danh sách đặt lịch của bạn
+                <div className="mb-6">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                            Danh sách đặt lịch của bạn {totalBookings > 0 && `(${totalBookings})`}
                         </h3>
                         <Button
                             onClick={() => setShowForm(true)}
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 order-1 sm:order-2 min-h-[44px] px-4 py-3 text-base font-medium"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 min-h-[48px] px-6 py-3 text-base font-medium"
                         >
                             <Plus className="w-5 h-5" />
-                            <span className="hidden sm:inline">Đặt lịch mới</span>
-                            <span className="sm:hidden">Tạo đặt lịch mới</span>
+                            <span>Đặt lịch mới</span>
                         </Button>
                     </div>
                 </div>
 
-                {/* Bookings List */}
-                <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+                <div className="space-y-4 mb-8">
                     {loading ? (
-                        <div className="p-8 text-center">
+                        <div className="bg-white rounded-xl shadow-sm p-8 text-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                             <p className="mt-2 text-gray-600">Đang tải...</p>
                         </div>
                     ) : bookings.length === 0 ? (
-                        <div className="p-8 text-center">
+                        <div className="bg-white rounded-xl shadow-sm p-8 text-center">
                             <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                             <h3 className="text-lg font-semibold text-gray-900 mb-2">
                                 Chưa có đặt lịch nào
@@ -1187,46 +1032,45 @@ const MentorBookingContent = () => {
                             </Button>
                         </div>
                     ) : (
-                        <div className="divide-y divide-gray-200">
+                        <>
                             {bookings.map((booking) => (
-                                <div key={booking.id} className="p-6">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-4 mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    {booking.mentors?.avatar ? (
-                                                        <Image
-                                                            src={booking.mentors.avatar}
-                                                            alt={booking.mentors.full_name}
-                                                            width={40}
-                                                            height={40}
-                                                            className="rounded-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                                                            <User className="w-5 h-5 text-gray-400" />
-                                                        </div>
-                                                    )}
-                                                    <div>
-                                                        <h4 className="text-lg font-semibold text-gray-900">
-                                                            {booking.mentors?.full_name || 'Mentor không xác định'}
-                                                        </h4>
-                                                        {booking.mentors?.headline && (
-                                                            <p className="text-sm text-gray-600">{booking.mentors.headline}</p>
-                                                        )}
+                                <div key={booking.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                                    <div className="p-4 sm:p-6">
+                                        <div className="space-y-4">
+                                            <div className="flex items-start gap-3">
+                                                {booking.mentors?.avatar ? (
+                                                    <Image
+                                                        src={booking.mentors.avatar}
+                                                        alt={booking.mentors.full_name}
+                                                        width={48}
+                                                        height={48}
+                                                        className="flex-shrink-0"
+                                                        style={{ objectFit: 'cover', borderRadius: '50%' }}
+                                                    />
+                                                ) : (
+                                                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                                        <User className="w-6 h-6 text-gray-400" />
                                                     </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="text-base sm:text-lg font-semibold text-gray-900">
+                                                        {booking.mentors?.full_name || 'Mentor không xác định'}
+                                                    </h4>
+                                                    {booking.mentors?.headline && (
+                                                        <p className="text-sm text-gray-600">{booking.mentors.headline}</p>
+                                                    )}
                                                 </div>
-                                                <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 ${getStatusColor(booking.status)}`}>
+                                                <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex items-center gap-1 flex-shrink-0 ${getStatusColor(booking.status)}`}>
                                                     {getStatusIcon(booking.status)}
-                                                    {getStatusText(booking.status)}
+                                                    <span className="hidden sm:inline">{getStatusText(booking.status)}</span>
                                                 </span>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="w-4 h-4 text-gray-400" />
-                                                    <span>
-                                                        <strong>Thời gian:</strong> {booking.scheduled_date ?
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                                <div className="flex items-start gap-2">
+                                                    <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                                                    <span className="break-words">
+                                                        <span className="font-medium">Thời gian:</span> {booking.scheduled_date ?
                                                         new Date(booking.scheduled_date).toLocaleString('vi-VN', {
                                                             year: 'numeric',
                                                             month: '2-digit',
@@ -1239,99 +1083,98 @@ const MentorBookingContent = () => {
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Clock className="w-4 h-4 text-gray-400" />
-                                                    <span><strong>Thời lượng:</strong> {booking.duration} phút</span>
+                                                    <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                    <span><span className="font-medium">Thời lượng:</span> {booking.duration} phút</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    {booking.session_type === 'online' && <Video className="w-4 h-4 text-gray-400" />}
-                                                    {booking.session_type === 'offline' && <Coffee className="w-4 h-4 text-gray-400" />}
-                                                    {booking.session_type === 'hybrid' && <MapPin className="w-4 h-4 text-gray-400" />}
+                                                    {booking.session_type === 'online' && <Video className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                                    {booking.session_type === 'offline' && <Coffee className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                                    {booking.session_type === 'hybrid' && <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />}
                                                     <span>
-                                                        <strong>Hình thức:</strong> {
+                                                        <span className="font-medium">Hình thức:</span> {
                                                         booking.session_type === 'online' ? 'Online' :
                                                             booking.session_type === 'offline' ? 'Offline' : 'Hybrid'
                                                     }
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Mail className="w-4 h-4 text-gray-400" />
-                                                    <span><strong>Email:</strong> {booking.contact_email}</span>
+                                                <div className="flex items-start gap-2">
+                                                    <Mail className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                                                    <span className="break-words"><span className="font-medium">Email:</span> {booking.contact_email}</span>
                                                 </div>
                                                 {booking.contact_phone && (
                                                     <div className="flex items-center gap-2">
-                                                        <Phone className="w-4 h-4 text-gray-400" />
-                                                        <span><strong>SĐT:</strong> {booking.contact_phone}</span>
+                                                        <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                        <span><span className="font-medium">SĐT:</span> {booking.contact_phone}</span>
                                                     </div>
                                                 )}
                                             </div>
 
                                             {booking.user_notes && (
-                                                <div className="mt-3 text-sm text-gray-600">
-                                                    <strong>Ghi chú:</strong> {booking.user_notes}
+                                                <div className="text-sm text-gray-600">
+                                                    <span className="font-medium">Ghi chú:</span> {booking.user_notes}
                                                 </div>
                                             )}
 
                                             {booking.mentor_notes && (
-                                                <div className="mt-3 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
-                                                    <strong>Phản hồi từ mentor:</strong> {booking.mentor_notes}
+                                                <div className="text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+                                                    <span className="font-medium">Phản hồi từ mentor:</span> {booking.mentor_notes}
                                                 </div>
                                             )}
 
                                             {booking.admin_notes && (
-                                                <div className="mt-3 text-sm text-orange-600 bg-orange-50 p-3 rounded-lg">
-                                                    <strong>Ghi chú từ admin:</strong> {booking.admin_notes}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex gap-2 ml-4">
-                                            {/* Review button - chỉ hiện khi status = completed và chưa có review */}
-                                            {booking.status === 'completed' && !booking.has_review && (
-                                                <button
-                                                    onClick={() => openReviewModal(booking)}
-                                                    className="text-green-600 hover:text-green-900 p-2 rounded-lg hover:bg-green-50"
-                                                    title="Đánh giá mentor"
-                                                >
-                                                    <Star className="w-4 h-4" />
-                                                </button>
-                                            )}
-
-                                            {/* Hiển thị trạng thái đã đánh giá */}
-                                            {booking.status === 'completed' && booking.has_review && (
-                                                <div className="text-gray-500 p-2 flex items-center gap-1" title="Đã đánh giá">
-                                                    <Star className="w-4 h-4 fill-current text-yellow-400" />
-                                                    <span className="text-xs">Đã đánh giá</span>
+                                                <div className="text-sm text-orange-600 bg-orange-50 p-3 rounded-lg">
+                                                    <span className="font-medium">Ghi chú từ admin:</span> {booking.admin_notes}
                                                 </div>
                                             )}
 
-                                            {['pending', 'cancelled'].includes(booking.status) && (
-                                                <button
-                                                    onClick={() => editBooking(booking)}
-                                                    className="text-blue-600 hover:text-blue-900 p-2 rounded-lg hover:bg-blue-50"
-                                                    title="Chỉnh sửa"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                            )}
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {booking.status === 'completed' && !booking.has_review && (
+                                                    <button
+                                                        onClick={() => openReviewModal(booking)}
+                                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95"
+                                                        title="Đánh giá mentor"
+                                                    >
+                                                        <Star className="w-4 h-4" />
+                                                        <span>Đánh giá</span>
+                                                    </button>
+                                                )}
 
-                                            {['pending', 'cancelled'].includes(booking.status) && (
-                                                <button
-                                                    onClick={() => deleteBooking(booking)}
-                                                    className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50"
-                                                    title="Xóa"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            )}
+                                                {booking.status === 'completed' && booking.has_review && (
+                                                    <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                        <Star className="w-4 h-4 fill-current text-yellow-500" />
+                                                        <span>Đã đánh giá</span>
+                                                    </div>
+                                                )}
+
+                                                {['pending', 'cancelled'].includes(booking.status) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => editBooking(booking)}
+                                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors active:scale-95"
+                                                            title="Chỉnh sửa"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                            <span>Sửa</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteBooking(booking)}
+                                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors active:scale-95"
+                                                            title="Xóa"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                            <span>Xóa</span>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             ))}
-                        </div>
+                        </>
                     )}
                 </div>
 
-                {/* Multi-step Booking Form Modal */}
                 {showForm && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div
@@ -1339,72 +1182,70 @@ const MentorBookingContent = () => {
                             onClick={resetForm}
                         />
 
-                        <div className="relative bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                            {/* Header */}
-                            <div className="p-6 border-b border-gray-200">
+                        <div className="relative bg-white rounded-xl w-[92%] max-w-[420px] sm:w-full sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+                            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 z-10">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-xl font-bold">
+                                    <h3 className="text-lg sm:text-xl font-bold">
                                         {editingBooking ? 'Chỉnh sửa đặt lịch' : 'Đặt lịch mentor mới'}
                                     </h3>
                                     <button
                                         onClick={resetForm}
-                                        className="text-gray-400 hover:text-gray-600"
+                                        className="text-gray-400 hover:text-gray-600 p-2 -mr-2"
                                     >
                                         <X className="w-6 h-6" />
                                     </button>
                                 </div>
 
-                                {/* Progress Steps */}
-                                <div className="flex items-center justify-between">
-                                    {steps.map((step, index) => (
-                                        <React.Fragment key={step.id}>
-                                            <div className="flex flex-col items-center">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border-2 ${
-                                                    currentStep > step.id
-                                                        ? 'bg-green-100 text-green-600 border-green-200'
-                                                        : currentStep === step.id
-                                                            ? 'bg-blue-100 text-blue-600 border-blue-200'
-                                                            : 'bg-gray-100 text-gray-400 border-gray-200'
-                                                }`}>
-                                                    {currentStep > step.id ? (
-                                                        <CheckCircle className="w-5 h-5" />
-                                                    ) : (
-                                                        step.icon
-                                                    )}
+                                <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                                    <div className="flex items-center justify-between min-w-[600px] sm:min-w-0">
+                                        {steps.map((step, index) => (
+                                            <React.Fragment key={step.id}>
+                                                <div className="flex flex-col items-center">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border-2 ${
+                                                        currentStep > step.id
+                                                            ? 'bg-green-100 text-green-600 border-green-200'
+                                                            : currentStep === step.id
+                                                                ? 'bg-blue-100 text-blue-600 border-blue-200'
+                                                                : 'bg-gray-100 text-gray-400 border-gray-200'
+                                                    }`}>
+                                                        {currentStep > step.id ? (
+                                                            <CheckCircle className="w-5 h-5" />
+                                                        ) : (
+                                                            step.icon
+                                                        )}
+                                                    </div>
+                                                    <div className={`mt-2 text-xs text-center max-w-[70px] ${
+                                                        currentStep >= step.id ? 'text-gray-900' : 'text-gray-400'
+                                                    }`}>
+                                                        {step.title}
+                                                    </div>
                                                 </div>
-                                                <div className={`mt-2 text-xs text-center max-w-16 ${
-                                                    currentStep >= step.id ? 'text-gray-900' : 'text-gray-400'
-                                                }`}>
-                                                    {step.title}
-                                                </div>
-                                            </div>
-                                            {index < steps.length - 1 && (
-                                                <div className={`flex-1 h-0.5 mx-2 ${
-                                                    currentStep > step.id ? 'bg-green-200' : 'bg-gray-200'
-                                                }`} />
-                                            )}
-                                        </React.Fragment>
-                                    ))}
+                                                {index < steps.length - 1 && (
+                                                    <div className={`flex-1 h-0.5 mx-2 ${
+                                                        currentStep > step.id ? 'bg-green-200' : 'bg-gray-200'
+                                                    }`} />
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Content */}
-                            <div className="p-6 min-h-[400px]">
+                            <div className="p-4 sm:p-6 min-h-[300px]">
                                 {renderStepContent()}
                             </div>
 
-                            {/* Footer */}
-                            <div className="p-6 border-t border-gray-200">
-                                <div className="flex justify-between">
+                            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6">
+                                <div className="flex justify-between gap-3">
                                     <div>
                                         {currentStep > 1 && (
                                             <Button
                                                 variant="outline"
                                                 onClick={prevStep}
-                                                className="flex items-center gap-2"
+                                                className="flex items-center gap-2 min-h-[48px]"
                                             >
                                                 <ChevronLeft className="w-4 h-4" />
-                                                Quay lại
+                                                <span className="hidden sm:inline">Quay lại</span>
                                             </Button>
                                         )}
                                     </div>
@@ -1414,6 +1255,7 @@ const MentorBookingContent = () => {
                                             variant="outline"
                                             onClick={resetForm}
                                             disabled={submitting}
+                                            className="hidden sm:flex min-h-[48px]"
                                         >
                                             Hủy
                                         </Button>
@@ -1422,26 +1264,26 @@ const MentorBookingContent = () => {
                                             <Button
                                                 onClick={nextStep}
                                                 disabled={!validateStep(currentStep)}
-                                                className="flex items-center gap-2"
+                                                className="flex items-center gap-2 min-h-[48px] px-6"
                                             >
-                                                Tiếp tục
+                                                <span>Tiếp tục</span>
                                                 <ArrowRight className="w-4 h-4" />
                                             </Button>
                                         ) : (
                                             <Button
                                                 onClick={submitBooking}
                                                 disabled={submitting || !validateStep(6)}
-                                                className="flex items-center gap-2"
+                                                className="flex items-center gap-2 min-h-[48px] px-6"
                                             >
                                                 {submitting ? (
                                                     <>
                                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                                        Đang gửi...
+                                                        <span>Đang gửi...</span>
                                                     </>
                                                 ) : (
                                                     <>
                                                         <Send className="w-4 h-4" />
-                                                        {editingBooking ? 'Cập nhật đặt lịch' : 'Gửi đặt lịch'}
+                                                        <span>{editingBooking ? 'Cập nhật' : 'Gửi đặt lịch'}</span>
                                                     </>
                                                 )}
                                             </Button>
@@ -1453,7 +1295,6 @@ const MentorBookingContent = () => {
                     </div>
                 )}
 
-                {/* Review Modal */}
                 {showReviewModal && reviewingBooking && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div
@@ -1461,80 +1302,75 @@ const MentorBookingContent = () => {
                             onClick={() => setShowReviewModal(false)}
                         />
 
-                        <div className="relative bg-white rounded-xl max-w-md w-full">
-                            {/* Header */}
-                            <div className="p-6 border-b border-gray-200">
+                        <div className="relative bg-white rounded-xl w-[92%] max-w-[420px] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+                            <div className="p-4 sm:p-6 border-b border-gray-200">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-xl font-bold">Đánh giá Mentor</h3>
+                                    <h3 className="text-lg sm:text-xl font-bold">Đánh giá Mentor</h3>
                                     <button
                                         onClick={() => setShowReviewModal(false)}
-                                        className="text-gray-400 hover:text-gray-600"
+                                        className="text-gray-400 hover:text-gray-600 p-2 -mr-2"
                                     >
                                         <X className="w-6 h-6" />
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Content */}
-                            <div className="p-6 space-y-6">
-                                {/* Mentor Info */}
+                            <div className="p-4 sm:p-6 space-y-6">
                                 <div className="flex items-center gap-3">
                                     {reviewingBooking.mentors?.avatar ? (
                                         <Image
                                             src={reviewingBooking.mentors.avatar}
                                             alt={reviewingBooking.mentors.full_name}
-                                            width={50}
-                                            height={50}
-                                            className="rounded-full object-cover"
+                                            width={56}
+                                            height={56}
+                                            style={{ objectFit: 'cover', borderRadius: '50%' }}
                                         />
                                     ) : (
-                                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                                            <User className="w-6 h-6 text-gray-400" />
+                                        <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center">
+                                            <User className="w-7 h-7 text-gray-400" />
                                         </div>
                                     )}
                                     <div>
-                                        <h4 className="font-semibold">{reviewingBooking.mentors?.full_name}</h4>
+                                        <h4 className="font-semibold text-base">{reviewingBooking.mentors?.full_name}</h4>
                                         <p className="text-sm text-gray-600">
                                             {reviewingBooking.scheduled_date && new Date(reviewingBooking.scheduled_date).toLocaleDateString('vi-VN')}
                                         </p>
                                     </div>
                                 </div>
 
-                                {/* Rating */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-3">
                                         Đánh giá chất lượng tư vấn *
                                     </label>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-center gap-3 py-4">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button
                                                 key={star}
                                                 onClick={() => setReviewData(prev => ({ ...prev, rating: star }))}
-                                                className={`text-2xl transition-colors ${
+                                                className={`transition-all active:scale-110 ${
                                                     star <= reviewData.rating
                                                         ? 'text-yellow-400 hover:text-yellow-500'
                                                         : 'text-gray-300 hover:text-yellow-300'
                                                 }`}
                                             >
-                                                <Star className={`w-8 h-8 ${star <= reviewData.rating ? 'fill-current' : ''}`} />
+                                                <Star className={`w-10 h-10 sm:w-12 sm:h-12 ${star <= reviewData.rating ? 'fill-current' : ''}`} />
                                             </button>
                                         ))}
-                                        <span className="ml-3 text-sm text-gray-600">
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="text-base font-medium text-gray-700">
                                             {reviewData.rating > 0 ? `${reviewData.rating}/5 sao` : 'Chọn số sao'}
                                         </span>
-                                    </div>
-
-                                    {/* Rating labels */}
-                                    <div className="mt-2 text-sm text-gray-500">
-                                        {reviewData.rating === 1 && "Rất không hài lòng"}
-                                        {reviewData.rating === 2 && "Không hài lòng"}
-                                        {reviewData.rating === 3 && "Bình thường"}
-                                        {reviewData.rating === 4 && "Hài lòng"}
-                                        {reviewData.rating === 5 && "Rất hài lòng"}
+                                        <div className="text-sm text-gray-500 mt-1">
+                                            {reviewData.rating === 1 && "Rất không hài lòng"}
+                                            {reviewData.rating === 2 && "Không hài lòng"}
+                                            {reviewData.rating === 3 && "Bình thường"}
+                                            {reviewData.rating === 4 && "Hài lòng"}
+                                            {reviewData.rating === 5 && "Rất hài lòng"}
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Comment */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Nhận xét (tùy chọn)
@@ -1543,52 +1379,48 @@ const MentorBookingContent = () => {
                                         value={reviewData.comment}
                                         onChange={(e) => setReviewData(prev => ({ ...prev, comment: e.target.value }))}
                                         rows={4}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Chia sẻ cảm nhận về buổi tư vấn: mentor có hữu ích không? Những điểm tốt và cần cải thiện?"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-base"
+                                        placeholder="Chia sẻ cảm nhận về buổi tư vấn..."
                                     />
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Nhận xét của bạn sẽ giúp mentor cải thiện chất lượng tư vấn
-                                    </p>
                                 </div>
 
-                                {/* Publish option */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-start gap-3">
                                     <input
                                         type="checkbox"
                                         id="publish_review"
                                         checked={reviewData.is_published}
                                         onChange={(e) => setReviewData(prev => ({ ...prev, is_published: e.target.checked }))}
-                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 mt-0.5"
                                     />
-                                    <label htmlFor="publish_review" className="text-sm text-gray-700">
-                                        Công khai đánh giá (giúp người khác tham khảo khi chọn mentor)
+                                    <label htmlFor="publish_review" className="text-sm text-gray-700 flex-1">
+                                        Công khai đánh giá để giúp người khác tham khảo khi chọn mentor
                                     </label>
                                 </div>
                             </div>
 
-                            {/* Footer */}
-                            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
+                            <div className="p-4 sm:p-6 border-t border-gray-200 flex gap-3">
                                 <Button
                                     variant="outline"
                                     onClick={() => setShowReviewModal(false)}
                                     disabled={submitting}
+                                    className="flex-1 min-h-[48px]"
                                 >
                                     Hủy
                                 </Button>
                                 <Button
                                     onClick={submitReview}
                                     disabled={submitting || reviewData.rating === 0}
-                                    className="flex items-center gap-2"
+                                    className="flex-1 flex items-center justify-center gap-2 min-h-[48px]"
                                 >
                                     {submitting ? (
                                         <>
                                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                            Đang gửi...
+                                            <span>Đang gửi...</span>
                                         </>
                                     ) : (
                                         <>
                                             <Send className="w-4 h-4" />
-                                            Gửi đánh giá
+                                            <span>Gửi đánh giá</span>
                                         </>
                                     )}
                                 </Button>
@@ -1601,7 +1433,6 @@ const MentorBookingContent = () => {
     );
 };
 
-// Loading component for Suspense fallback
 const LoadingSpinner = () => (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -1611,7 +1442,6 @@ const LoadingSpinner = () => (
     </div>
 );
 
-// Main component with Suspense wrapper
 const MentorBookingPage = () => {
     return (
         <Suspense fallback={<LoadingSpinner />}>
