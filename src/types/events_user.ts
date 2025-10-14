@@ -26,6 +26,7 @@ export interface Event {
 
 export interface EventDetail extends Event {
     post_id?: string;
+    user_registration_id?: string;
     reviews?: EventReview[];
     average_rating?: number;
     total_reviews?: number;
@@ -65,7 +66,7 @@ export interface RegistrationFormData {
 export interface EventFilters {
     searchTerm: string;
     eventTypeFilter: string;
-    statusFilter: string; // 'upcoming' | 'past' | 'all'
+    statusFilter: string; // 'upcoming' | 'past' | 'all' | 'my_events'
     dateFrom: string;
     dateTo: string;
 }
