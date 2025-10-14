@@ -3,7 +3,8 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Calendar, User, Clock, Bookmark, ChevronRight } from 'lucide-react';
-import { Post, extractTextFromContent, getPostTypeLabel } from '@/lib/posts';
+import { Post } from '@/types/posts_user';
+import { extractTextFromContent, getPostTypeLabel } from '@/lib/posts';
 
 interface PostCardProps {
     post: Post;
