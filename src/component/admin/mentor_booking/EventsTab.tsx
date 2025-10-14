@@ -2201,7 +2201,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 <input
                                     type="datetime-local"
                                     value={checkInCodeFormData.valid_from || ''}
-                                    onChange={(e) => setCheckInCodeFormData(prev => ({ ...prev, valid_from: e.target.value }))}
+                                    onChange={(e) => setCheckInCodeFormData((prev: any) => ({ ...prev, valid_from: e.target.value }))}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     disabled={submitting}
                                 />
@@ -2214,7 +2214,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 <input
                                     type="datetime-local"
                                     value={checkInCodeFormData.valid_until || ''}
-                                    onChange={(e) => setCheckInCodeFormData(prev => ({ ...prev, valid_until: e.target.value }))}
+                                    onChange={(e) => setCheckInCodeFormData((prev: any) => ({ ...prev, valid_until: e.target.value }))}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     disabled={submitting}
                                 />
@@ -2226,7 +2226,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 </label>
                                 <textarea
                                     value={checkInCodeFormData.notes || ''}
-                                    onChange={(e) => setCheckInCodeFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                    onChange={(e) => setCheckInCodeFormData((prev: any) => ({ ...prev, notes: e.target.value }))}
                                     rows={3}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                     placeholder="Ghi chú về mã này..."
