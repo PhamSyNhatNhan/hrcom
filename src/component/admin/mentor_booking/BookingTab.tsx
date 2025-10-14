@@ -1439,8 +1439,7 @@ export const BookingTab: React.FC<BookingTabProps> = ({
                                             <button
                                                 key={star}
                                                 type="button"
-                                                onClick={() => setReviewFormData(prev => ({ ...prev, rating: star }))}
-                                                className={`text-2xl transition-colors ${
+                                                onClick={() => setReviewFormData((prev: any) => ({ ...prev, rating: star }))}                                                className={`text-2xl transition-colors ${
                                                     star <= (reviewFormData.rating || 0)
                                                         ? 'text-yellow-400 hover:text-yellow-500'
                                                         : 'text-gray-300 hover:text-yellow-300'
