@@ -1,4 +1,4 @@
-// src/app/events/page.tsx - COMPLETE FILE
+// src/app/events/page.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase/client';
@@ -23,20 +23,16 @@ import {
     Mail,
     Phone,
     Star,
-    ArrowRight,
     Loader2,
     ArrowLeft,
-    UserCheck,
     QrCode,
     ExternalLink,
     LogIn
 } from 'lucide-react';
 import Image from 'next/image';
-import { QRCodeSVG } from 'qrcode.react';
 import {
     Event,
     EventDetail,
-    UserRegistration,
     EventReview,
     RegistrationFormData,
     EventFilters,
@@ -49,7 +45,7 @@ const EventsPage = () => {
     const { user } = useAuthStore();
 
     // View mode
-    const [viewMode, setViewMode] = useState<'list' | 'detail' | 'my-registrations'>('list');
+    const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
     // Events list states
@@ -74,10 +70,6 @@ const EventsPage = () => {
     const [eventReviews, setEventReviews] = useState<EventReview[]>([]);
     const [detailLoading, setDetailLoading] = useState(false);
 
-    // User registrations states
-    const [myRegistrations, setMyRegistrations] = useState<UserRegistration[]>([]);
-    const [registrationsLoading, setRegistrationsLoading] = useState(false);
-
     // Registration modal
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [registeringEvent, setRegisteringEvent] = useState<Event | EventDetail | null>(null);
@@ -89,11 +81,10 @@ const EventsPage = () => {
 
     // Check-in modal
     const [showCheckInModal, setShowCheckInModal] = useState(false);
-    const [checkInRegistration, setCheckInRegistration] = useState<UserRegistration | null>(null);
     const [checkInCode, setCheckInCode] = useState('');
     const [checkingIn, setCheckingIn] = useState(false);
 
-    // QR Scanner modal (for user to scan)
+    // QR Scanner modal
     const [showQRScannerModal, setShowQRScannerModal] = useState(false);
 
     // Notification
@@ -112,19 +103,17 @@ const EventsPage = () => {
     }, []);
 
     useEffect(() => {
-        if (viewMode === 'list') loadEvents();
-    }, [viewMode, pagination.currentPage, filters]);
+        if (viewMode === 'list') {
+            loadEvents();
+        }
+    }, [viewMode, pagination.currentPage, filters, user]);
 
     useEffect(() => {
         if (viewMode === 'detail' && selectedEventId) {
             loadEventDetail();
             loadEventReviews();
         }
-    }, [viewMode, selectedEventId]);
-
-    useEffect(() => {
-        if (viewMode === 'my-registrations' && user) loadMyRegistrations();
-    }, [viewMode, user]);
+    }, [viewMode, selectedEventId, user]);
 
     useEffect(() => {
         if (user?.email) {
@@ -153,15 +142,16 @@ const EventsPage = () => {
             });
 
             if (error) throw error;
+
             setEvents(data?.events || []);
             setPagination(prev => ({
                 ...prev,
                 totalCount: data?.total_count || 0,
                 totalPages: Math.ceil((data?.total_count || 0) / ITEMS_PER_PAGE)
             }));
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error loading events:', error);
-            showNotification('error', 'Không thể tải danh sách sự kiện');
+            showNotification('error', error.message || 'Không thể tải danh sách sự kiện');
         } finally {
             setLoading(false);
         }
@@ -177,9 +167,9 @@ const EventsPage = () => {
             });
             if (error) throw error;
             setSelectedEvent(data);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error loading event detail:', error);
-            showNotification('error', 'Không thể tải chi tiết sự kiện');
+            showNotification('error', error.message || 'Không thể tải chi tiết sự kiện');
         } finally {
             setDetailLoading(false);
         }
@@ -195,25 +185,8 @@ const EventsPage = () => {
             });
             if (error) throw error;
             setEventReviews(data?.reviews || []);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error loading reviews:', error);
-        }
-    };
-
-    const loadMyRegistrations = async () => {
-        if (!user) return;
-        try {
-            setRegistrationsLoading(true);
-            const { data, error } = await supabase.rpc('events_user_get_my_registrations', {
-                p_user_id: user.id
-            });
-            if (error) throw error;
-            setMyRegistrations(data?.registrations || []);
-        } catch (error) {
-            console.error('Error loading registrations:', error);
-            showNotification('error', 'Không thể tải danh sách đăng ký');
-        } finally {
-            setRegistrationsLoading(false);
         }
     };
 
@@ -239,7 +212,7 @@ const EventsPage = () => {
 
         try {
             setSubmitting(true);
-            const { error } = await supabase.rpc('events_user_register', {
+            const { data, error } = await supabase.rpc('events_user_register', {
                 p_event_id: registeringEvent.id,
                 p_user_id: user.id,
                 p_contact_email: registrationFormData.contact_email,
@@ -247,13 +220,17 @@ const EventsPage = () => {
             });
 
             if (error) throw error;
-            showNotification('success', 'Đăng ký thành công!');
+
+            showNotification('success', data?.message || 'Đăng ký thành công!');
             setShowRegisterModal(false);
             setRegisteringEvent(null);
 
-            if (viewMode === 'list') loadEvents();
-            else if (viewMode === 'detail') loadEventDetail();
-            else if (viewMode === 'my-registrations') loadMyRegistrations();
+            // Reload data based on current view
+            if (viewMode === 'list') {
+                await loadEvents();
+            } else if (viewMode === 'detail') {
+                await loadEventDetail();
+            }
         } catch (error: any) {
             console.error('Error registering:', error);
             showNotification('error', error.message || 'Đăng ký thất bại');
@@ -264,21 +241,29 @@ const EventsPage = () => {
 
     const cancelRegistration = async (registrationId: string) => {
         if (!user) return;
+        if (!registrationId) {
+            showNotification('error', 'Không tìm thấy thông tin đăng ký');
+            return;
+        }
         if (!confirm('Bạn có chắc chắn muốn hủy đăng ký này?')) return;
 
         try {
             setSubmitting(true);
-            const { error } = await supabase.rpc('events_user_cancel_registration', {
+            const { data, error } = await supabase.rpc('events_user_cancel_registration', {
                 p_registration_id: registrationId,
                 p_user_id: user.id
             });
 
             if (error) throw error;
-            showNotification('success', 'Đã hủy đăng ký');
 
-            if (viewMode === 'my-registrations') loadMyRegistrations();
-            else if (viewMode === 'detail') loadEventDetail();
-            else loadEvents();
+            showNotification('success', data?.message || 'Đã hủy đăng ký');
+
+            // Reload data based on current view
+            if (viewMode === 'detail') {
+                await loadEventDetail();
+            } else {
+                await loadEvents();
+            }
         } catch (error: any) {
             console.error('Error canceling:', error);
             showNotification('error', error.message || 'Không thể hủy đăng ký');
@@ -287,14 +272,14 @@ const EventsPage = () => {
         }
     };
 
-    const openCheckInModal = (registration: UserRegistration) => {
-        setCheckInRegistration(registration);
+    const openCheckInModal = () => {
+        if (!selectedEvent) return;
         setCheckInCode('');
         setShowCheckInModal(true);
     };
 
     const submitCheckIn = async () => {
-        if (!user || !checkInRegistration) return;
+        if (!user || !selectedEvent || !selectedEvent.user_registration_id) return;
         if (!checkInCode.trim()) {
             showNotification('error', 'Vui lòng nhập mã check-in');
             return;
@@ -302,20 +287,24 @@ const EventsPage = () => {
 
         try {
             setCheckingIn(true);
-            const { error } = await supabase.rpc('events_user_check_in', {
-                p_registration_id: checkInRegistration.id,
+            const { data, error } = await supabase.rpc('events_user_check_in', {
+                p_registration_id: selectedEvent.user_registration_id,
                 p_user_id: user.id,
-                p_code: checkInCode.trim().toUpperCase()
+                p_code: checkInCode.trim()
             });
 
             if (error) throw error;
-            showNotification('success', 'Check-in thành công!');
+
+            showNotification('success', data?.message || 'Check-in thành công!');
             setShowCheckInModal(false);
-            setCheckInRegistration(null);
             setCheckInCode('');
 
-            if (viewMode === 'my-registrations') loadMyRegistrations();
-            else if (viewMode === 'detail') loadEventDetail();
+            // Reload data
+            if (viewMode === 'detail') {
+                await loadEventDetail();
+            } else {
+                await loadEvents();
+            }
         } catch (error: any) {
             console.error('Error checking in:', error);
             showNotification('error', error.message || 'Check-in thất bại');
@@ -379,14 +368,14 @@ const EventsPage = () => {
                 return (
                     <span className="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full flex items-center gap-1">
                         <XCircle className="w-3 h-3" />
-                        Đã từ chối
+                        Từ chối
                     </span>
                 );
             case 'cancelled':
                 return (
                     <span className="px-3 py-1 bg-gray-100 text-gray-800 text-sm font-medium rounded-full flex items-center gap-1">
                         <XCircle className="w-3 h-3" />
-                        Đã hủy
+                        Hủy
                     </span>
                 );
             default:
@@ -406,14 +395,14 @@ const EventsPage = () => {
         });
     };
 
-    const canCheckIn = (registration: UserRegistration) => {
-        if (!registration.event) return false;
-        if (registration.has_attended) return false;
-        if (registration.status !== 'confirmed') return false;
+    const canCheckIn = (event: Event | EventDetail) => {
+        if (!event) return false;
+        if (!event.is_registered || event.user_registration_status !== 'confirmed') return false;
+        if (!event.check_in_enabled) return false;
 
         const now = new Date();
-        const eventDate = new Date(registration.event.event_date);
-        const endDate = registration.event.end_date ? new Date(registration.event.end_date) : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+        const eventDate = new Date(event.event_date);
+        const endDate = event.end_date ? new Date(event.end_date) : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
 
         return now >= eventDate && now <= endDate;
     };
@@ -482,18 +471,6 @@ const EventsPage = () => {
                         subtitle="Khám phá và đăng ký các sự kiện hấp dẫn"
                     />
 
-                    {user && (
-                        <div className="mb-6 flex justify-end">
-                            <button
-                                onClick={() => setViewMode('my-registrations')}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                            >
-                                <UserCheck className="w-4 h-4" />
-                                Sự kiện của tôi
-                            </button>
-                        </div>
-                    )}
-
                     {/* Filters */}
                     <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -516,6 +493,7 @@ const EventsPage = () => {
                                 <option value="all">Tất cả</option>
                                 <option value="upcoming">Sắp diễn ra</option>
                                 <option value="past">Đã diễn ra</option>
+                                {user && <option value="my_events">Sự kiện của tôi</option>}
                             </select>
 
                             <select
@@ -586,9 +564,9 @@ const EventsPage = () => {
                                             )}
 
                                             {/* Status Badge */}
-                                            {event.is_registered && (
+                                            {event.is_registered && event.user_registration_status && event.user_registration_status !== 'cancelled' && (
                                                 <div className="absolute top-3 right-3">
-                                                    {getStatusBadge(event.user_registration_status || '')}
+                                                    {getStatusBadge(event.user_registration_status)}
                                                 </div>
                                             )}
 
@@ -644,7 +622,7 @@ const EventsPage = () => {
                                                 </div>
                                             </div>
 
-                                            {/* Action Button - ALWAYS VISIBLE */}
+                                            {/* Action Button */}
                                             <div onClick={(e) => e.stopPropagation()}>
                                                 {event.is_registered && event.user_registration_status !== 'cancelled' && event.user_registration_status !== 'rejected' ? (
                                                     <button
@@ -654,7 +632,7 @@ const EventsPage = () => {
                                                         <CheckCircle className="w-4 h-4" />
                                                         Đã đăng ký
                                                     </button>
-                                                ) : event.can_register || (event.is_registered && (event.user_registration_status === 'cancelled' || event.user_registration_status === 'rejected')) ? (
+                                                ) : event.can_register ? (
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
@@ -851,9 +829,6 @@ const EventsPage = () => {
 
     // RENDER - Event Detail View
     if (viewMode === 'detail' && selectedEvent) {
-        // Find user's registration for this event
-        const userRegistration = myRegistrations.find(reg => reg.event_id === selectedEvent.id);
-
         return (
             <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
                 {/* Notification */}
@@ -933,9 +908,9 @@ const EventsPage = () => {
                                             )}
                                         </div>
 
-                                        {selectedEvent.is_registered && (
+                                        {selectedEvent.is_registered && selectedEvent.user_registration_status && selectedEvent.user_registration_status !== 'cancelled' && (
                                             <div>
-                                                {getStatusBadge(selectedEvent.user_registration_status || '')}
+                                                {getStatusBadge(selectedEvent.user_registration_status)}
                                             </div>
                                         )}
                                     </div>
@@ -1008,7 +983,7 @@ const EventsPage = () => {
                                         </div>
                                     </div>
 
-                                    {/* Action Buttons - ALWAYS VISIBLE */}
+                                    {/* Action Buttons */}
                                     <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-200">
                                         {/* Đăng ký */}
                                         {(!selectedEvent.is_registered || selectedEvent.user_registration_status === 'cancelled' || selectedEvent.user_registration_status === 'rejected') && selectedEvent.can_register && (
@@ -1022,9 +997,9 @@ const EventsPage = () => {
                                         )}
 
                                         {/* Hủy đăng ký */}
-                                        {selectedEvent.is_registered && (selectedEvent.user_registration_status === 'pending' || selectedEvent.user_registration_status === 'confirmed') && userRegistration && (
+                                        {selectedEvent.is_registered && selectedEvent.user_registration_id && (selectedEvent.user_registration_status === 'pending' || selectedEvent.user_registration_status === 'confirmed') && (
                                             <button
-                                                onClick={() => cancelRegistration(userRegistration.id)}
+                                                onClick={() => cancelRegistration(selectedEvent.user_registration_id!)}
                                                 disabled={submitting}
                                                 className="px-6 py-3 bg-white border-2 border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center gap-2 font-medium disabled:opacity-50"
                                             >
@@ -1043,9 +1018,9 @@ const EventsPage = () => {
                                         )}
 
                                         {/* Check-in */}
-                                        {userRegistration && canCheckIn(userRegistration) && (
+                                        {canCheckIn(selectedEvent) && (
                                             <button
-                                                onClick={() => openCheckInModal(userRegistration)}
+                                                onClick={openCheckInModal}
                                                 className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 font-medium"
                                             >
                                                 <LogIn className="w-5 h-5" />
@@ -1054,7 +1029,7 @@ const EventsPage = () => {
                                         )}
 
                                         {/* QR Scanner for check-in */}
-                                        {userRegistration && canCheckIn(userRegistration) && (
+                                        {canCheckIn(selectedEvent) && (
                                             <button
                                                 onClick={() => setShowQRScannerModal(true)}
                                                 className="px-6 py-3 bg-white border-2 border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center gap-2 font-medium"
@@ -1076,7 +1051,7 @@ const EventsPage = () => {
                                         )}
 
                                         {/* Status displays */}
-                                        {selectedEvent.is_registered && selectedEvent.user_registration_status === 'confirmed' && !canCheckIn(userRegistration) && (
+                                        {selectedEvent.is_registered && selectedEvent.user_registration_status === 'confirmed' && !canCheckIn(selectedEvent) && (
                                             <div className="px-6 py-3 bg-green-50 border border-green-200 rounded-lg">
                                                 <CheckCircle className="w-5 h-5 text-green-600 inline mr-2" />
                                                 <span className="text-green-800 font-medium">Bạn đã đăng ký sự kiện này</span>
@@ -1101,13 +1076,6 @@ const EventsPage = () => {
                                             <div className="px-6 py-3 bg-gray-50 border border-gray-200 rounded-lg">
                                                 <Clock className="w-5 h-5 text-gray-600 inline mr-2" />
                                                 <span className="text-gray-800 font-medium">Sự kiện đã kết thúc</span>
-                                            </div>
-                                        )}
-
-                                        {userRegistration?.has_attended && (
-                                            <div className="px-6 py-3 bg-purple-50 border border-purple-200 rounded-lg">
-                                                <UserCheck className="w-5 h-5 text-purple-600 inline mr-2" />
-                                                <span className="text-purple-800 font-medium">Đã check-in</span>
                                             </div>
                                         )}
                                     </div>
@@ -1309,7 +1277,7 @@ const EventsPage = () => {
                 )}
 
                 {/* Check-in Modal */}
-                {showCheckInModal && checkInRegistration && (
+                {showCheckInModal && selectedEvent && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div
                             className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
@@ -1332,16 +1300,16 @@ const EventsPage = () => {
 
                             <div className="p-6 space-y-4">
                                 <div className="bg-blue-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold text-gray-900 mb-2">{checkInRegistration.event?.title}</h4>
+                                    <h4 className="font-semibold text-gray-900 mb-2">{selectedEvent.title}</h4>
                                     <div className="text-sm text-gray-600 space-y-1">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="w-4 h-4" />
-                                            {checkInRegistration.event?.event_date && formatDate(checkInRegistration.event.event_date)}
+                                            {selectedEvent.event_date && formatDate(selectedEvent.event_date)}
                                         </div>
-                                        {checkInRegistration.event?.location && (
+                                        {selectedEvent.location && (
                                             <div className="flex items-center gap-2">
                                                 <MapPin className="w-4 h-4" />
-                                                {checkInRegistration.event.location}
+                                                {selectedEvent.location}
                                             </div>
                                         )}
                                     </div>
@@ -1425,340 +1393,6 @@ const EventsPage = () => {
                                 <p className="text-sm text-gray-500">
                                     Vui lòng sử dụng chức năng nhập mã check-in thay thế
                                 </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    }
-
-    // RENDER - My Registrations View
-    if (viewMode === 'my-registrations') {
-        // Filter out cancelled registrations
-        const activeRegistrations = myRegistrations.filter(reg => reg.status !== 'cancelled');
-
-        return (
-            <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-                {/* Notification */}
-                {notification && (
-                    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
-                        notification.type === 'success' ? 'bg-green-100 text-green-800' :
-                            notification.type === 'error' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
-                    }`}>
-                        <div className="flex items-center">
-                            {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2" />}
-                            {notification.type === 'error' && <XCircle className="w-5 h-5 mr-2" />}
-                            {notification.type === 'warning' && <AlertCircle className="w-5 h-5 mr-2" />}
-                            <span>{notification.message}</span>
-                            <button
-                                onClick={() => setNotification(null)}
-                                className="ml-4 text-gray-500 hover:text-gray-700"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex items-center justify-between mb-6">
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                            Quay lại danh sách
-                        </button>
-                    </div>
-
-                    <SectionHeader
-                        title="SỰ KIỆN CỦA TÔI"
-                        subtitle="Quản lý các sự kiện bạn đã đăng ký"
-                    />
-
-                    {registrationsLoading ? (
-                        <div className="py-12 text-center">
-                            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-                            <p className="text-gray-600">Đang tải...</p>
-                        </div>
-                    ) : activeRegistrations.length === 0 ? (
-                        <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-                            <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                Chưa có đăng ký nào
-                            </h3>
-                            <p className="text-gray-600 mb-6">
-                                Bạn chưa đăng ký sự kiện nào. Hãy khám phá các sự kiện thú vị!
-                            </p>
-                            <Button
-                                onClick={() => setViewMode('list')}
-                                className="flex items-center gap-2 mx-auto"
-                            >
-                                Xem sự kiện
-                                <ArrowRight className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {activeRegistrations.map((registration) => (
-                                <div
-                                    key={registration.id}
-                                    className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                                    onClick={() => openEventDetail(registration.event_id)}
-                                >
-                                    <div className="p-4 md:p-6">
-                                        <div className="flex flex-col md:flex-row gap-4 md:gap-6">
-                                            {/* Event Thumbnail */}
-                                            <div className="flex-shrink-0 w-full md:w-auto">
-                                                {registration.event?.thumbnail ? (
-                                                    <Image
-                                                        src={registration.event.thumbnail}
-                                                        alt={registration.event.title}
-                                                        width={isMobile ? 400 : 200}
-                                                        height={isMobile ? 200 : 120}
-                                                        className="rounded-lg object-cover w-full md:w-[200px] h-[200px] md:h-[120px]"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full md:w-[200px] h-[200px] md:h-[120px] bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                                        <Calendar className="w-12 h-12 text-white opacity-50" />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Registration Info */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 hover:text-blue-600 line-clamp-2">
-                                                            {registration.event?.title || 'Đang cập nhật'}
-                                                        </h3>
-                                                        {registration.event?.description && (
-                                                            <p className="text-sm text-gray-600 line-clamp-2 mb-2">
-                                                                {registration.event.description}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-shrink-0">
-                                                        {getStatusBadge(registration.status)}
-                                                    </div>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                        <span className="truncate">
-                                                            {registration.event?.event_date
-                                                                ? new Date(registration.event.event_date).toLocaleDateString('vi-VN')
-                                                                : 'Đang cập nhật'}
-                                                        </span>
-                                                    </div>
-
-                                                    {registration.event?.event_type && (
-                                                        <div className="flex items-center gap-2 text-sm">
-                                                            {getEventTypeIcon(registration.event.event_type)}
-                                                            <span>{getEventTypeLabel(registration.event.event_type)}</span>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                        <span className="truncate">
-                                                            {registration.event?.location || 'Đang cập nhật'}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                        <span className="truncate">Đăng ký: {new Date(registration.registered_at).toLocaleDateString('vi-VN')}</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Contact Info */}
-                                                <div className="bg-gray-50 rounded-lg p-3 mb-4">
-                                                    <div className="text-sm space-y-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                            <span className="text-gray-700 truncate">{registration.contact_email}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                                                            <span className="text-gray-700">
-                                                                {registration.contact_phone || 'Chưa cập nhật'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Admin Notes */}
-                                                {registration.admin_notes && (
-                                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                                                        <div className="flex items-start gap-2">
-                                                            <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                                                            <div className="flex-1 min-w-0">
-                                                                <strong className="text-sm text-yellow-800">Ghi chú từ ban tổ chức:</strong>
-                                                                <p className="text-sm text-yellow-700 mt-1">{registration.admin_notes}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Attendance Status */}
-                                                {registration.has_attended && (
-                                                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <UserCheck className="w-4 h-4 text-purple-600 flex-shrink-0" />
-                                                            <span className="text-sm text-purple-800 font-medium">
-                                                                Bạn đã check-in sự kiện này
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Actions - ALWAYS VISIBLE */}
-                                                <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                                                    {registration.event?.post_id && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                window.open(`/posts/${registration.event.post_id}`, '_blank');
-                                                            }}
-                                                            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                                                        >
-                                                            <ExternalLink className="w-4 h-4" />
-                                                            Bài viết
-                                                        </button>
-                                                    )}
-
-                                                    {canCheckIn(registration) && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                openCheckInModal(registration);
-                                                            }}
-                                                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-colors"
-                                                        >
-                                                            <LogIn className="w-4 h-4" />
-                                                            Check-in
-                                                        </button>
-                                                    )}
-
-                                                    {(registration.status === 'pending' || registration.status === 'confirmed') && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                cancelRegistration(registration.id);
-                                                            }}
-                                                            disabled={submitting}
-                                                            className="px-4 py-2 bg-white border-2 border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center gap-2 transition-colors disabled:opacity-50"
-                                                        >
-                                                            {submitting ? (
-                                                                <>
-                                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                                    Đang hủy...
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <XCircle className="w-4 h-4" />
-                                                                    Hủy đăng ký
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Check-in Modal */}
-                {showCheckInModal && checkInRegistration && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div
-                            className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
-                            onClick={() => !checkingIn && setShowCheckInModal(false)}
-                        />
-
-                        <div className="relative bg-white rounded-xl max-w-md w-full">
-                            <div className="p-6 border-b border-gray-200">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xl font-bold">Check-in sự kiện</h3>
-                                    <button
-                                        onClick={() => !checkingIn && setShowCheckInModal(false)}
-                                        className="text-gray-400 hover:text-gray-600"
-                                        disabled={checkingIn}
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="p-6 space-y-4">
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold text-gray-900 mb-2">{checkInRegistration.event?.title}</h4>
-                                    <div className="text-sm text-gray-600 space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar className="w-4 h-4" />
-                                            {checkInRegistration.event?.event_date && formatDate(checkInRegistration.event.event_date)}
-                                        </div>
-                                        {checkInRegistration.event?.location && (
-                                            <div className="flex items-center gap-2">
-                                                <MapPin className="w-4 h-4" />
-                                                {checkInRegistration.event.location}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Mã check-in *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={checkInCode}
-                                        onChange={(e) => setCheckInCode(e.target.value.toUpperCase())}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-lg font-bold uppercase"
-                                        placeholder="Nhập mã check-in"
-                                        disabled={checkingIn}
-                                        maxLength={10}
-                                    />
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Nhập mã check-in được cung cấp tại sự kiện
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => !checkingIn && setShowCheckInModal(false)}
-                                    disabled={checkingIn}
-                                >
-                                    Hủy
-                                </Button>
-                                <Button
-                                    onClick={submitCheckIn}
-                                    disabled={checkingIn || !checkInCode.trim()}
-                                    className="flex items-center gap-2"
-                                >
-                                    {checkingIn ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            Đang check-in...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <LogIn className="w-4 h-4" />
-                                            Xác nhận check-in
-                                        </>
-                                    )}
-                                </Button>
                             </div>
                         </div>
                     </div>
