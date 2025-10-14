@@ -1,5 +1,7 @@
 // Types for user-facing homepage data
 
+import {LucideIcon} from "lucide-react";
+
 export interface MentorSkill {
     id: string;
     name: string;
@@ -80,7 +82,7 @@ export interface PartnerCardProps {
 }
 
 export interface StatCardProps {
-    icon: React.ComponentType<any>;
+    icon: LucideIcon;
     value: string;
     label: string;
 }
