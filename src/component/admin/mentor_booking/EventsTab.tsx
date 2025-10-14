@@ -2180,7 +2180,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                     <input
                                         type="text"
                                         value={checkInCodeFormData.code || ''}
-                                        onChange={(e) => setCheckInCodeFormData(prev => ({ ...prev, code: e.target.value }))}
+                                        onChange={(e) => setCheckInCodeFormData((prev: any) => ({ ...prev, code: e.target.value }))}
                                         className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-lg font-bold"
                                         disabled={submitting}
                                     />
