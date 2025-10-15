@@ -543,7 +543,7 @@ const AccountSettings: React.FC = () => {
                 }
             }
 
-            // 2. Lưu Work Experiences
+            // 2. Lưu Work Experiences -
             if (mentorInfo.work_experiences && mentorInfo.work_experiences.length > 0) {
                 console.log('🔄 Saving work experiences:', mentorInfo.work_experiences);
 
@@ -557,16 +557,16 @@ const AccountSettings: React.FC = () => {
                     console.error('❌ Error deleting old work experiences:', deleteWorkError);
                 }
 
-                // Thêm work experiences mới
+                // Thêm work experiences mới - CHỈ YÊU CẦU company và position
                 const workExperiencesToInsert = mentorInfo.work_experiences
-                    .filter(exp => exp.company && exp.position)
+                    .filter(exp => exp.company?.trim() && exp.position?.trim())
                     .map(exp => ({
                         mentor_id: mentorId,
                         avatar: exp.avatar || null,
-                        company: exp.company,
-                        position: exp.position,
-                        start_date: exp.start_date,
-                        end_date: exp.end_date || null,
+                        company: exp.company.trim(),
+                        position: exp.position.trim(),
+                        start_date: exp.start_date || null, // Cho phép null
+                        end_date: exp.end_date || null,     // Cho phép null
                         description: exp.description || [],
                         published: exp.published
                     }));
@@ -598,16 +598,16 @@ const AccountSettings: React.FC = () => {
                     console.error('❌ Error deleting old educations:', deleteEduError);
                 }
 
-                // Thêm educations mới
+                // Thêm educations mới - CHỈ YÊU CẦU school và degree
                 const educationsToInsert = mentorInfo.educations
-                    .filter(edu => edu.school && edu.degree)
+                    .filter(edu => edu.school?.trim() && edu.degree?.trim())
                     .map(edu => ({
                         mentor_id: mentorId,
                         avatar: edu.avatar || null,
-                        school: edu.school,
-                        degree: edu.degree,
-                        start_date: edu.start_date,
-                        end_date: edu.end_date || null,
+                        school: edu.school.trim(),
+                        degree: edu.degree.trim(),
+                        start_date: edu.start_date || null, // Cho phép null
+                        end_date: edu.end_date || null,     // Cho phép null
                         description: edu.description || [],
                         published: edu.published
                     }));
@@ -639,17 +639,17 @@ const AccountSettings: React.FC = () => {
                     console.error('❌ Error deleting old activities:', deleteActError);
                 }
 
-                // Thêm activities mới
+                // Thêm activities mới - YÊU CẦU 3 trường chính
                 const activitiesToInsert = mentorInfo.activities
-                    .filter(act => act.activity_name && act.organization && act.role)
+                    .filter(act => act.activity_name?.trim() && act.organization?.trim() && act.role?.trim())
                     .map(act => ({
                         mentor_id: mentorId,
                         avatar: act.avatar || null,
-                        organization: act.organization,
-                        role: act.role,
-                        activity_name: act.activity_name,
-                        start_date: act.start_date,
-                        end_date: act.end_date || null,
+                        organization: act.organization.trim(),
+                        role: act.role.trim(),
+                        activity_name: act.activity_name.trim(),
+                        start_date: act.start_date || null, // Cho phép null
+                        end_date: act.end_date || null,     // Cho phép null
                         description: act.description || [],
                         published: act.published
                     }));

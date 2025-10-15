@@ -343,7 +343,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
 
     const canEditMentor = user?.role === 'mentor';
 
-    // Theme - Responsive như CombinedProfileTab
+    // Theme - Responsive
     const theme = {
         panel: isEditing
             ? "bg-gradient-to-r rounded-2xl p-4 sm:p-6"
@@ -747,30 +747,38 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                             <input
                                                                 type="text"
-                                                                placeholder="Công ty"
+                                                                placeholder="Công ty *"
                                                                 value={exp.company}
                                                                 onChange={(e) => updateWorkExperience(index, 'company', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
-                                                                placeholder="Vị trí"
+                                                                placeholder="Vị trí *"
                                                                 value={exp.position}
                                                                 onChange={(e) => updateWorkExperience(index, 'position', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                                             />
-                                                            <input
-                                                                type="date"
-                                                                value={exp.start_date}
-                                                                onChange={(e) => updateWorkExperience(index, 'start_date', e.target.value)}
-                                                                className="px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                                            />
-                                                            <input
-                                                                type="date"
-                                                                value={exp.end_date || ''}
-                                                                onChange={(e) => updateWorkExperience(index, 'end_date', e.target.value)}
-                                                                className="px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                                                            />
+                                                            <div>
+                                                                <input
+                                                                    type="date"
+                                                                    value={exp.start_date || ''}
+                                                                    onChange={(e) => updateWorkExperience(index, 'start_date', e.target.value)}
+                                                                    className="w-full px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                                                    placeholder="Ngày bắt đầu"
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">Không bắt buộc</p>
+                                                            </div>
+                                                            <div>
+                                                                <input
+                                                                    type="date"
+                                                                    value={exp.end_date || ''}
+                                                                    onChange={(e) => updateWorkExperience(index, 'end_date', e.target.value)}
+                                                                    className="w-full px-3 py-2 text-sm border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                                                    placeholder="Ngày kết thúc"
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">Không bắt buộc</p>
+                                                            </div>
                                                         </div>
                                                         <textarea
                                                             placeholder="Mô tả công việc (mỗi dòng một mô tả)"
@@ -842,7 +850,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 <p className="text-indigo-600 font-medium text-sm truncate">{exp.company}</p>
                                                                 <p className="text-xs sm:text-sm text-gray-500 flex items-center space-x-1 mt-1">
                                                                     <Calendar className="w-3 h-3 flex-shrink-0" />
-                                                                    <span>{exp.start_date} - {exp.end_date || 'Hiện tại'}</span>
+                                                                    <span>{exp.start_date || 'Không rõ'} - {exp.end_date || 'Hiện tại'}</span>
                                                                 </p>
                                                             </div>
                                                             {exp.published ? (
@@ -922,30 +930,38 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                             <input
                                                                 type="text"
-                                                                placeholder="Trường học"
+                                                                placeholder="Trường học *"
                                                                 value={edu.school}
                                                                 onChange={(e) => updateEducation(index, 'school', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
-                                                                placeholder="Bằng cấp"
+                                                                placeholder="Bằng cấp *"
                                                                 value={edu.degree}
                                                                 onChange={(e) => updateEducation(index, 'degree', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                                                             />
-                                                            <input
-                                                                type="date"
-                                                                value={edu.start_date}
-                                                                onChange={(e) => updateEducation(index, 'start_date', e.target.value)}
-                                                                className="px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                                                            />
-                                                            <input
-                                                                type="date"
-                                                                value={edu.end_date || ''}
-                                                                onChange={(e) => updateEducation(index, 'end_date', e.target.value)}
-                                                                className="px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                                                            />
+                                                            <div>
+                                                                <input
+                                                                    type="date"
+                                                                    value={edu.start_date || ''}
+                                                                    onChange={(e) => updateEducation(index, 'start_date', e.target.value)}
+                                                                    className="w-full px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                                    placeholder="Ngày bắt đầu"
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">Không bắt buộc</p>
+                                                            </div>
+                                                            <div>
+                                                                <input
+                                                                    type="date"
+                                                                    value={edu.end_date || ''}
+                                                                    onChange={(e) => updateEducation(index, 'end_date', e.target.value)}
+                                                                    className="w-full px-3 py-2 text-sm border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                                    placeholder="Ngày kết thúc"
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">Không bắt buộc</p>
+                                                            </div>
                                                         </div>
                                                         <textarea
                                                             placeholder="Mô tả học tập (mỗi dòng một mô tả)"
@@ -1017,7 +1033,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 <p className="text-emerald-600 font-medium text-sm truncate">{edu.school}</p>
                                                                 <p className="text-xs sm:text-sm text-gray-500 flex items-center space-x-1 mt-1">
                                                                     <Calendar className="w-3 h-3 flex-shrink-0" />
-                                                                    <span>{edu.start_date} - {edu.end_date || 'Hiện tại'}</span>
+                                                                    <span>{edu.start_date || 'Không rõ'} - {edu.end_date || 'Hiện tại'}</span>
                                                                 </p>
                                                             </div>
                                                             {edu.published ? (
@@ -1097,37 +1113,45 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                             <input
                                                                 type="text"
-                                                                placeholder="Tên hoạt động"
+                                                                placeholder="Tên hoạt động *"
                                                                 value={activity.activity_name}
                                                                 onChange={(e) => updateActivity(index, 'activity_name', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
-                                                                placeholder="Tổ chức"
+                                                                placeholder="Tổ chức *"
                                                                 value={activity.organization}
                                                                 onChange={(e) => updateActivity(index, 'organization', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
                                                             />
                                                             <input
                                                                 type="text"
-                                                                placeholder="Vai trò"
+                                                                placeholder="Vai trò *"
                                                                 value={activity.role}
                                                                 onChange={(e) => updateActivity(index, 'role', e.target.value)}
                                                                 className="px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none sm:col-span-2"
                                                             />
-                                                            <input
-                                                                type="date"
-                                                                value={activity.start_date}
-                                                                onChange={(e) => updateActivity(index, 'start_date', e.target.value)}
-                                                                className="px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
-                                                            />
-                                                            <input
-                                                                type="date"
-                                                                value={activity.end_date || ''}
-                                                                onChange={(e) => updateActivity(index, 'end_date', e.target.value)}
-                                                                className="px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
-                                                            />
+                                                            <div>
+                                                                <input
+                                                                    type="date"
+                                                                    value={activity.start_date || ''}
+                                                                    onChange={(e) => updateActivity(index, 'start_date', e.target.value)}
+                                                                    className="w-full px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                                                                    placeholder="Ngày bắt đầu"
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">Không bắt buộc</p>
+                                                            </div>
+                                                            <div>
+                                                                <input
+                                                                    type="date"
+                                                                    value={activity.end_date || ''}
+                                                                    onChange={(e) => updateActivity(index, 'end_date', e.target.value)}
+                                                                    className="w-full px-3 py-2 text-sm border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                                                                    placeholder="Ngày kết thúc"
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">Không bắt buộc</p>
+                                                            </div>
                                                         </div>
                                                         <textarea
                                                             placeholder="Mô tả hoạt động (mỗi dòng một mô tả)"
@@ -1201,7 +1225,7 @@ const MentorTab: React.FC<MentorTabProps> = ({
                                                                 </p>
                                                                 <p className="text-xs sm:text-sm text-gray-500 flex items-center space-x-1 mt-1">
                                                                     <Calendar className="w-3 h-3 flex-shrink-0" />
-                                                                    <span>{activity.start_date} - {activity.end_date || 'Hiện tại'}</span>
+                                                                    <span>{activity.start_date || 'Không rõ'} - {activity.end_date || 'Hiện tại'}</span>
                                                                 </p>
                                                             </div>
                                                             {activity.published ? (
