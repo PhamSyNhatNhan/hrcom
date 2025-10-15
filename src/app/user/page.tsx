@@ -770,7 +770,7 @@ const AccountSettings: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-8 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white py-4 sm:py-8 px-2 sm:px-4 lg:px-8">
             <Notification
                 notifications={notifications}
                 onRemove={removeNotification}
@@ -778,99 +778,143 @@ const AccountSettings: React.FC = () => {
             />
 
             <div className="mx-auto max-w-7xl">
-                {/* Page Header */}
-                <div className="text-center mb-12">
-                    <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+                {/* Page Header - Mobile Optimized */}
+                <div className="text-center mb-6 sm:mb-12 px-2">
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 sm:mb-4">
                         Thông tin tài khoản
                     </h1>
-                    <p className="text-base sm:text-xl text-gray-600 max-w-3xl mx-auto">
+                    <p className="text-sm sm:text-base lg:text-xl text-gray-600 max-w-3xl mx-auto">
                         Quản lý thông tin cá nhân và cài đặt tài khoản của bạn
                     </p>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
-                    {/* Tabs */}
-                    <div className="border-b border-gray-200 bg-gray-50">
-                        <nav className="flex space-x-0 px-6 overflow-x-auto">
+                <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+                    {/* Tabs - Tràn lên với hiệu ứng mượt */}
+                    <div className="border-b border-gray-200 bg-gray-50 -mx-[1px]">
+                        <nav className="flex space-x-0 px-2 sm:px-6 overflow-x-auto scrollbar-hide">
                             {getAvailableTabs().map(({ id, label, icon: Icon }) => (
                                 <button
                                     key={id}
                                     onClick={() => setActiveTab(id)}
-                                    className={`relative flex items-center px-6 py-4 text-sm font-medium transition-all duration-300 whitespace-nowrap ${
-                                        activeTab === id
-                                            ? 'border-b-2 border-cyan-600 bg-white text-cyan-600'
-                                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                                    }`}
+                                    className={`
+                                        relative flex items-center px-4 sm:px-6 py-3 sm:py-4 
+                                        text-sm sm:text-base font-medium 
+                                        transition-all duration-300 ease-in-out
+                                        whitespace-nowrap
+                                        ${activeTab === id
+                                        ? 'text-cyan-600 bg-white'
+                                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                    }
+                                    `}
                                 >
-                                    <Icon className="mr-2 h-4 w-4" />
-                                    {label}
+                                    <Icon className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                                    {/* Label đầy đủ trên desktop */}
+                                    <span className="hidden sm:inline">{label}</span>
+                                    {/* Label ngắn trên mobile */}
+                                    <span className="sm:hidden">
+                                        {id === 'profile' && 'Hồ sơ'}
+                                        {id === 'mentor' && 'Mentor'}
+                                        {id === 'password' && 'Mật khẩu'}
+                                    </span>
+
+                                    {/* Border bottom indicator với animation */}
+                                    {activeTab === id && (
+                                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-600 animate-[slideIn_0.3s_ease-in-out]" />
+                                    )}
                                 </button>
                             ))}
                         </nav>
                     </div>
 
-                    {/* Content */}
-                    <div className="p-6 lg:p-8">
-                        {/* Combined Profile Tab */}
-                        {activeTab === 'profile' && (
-                            <CombinedProfileTab
-                                personalInfo={personalInfo}
-                                setPersonalInfo={setPersonalInfo}
-                                subProfileInfo={subProfileInfo}
-                                setSubProfileInfo={setSubProfileInfo}
-                                hasSubProfile={hasSubProfile}
-                                setHasSubProfile={setHasSubProfile}
-                                universityMajors={universityMajors}
-                                isEditing={isEditing}
-                                setIsEditing={setIsEditing}
-                                isLoading={isLoading}
-                                setIsLoading={setIsLoading}
-                                previewAvatar={previewAvatar}
-                                setPreviewAvatar={setPreviewAvatar}
-                                uploading={uploading}
-                                onAvatarUpload={handleAvatarUpload}
-                                onRemoveAvatar={handleRemoveAvatar}
-                                onSave={handleSaveProfile}
-                                onCancel={handleCancelEdit}
-                                user={user}
-                                setUser={setUser}
-                                showSuccess={showSuccess}
-                                showError={showError}
-                                uploadImage={uploadImage}
-                            />
-                        )}
+                    {/* Content với fade animation */}
+                    <div className="p-3 sm:p-6 lg:p-8">
+                        <div className="animate-[fadeIn_0.4s_ease-in-out]">
+                            {/* Combined Profile Tab */}
+                            {activeTab === 'profile' && (
+                                <CombinedProfileTab
+                                    personalInfo={personalInfo}
+                                    setPersonalInfo={setPersonalInfo}
+                                    subProfileInfo={subProfileInfo}
+                                    setSubProfileInfo={setSubProfileInfo}
+                                    hasSubProfile={hasSubProfile}
+                                    setHasSubProfile={setHasSubProfile}
+                                    universityMajors={universityMajors}
+                                    isEditing={isEditing}
+                                    setIsEditing={setIsEditing}
+                                    isLoading={isLoading}
+                                    setIsLoading={setIsLoading}
+                                    previewAvatar={previewAvatar}
+                                    setPreviewAvatar={setPreviewAvatar}
+                                    uploading={uploading}
+                                    onAvatarUpload={handleAvatarUpload}
+                                    onRemoveAvatar={handleRemoveAvatar}
+                                    onSave={handleSaveProfile}
+                                    onCancel={handleCancelEdit}
+                                    user={user}
+                                    setUser={setUser}
+                                    showSuccess={showSuccess}
+                                    showError={showError}
+                                    uploadImage={uploadImage}
+                                />
+                            )}
 
-                        {/* Mentor Tab */}
-                        {activeTab === 'mentor' && (user?.role === 'user' || user?.role === 'mentor') && (
-                            <MentorTab
-                                mentorInfo={mentorInfo}
-                                setMentorInfo={setMentorInfo}
-                                hasMentorProfile={hasMentorProfile}
-                                isEditing={isEditing}
-                                setIsEditing={setIsEditing}
-                                isLoading={isLoading}
-                                onSave={handleSaveMentorInfo}
-                                onCancel={handleCancelEdit}
-                                onUploadImage={uploadImage}
-                                showSuccess={showSuccess}
-                                showError={showError}
-                            />
-                        )}
+                            {/* Mentor Tab */}
+                            {activeTab === 'mentor' && (user?.role === 'user' || user?.role === 'mentor') && (
+                                <MentorTab
+                                    mentorInfo={mentorInfo}
+                                    setMentorInfo={setMentorInfo}
+                                    hasMentorProfile={hasMentorProfile}
+                                    isEditing={isEditing}
+                                    setIsEditing={setIsEditing}
+                                    isLoading={isLoading}
+                                    onSave={handleSaveMentorInfo}
+                                    onCancel={handleCancelEdit}
+                                    onUploadImage={uploadImage}
+                                    showSuccess={showSuccess}
+                                    showError={showError}
+                                />
+                            )}
 
-                        {/* Password Tab */}
-                        {activeTab === 'password' && (
-                            <PasswordTab
-                                passwordData={passwordData}
-                                setPasswordData={setPasswordData}
-                                showPasswords={showPasswords}
-                                togglePasswordVisibility={togglePasswordVisibility}
-                                isLoading={isLoading}
-                                onSubmit={handleChangePassword}
-                            />
-                        )}
+                            {/* Password Tab */}
+                            {activeTab === 'password' && (
+                                <PasswordTab
+                                    passwordData={passwordData}
+                                    setPasswordData={setPasswordData}
+                                    showPasswords={showPasswords}
+                                    togglePasswordVisibility={togglePasswordVisibility}
+                                    isLoading={isLoading}
+                                    onSubmit={handleChangePassword}
+                                />
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Thêm CSS animations vào cuối component hoặc file CSS global */}
+            <style jsx>{`
+                @keyframes slideIn {
+                    from {
+                        transform: scaleX(0);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: scaleX(1);
+                        opacity: 1;
+                    }
+                }
+
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+            `}</style>
         </div>
     );
 };
