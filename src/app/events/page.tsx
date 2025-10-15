@@ -1,6 +1,6 @@
 // src/app/events/page.tsx
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import { SectionHeader } from '@/component/SectionHeader';
@@ -42,7 +42,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 const ITEMS_PER_PAGE = 12;
 
-const EventsPage = () => {
+// Component chính chứa logic sử dụng useSearchParams
+const EventsContent = () => {
     const { user } = useAuthStore();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -708,8 +709,7 @@ const EventsPage = () => {
                                                     <React.Fragment key={index}>
                                                         {pageNum === '...' ? (
                                                             <span className="px-3 py-2 text-gray-400">...</span>
-                                                        ) : (
-                                                            <button
+                                                        ) : (<button
                                                                 onClick={() => setPagination(prev => ({ ...prev, currentPage: pageNum as number }))}
                                                                 className={`px-3 py-2 rounded-lg ${
                                                                     pagination.currentPage === pageNum
@@ -1441,6 +1441,23 @@ const EventsPage = () => {
     }
 
     return null;
+};
+
+const EventsPage = () => {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="py-12 text-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                        <p className="text-gray-600">Đang tải...</p>
+                    </div>
+                </div>
+            </div>
+        }>
+            <EventsContent />
+        </Suspense>
+    );
 };
 
 export default EventsPage;
