@@ -1195,7 +1195,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                     )}
                 </div>
 
-                {/* Event Create/Edit Modal - Same as before */}
+                {/* Event Create/Edit Modal */}
                 {showEventModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <div
@@ -1302,19 +1302,6 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Post ID (nếu có)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={eventFormData.post_id || ''}
-                                            onChange={(e) => setEventFormData(prev => ({ ...prev, post_id: e.target.value || undefined }))}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            placeholder="UUID của bài post liên quan"
-                                            disabled={submitting || uploading}
-                                        />
-                                    </div>
                                 </div>
 
                                 {/* Date & Time */}
@@ -1610,6 +1597,14 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
+                                    <button
+                                        onClick={() => openEventModal(selectedEvent)}
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                                        disabled={submitting}
+                                    >
+                                        <Edit className="w-4 h-4" />
+                                        Chỉnh sửa
+                                    </button>
                                     <button
                                         onClick={() => deleteEvent(selectedEvent.id)}
                                         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
@@ -2896,6 +2891,300 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                     <>
                                         <Save className="w-4 h-4" />
                                         Lưu thay đổi
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Event Create/Edit Modal */}
+            {showEventModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div
+                        className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+                        onClick={() => {
+                            if (!submitting && !uploading) {
+                                setShowEventModal(false);
+                                setEditingEvent(null);
+                                setEventFormData({});
+                            }
+                        }}
+                    />
+
+                    <div className="relative bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-xl font-bold">
+                                    {editingEvent ? 'Chỉnh sửa sự kiện' : 'Tạo sự kiện mới'}
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        if (!submitting && !uploading) {
+                                            setShowEventModal(false);
+                                            setEditingEvent(null);
+                                            setEventFormData({});
+                                        }
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600"
+                                    disabled={submitting || uploading}
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Basic Information */}
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-gray-900">Thông tin cơ bản</h4>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Tiêu đề sự kiện *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={eventFormData.title || ''}
+                                        onChange={(e) => setEventFormData(prev => ({ ...prev, title: e.target.value }))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="VD: Workshop AI & Machine Learning"
+                                        disabled={submitting || uploading}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Mô tả
+                                    </label>
+                                    <textarea
+                                        value={eventFormData.description || ''}
+                                        onChange={(e) => setEventFormData(prev => ({ ...prev, description: e.target.value }))}
+                                        rows={4}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Mô tả chi tiết về sự kiện..."
+                                        disabled={submitting || uploading}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Ảnh thumbnail
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) await handleImageUpload(file);
+                                            }}
+                                            className="hidden"
+                                            id="event-thumbnail"
+                                            disabled={uploading || submitting}
+                                        />
+                                        <label
+                                            htmlFor="event-thumbnail"
+                                            className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer ${
+                                                (uploading || submitting) ? 'opacity-50 cursor-not-allowed' : ''
+                                            }`}
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            {uploading ? 'Đang tải...' : 'Chọn ảnh'}
+                                        </label>
+                                        {eventFormData.thumbnail && (
+                                            <div className="relative w-20 h-20">
+                                                <Image
+                                                    src={eventFormData.thumbnail}
+                                                    alt="Preview"
+                                                    fill
+                                                    className="object-cover rounded-lg"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Date & Time */}
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-gray-900">Thời gian</h4>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Ngày bắt đầu *
+                                        </label>
+                                        <input
+                                            type="datetime-local"
+                                            value={eventFormData.event_date || ''}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, event_date: e.target.value }))}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Ngày kết thúc
+                                        </label>
+                                        <input
+                                            type="datetime-local"
+                                            value={eventFormData.end_date || ''}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, end_date: e.target.value }))}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Hạn đăng ký
+                                        </label>
+                                        <input
+                                            type="datetime-local"
+                                            value={eventFormData.registration_deadline || ''}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, registration_deadline: e.target.value }))}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Location & Type */}
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-gray-900">Địa điểm & Hình thức</h4>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Địa điểm
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={eventFormData.location || ''}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, location: e.target.value }))}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            placeholder="VD: Phòng 301, Tòa nhà A"
+                                            disabled={submitting || uploading}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Hình thức
+                                        </label>
+                                        <select
+                                            value={eventFormData.event_type || 'hybrid'}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, event_type: e.target.value as any }))}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        >
+                                            <option value="online">Online</option>
+                                            <option value="offline">Offline</option>
+                                            <option value="hybrid">Hybrid</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Số người tối đa
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={eventFormData.max_participants || ''}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, max_participants: parseInt(e.target.value) || undefined }))}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Để trống nếu không giới hạn"
+                                            min="1"
+                                            disabled={submitting || uploading}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Settings */}
+                            <div className="space-y-4">
+                                <h4 className="font-semibold text-gray-900">Cài đặt</h4>
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="require_approval"
+                                            checked={eventFormData.require_approval || false}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, require_approval: e.target.checked }))}
+                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        />
+                                        <label htmlFor="require_approval" className="text-sm text-gray-700">
+                                            Yêu cầu phê duyệt đăng ký
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="check_in_enabled"
+                                            checked={eventFormData.check_in_enabled ?? true}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, check_in_enabled: e.target.checked }))}
+                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        />
+                                        <label htmlFor="check_in_enabled" className="text-sm text-gray-700">
+                                            Cho phép check-in
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="published"
+                                            checked={eventFormData.published || false}
+                                            onChange={(e) => setEventFormData(prev => ({ ...prev, published: e.target.checked }))}
+                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            disabled={submitting || uploading}
+                                        />
+                                        <label htmlFor="published" className="text-sm text-gray-700">
+                                            Xuất bản sự kiện
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    if (!submitting && !uploading) {
+                                        setShowEventModal(false);
+                                        setEditingEvent(null);
+                                        setEventFormData({});
+                                    }
+                                }}
+                                disabled={submitting || uploading}
+                            >
+                                Hủy
+                            </Button>
+                            <Button
+                                onClick={saveEvent}
+                                disabled={submitting || uploading || !eventFormData.title || !eventFormData.event_date}
+                                className="flex items-center gap-2"
+                            >
+                                {(submitting || uploading) ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        {uploading ? 'Đang tải ảnh...' : 'Đang lưu...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-4 h-4" />
+                                        {editingEvent ? 'Cập nhật' : 'Tạo mới'}
                                     </>
                                 )}
                             </Button>

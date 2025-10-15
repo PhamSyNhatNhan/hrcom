@@ -1,74 +1,12 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Edit3, Upload, Camera, X, Save, GraduationCap, Linkedin, Github, Globe, ExternalLink, Search } from 'lucide-react';
-
-interface PersonalInfo {
-    name: string;
-    email: string;
-    avatar: string;
-    gender?: string;
-    birthdate?: string;
-    phone_number?: string;
-}
-
-interface SubProfileInfo {
-    university_major_id?: string;
-    linkedin_url?: string;
-    github_url?: string;
-    portfolio_url?: string;
-    description?: string;
-}
-
-interface University {
-    id: string;
-    name: string;
-    code: string;
-}
-
-interface Major {
-    id: string;
-    name: string;
-}
-
-interface UniversityMajor {
-    id: string;
-    university_id: string;
-    major_id: string;
-    university: {
-        name: string;
-        code: string;
-    };
-    major: {
-        name: string;
-    };
-}
-
-interface CombinedProfileTabProps {
-    personalInfo: PersonalInfo;
-    setPersonalInfo: React.Dispatch<React.SetStateAction<PersonalInfo>>;
-    subProfileInfo: SubProfileInfo;
-    setSubProfileInfo: React.Dispatch<React.SetStateAction<SubProfileInfo>>;
-    hasSubProfile: boolean;
-    setHasSubProfile: React.Dispatch<React.SetStateAction<boolean>>;
-    universityMajors: UniversityMajor[];
-    isEditing: boolean;
-    setIsEditing: React.Dispatch<React.SetStateAction<boolean>>;
-    isLoading: boolean;
-    setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-    previewAvatar: string;
-    setPreviewAvatar: React.Dispatch<React.SetStateAction<string>>;
-    uploading: boolean;
-    onAvatarUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onRemoveAvatar: () => void;
-    onSave: () => void;  // ← Parent save function
-    onCancel: () => void;
-    user: any;
-    setUser: (user: any) => void;
-    showSuccess: (title: string, message: string) => void;
-    showError: (title: string, message: string) => void;
-    uploadImage: (file: File) => Promise<string>;
-}
+import {
+    Edit3, Upload, Camera, X, Save, GraduationCap, Linkedin, Github, Globe,
+    ExternalLink, Search, FileText, Upload as UploadIcon, CheckCircle, AlertCircle
+} from 'lucide-react';
+import { supabase } from '@/utils/supabase/client';
+import type { CombinedProfileTabProps, University, Major, UniversityMajor } from '@/types/profile_user';
 
 const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                                                    personalInfo,
@@ -87,7 +25,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                                                    uploading,
                                                                    onAvatarUpload,
                                                                    onRemoveAvatar,
-                                                                   onSave,  // ← Use parent save function
+                                                                   onSave,
                                                                    onCancel,
                                                                    user,
                                                                    setUser,
@@ -100,61 +38,59 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
     const majorRef = useRef<HTMLDivElement>(null);
     const displayAvatar = previewAvatar || personalInfo.avatar;
 
-    // ————————————————————————————————————————————————————————————————————
-    // MENTOR TAB EDIT THEME - giống với mentor khi đang edit
-    // ————————————————————————————————————————————————————————————————————
+    // CV Upload States
+    const [cvUploading, setCvUploading] = useState(false);
+    const [cvCheckingAccess, setCvCheckingAccess] = useState(false);
+    const [cvAccessStatus, setCvAccessStatus] = useState<'unchecked' | 'accessible' | 'not_accessible'>('unchecked');
+    const cvFileInputRef = useRef<HTMLInputElement>(null);
 
     const theme = {
-        // Panel backgrounds - giống MentorTab edit mode
+        // Panels - responsive padding
         personalInfoPanel: isEditing
-            ? "bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6"
-            : "bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6",
+            ? "bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-4 sm:p-6"
+            : "bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-4 sm:p-6",
 
         subProfilePanel: isEditing
-            ? "bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6"
-            : "bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6",
+            ? "bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-4 sm:p-6"
+            : "bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-4 sm:p-6",
 
-        // Headers - giống MentorTab
-        personalHeader: isEditing ? "text-cyan-800" : "text-gray-900",
-        subProfileHeader: isEditing ? "text-emerald-800" : "text-gray-900",
+        // Headers - responsive font size
+        personalHeader: isEditing ? "text-cyan-800 text-base sm:text-lg" : "text-gray-900 text-base sm:text-lg",
+        subProfileHeader: isEditing ? "text-emerald-800 text-base sm:text-lg" : "text-gray-900 text-base sm:text-lg",
 
-        // Icons - giống MentorTab
+        // Icons
         personalIcon: isEditing ? "text-cyan-600" : "text-blue-600",
         subProfileIcon: isEditing ? "text-emerald-600" : "text-green-600",
 
-        // Labels - giống MentorTab: cyan-700 khi edit
+        // Labels - responsive spacing
         label: isEditing
-            ? "block text-sm font-semibold text-cyan-700 mb-3"
+            ? "block text-sm font-semibold text-cyan-700 mb-2 sm:mb-3"
             : "block text-sm font-semibold text-gray-900 mb-2",
 
-        // View mode boxes - giống MentorTab
-        viewBox: "px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium",
+        // View boxes - responsive padding
+        viewBox: "px-3 py-2 sm:px-4 sm:py-3 bg-white border border-gray-200 rounded-xl text-gray-900 font-medium text-sm sm:text-base",
 
-        // Edit mode inputs - giống hệt MentorTab
+        // Inputs - responsive
         input: isEditing
-            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
-            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium",
+            ? "w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
+            : "w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base border border-gray-200 rounded-xl text-gray-900 font-medium",
 
         select: isEditing
-            ? "w-full px-4 py-3 rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
-            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium",
+            ? "w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base rounded-xl border border-cyan-300 bg-white focus:ring-4 focus:ring-cyan-100 focus:border-cyan-500 shadow-sm transition-all duration-200 focus:outline-none"
+            : "w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base border border-gray-200 rounded-xl text-gray-900 font-medium",
 
         textarea: isEditing
-            ? "w-full px-4 py-3 rounded-xl border border-emerald-300 bg-white focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 shadow-sm transition-all duration-200 focus:outline-none resize-none"
-            : "w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-medium resize-none",
+            ? "w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base rounded-xl border border-emerald-300 bg-white focus:ring-4 focus:ring-emerald-100 focus:border-emerald-500 shadow-sm transition-all duration-200 focus:outline-none resize-none"
+            : "w-full px-3 py-2 sm:px-4 sm:py-3 text-sm sm:text-base border border-gray-200 rounded-xl text-gray-900 font-medium resize-none",
 
-        // Avatar - giống MentorTab
+        // Avatar
         avatarRing: isEditing ? "ring-4 ring-cyan-100" : "ring-4 ring-white",
         avatarBg: isEditing ? "bg-cyan-100" : "bg-gradient-to-br from-cyan-500 to-blue-600",
 
-        // Dropdowns - giống MentorTab
-        dropdown: "absolute z-30 w-full mt-1 bg-white border border-cyan-200 rounded-xl shadow-lg max-h-60 overflow-y-auto",
-        dropdownItem: "w-full text-left px-4 py-3 hover:bg-cyan-50 transition-colors border-b border-cyan-50 last:border-b-0 cursor-pointer",
+        // Dropdown - responsive
+        dropdown: "absolute z-30 w-full mt-1 bg-white border border-cyan-200 rounded-xl shadow-lg max-h-48 sm:max-h-60 overflow-y-auto",
+        dropdownItem: "w-full text-left px-3 py-2 sm:px-4 sm:py-3 text-sm hover:bg-cyan-50 transition-colors border-b border-cyan-50 last:border-b-0 cursor-pointer",
     };
-
-    // ————————————————————————————————————————————————————————————————————
-    // State management
-    // ————————————————————————————————————————————————————————————————————
 
     const [universities, setUniversities] = useState<University[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
@@ -297,20 +233,115 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
         )
         : majors.filter(major => major.name.toLowerCase().includes(majorSearch.toLowerCase()));
 
-    // ✅ CALL PARENT SAVE FUNCTION
+    // CV Helper Functions
+    const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const allowedTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        if (!allowedTypes.includes(file.type)) {
+            showError('Lỗi định dạng', 'Chỉ chấp nhận file PDF hoặc Word (.doc, .docx)');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            showError('Lỗi kích thước', 'Kích thước file không được vượt quá 5MB!');
+            return;
+        }
+
+        try {
+            setCvUploading(true);
+
+            const fileExt = file.name.split('.').pop();
+            const fileName = `cv-${user?.id}-${Date.now()}.${fileExt}`;
+            const filePath = `cvs/${fileName}`;
+
+            const { data, error } = await supabase.storage
+                .from('documents')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (error) throw error;
+
+            const { data: urlData } = supabase.storage
+                .from('documents')
+                .getPublicUrl(filePath);
+
+            setSubProfileInfo(prev => ({ ...prev, cv: urlData.publicUrl }));
+            setCvAccessStatus('accessible');
+            showSuccess('Thành công', 'CV đã được tải lên thành công!');
+
+        } catch (error) {
+            console.error('Error uploading CV:', error);
+            showError('Lỗi upload', 'Không thể tải CV lên. Vui lòng thử lại.');
+        } finally {
+            setCvUploading(false);
+        }
+    };
+
+    const checkDriveAccess = async (url: string) => {
+        if (!url || !url.includes('drive.google.com')) {
+            setCvAccessStatus('unchecked');
+            return;
+        }
+
+        try {
+            setCvCheckingAccess(true);
+
+            const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            if (fileIdMatch) {
+                setCvAccessStatus('accessible');
+            } else {
+                setCvAccessStatus('not_accessible');
+                showError('Lỗi URL', 'URL Google Drive không hợp lệ');
+            }
+
+        } catch (error) {
+            console.error('Error checking CV access:', error);
+            setCvAccessStatus('not_accessible');
+        } finally {
+            setCvCheckingAccess(false);
+        }
+    };
+
+    const handleCVUrlChange = (url: string) => {
+        setSubProfileInfo(prev => ({ ...prev, cv: url }));
+
+        if (url.includes('drive.google.com')) {
+            setCvAccessStatus('unchecked');
+            const timeoutId = setTimeout(() => {
+                checkDriveAccess(url);
+            }, 500);
+            return () => clearTimeout(timeoutId);
+        } else {
+            setCvAccessStatus('unchecked');
+        }
+    };
+
+    const handleRemoveCV = () => {
+        setSubProfileInfo(prev => ({ ...prev, cv: '' }));
+        setCvAccessStatus('unchecked');
+    };
+
     const handleSaveBoth = () => {
-        onSave();  // ← Delegate to parent
+        onSave();
     };
 
     return (
-        <div className="space-y-8">
-            <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Thông tin cá nhân</h2>
+        <div className="space-y-6 sm:space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Thông tin cá nhân</h2>
 
                 {!isEditing ? (
                     <button
                         onClick={() => setIsEditing(true)}
-                        className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2"
+                        className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 sm:px-6 py-2 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2"
                         disabled={isLoading}
                     >
                         <Edit3 className="w-4 h-4" />
@@ -319,7 +350,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                 ) : (
                     <button
                         onClick={onCancel}
-                        className="bg-gray-500 text-white px-6 py-2 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300 flex items-center space-x-2"
+                        className="w-full sm:w-auto bg-gray-500 text-white px-4 sm:px-6 py-2 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300 flex items-center justify-center space-x-2"
                         disabled={isLoading}
                     >
                         <X className="w-4 h-4" />
@@ -330,29 +361,29 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
 
             {/* Thông tin cơ bản */}
             <div className={theme.personalInfoPanel}>
-                <h3 className={`text-lg font-semibold mb-6 flex items-center space-x-2 ${theme.personalHeader}`}>
+                <h3 className={`font-semibold mb-6 flex items-center space-x-2 ${theme.personalHeader}`}>
                     <Camera className={`w-5 h-5 ${theme.personalIcon}`} />
                     <span>Thông tin cơ bản</span>
                 </h3>
 
                 {/* Avatar */}
-                <div className="mb-6">
-                    <label className={`${theme.label} mb-4`}>Ảnh đại diện</label>
-                    <div className="flex items-center space-x-6">
+                <div className="mb-4 sm:mb-6">
+                    <label className={`${theme.label} mb-3 sm:mb-4`}>Ảnh đại diện</label>
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
                         <div className="relative">
-                            <div className={`h-28 w-28 rounded-full overflow-hidden ${theme.avatarRing} shadow-lg bg-gray-100`}>
+                            <div className={`h-24 w-24 sm:h-28 sm:w-28 rounded-full overflow-hidden ${theme.avatarRing} shadow-lg bg-gray-100`}>
                                 {displayAvatar ? (
                                     <img src={displayAvatar} className="object-cover w-full h-full" alt="Avatar" />
                                 ) : (
                                     <div className={`flex items-center justify-center h-full w-full ${theme.avatarBg}`}>
-                                        <Camera className={`${isEditing ? 'text-cyan-600' : 'text-white'} w-8 h-8`} />
+                                        <Camera className={`${isEditing ? 'text-cyan-600' : 'text-white'} w-6 h-6 sm:w-8 sm:h-8`} />
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {isEditing && (
-                            <div className="space-y-3">
+                            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -363,7 +394,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 />
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="bg-white text-cyan-700 border-2 border-cyan-500/70 px-4 py-2 rounded-xl font-medium hover:bg-cyan-600 hover:text-white transition-all duration-300 flex items-center space-x-2 shadow-sm hover:shadow"
+                                    className="w-full sm:w-auto bg-white text-cyan-700 border-2 border-cyan-500/70 px-4 py-2 rounded-xl font-medium hover:bg-cyan-600 hover:text-white transition-all duration-300 flex items-center justify-center space-x-2 shadow-sm hover:shadow text-sm"
                                     disabled={uploading}
                                 >
                                     {uploading ? (
@@ -377,7 +408,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 {displayAvatar && (
                                     <button
                                         onClick={onRemoveAvatar}
-                                        className="text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl hover:bg-red-50 transition-all duration-300 flex items-center space-x-2"
+                                        className="w-full sm:w-auto text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl hover:bg-red-50 transition-all duration-300 flex items-center justify-center space-x-2 text-sm"
                                         disabled={uploading}
                                     >
                                         <X className="w-4 h-4" />
@@ -388,6 +419,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                         )}
                     </div>
                 </div>
+
 
                 {/* Basic Info Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -413,7 +445,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                     <div className="space-y-2">
                         <label className={theme.label}>Email</label>
                         {isEditing ? (
-                            <div className="px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 font-medium">
+                            <div className="px-3 py-2 sm:px-4 sm:py-3 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 font-medium text-sm sm:text-base">
                                 {personalInfo.email}
                             </div>
                         ) : (
@@ -483,7 +515,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
 
             {/* Thông tin bổ sung */}
             <div className={theme.subProfilePanel}>
-                <h3 className={`text-lg font-semibold mb-6 flex items-center space-x-2 ${theme.subProfileHeader}`}>
+                <h3 className={`font-semibold mb-6 flex items-center space-x-2 ${theme.subProfileHeader}`}>
                     <GraduationCap className={`w-5 h-5 ${theme.subProfileIcon}`} />
                     <span>Thông tin bổ sung</span>
                 </h3>
@@ -509,7 +541,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                     className={theme.input}
                                     disabled={isLoading}
                                 />
-                                <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400 pointer-events-none" />
+                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
 
                                 {showUniversityDropdown && (
                                     <div className={theme.dropdown}>
@@ -564,7 +596,7 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                     disabled={!selectedUniversity || isLoading}
                                     className={`${theme.input} disabled:opacity-50 disabled:cursor-not-allowed`}
                                 />
-                                <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400 pointer-events-none" />
+                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
 
                                 {showMajorDropdown && selectedUniversity && (
                                     <div className={theme.dropdown}>
@@ -662,7 +694,8 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                                 onChange={(e) => setSubProfileInfo(prev => ({ ...prev, portfolio_url: e.target.value }))}
                                 className={theme.input}
                                 disabled={isLoading}
-                                placeholder="https://yourportfolio.com" />
+                                placeholder="https://yourportfolio.com"
+                            />
                         ) : (
                             <div className={theme.viewBox}>
                                 {subProfileInfo.portfolio_url ? (
@@ -674,6 +707,119 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                             </div>
                         )}
                     </div>
+
+                    {/* CV Field - Mobile Responsive */}
+                    <div className="space-y-2 md:col-span-2">
+                        <label className={`${theme.label} flex items-center space-x-2`}>
+                            <FileText className={`w-4 h-4 ${theme.subProfileIcon}`} />
+                            <span>CV / Resume</span>
+                        </label>
+
+                        {isEditing ? (
+                            <div className="space-y-3">
+                                {/* CV URL Input */}
+                                <div className="relative">
+                                    <input
+                                        type="url"
+                                        value={subProfileInfo.cv || ''}
+                                        onChange={(e) => handleCVUrlChange(e.target.value)}
+                                        className={theme.input}
+                                        disabled={isLoading || cvUploading}
+                                        placeholder="Link Google Drive hoặc upload"
+                                    />
+
+                                    {/* Access Status Indicator */}
+                                    {subProfileInfo.cv && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            {cvCheckingAccess ? (
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-600"></div>
+                                            ) : cvAccessStatus === 'accessible' ? (
+                                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                            ) : cvAccessStatus === 'not_accessible' ? (
+                                                <AlertCircle className="w-4 h-4 text-red-600" />
+                                            ) : null}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* CV Upload Button - Mobile Stack */}
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                    <input
+                                        ref={cvFileInputRef}
+                                        type="file"
+                                        accept=".pdf,.doc,.docx"
+                                        className="hidden"
+                                        onChange={handleCVUpload}
+                                        disabled={cvUploading || isLoading}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={() => cvFileInputRef.current?.click()}
+                                        className="flex items-center justify-center space-x-2 px-4 py-2 bg-white border-2 border-emerald-300 text-emerald-700 rounded-xl hover:bg-emerald-50 transition-all duration-300 disabled:opacity-50 text-sm font-medium"
+                                        disabled={cvUploading || isLoading}
+                                    >
+                                        {cvUploading ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
+                                                <span>Đang tải...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <UploadIcon className="w-4 h-4" />
+                                                <span>Tải file CV</span>
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {subProfileInfo.cv && (
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveCV}
+                                            className="text-red-600 border-2 border-red-300 px-4 py-2 rounded-xl hover:bg-red-50 transition-all duration-300 text-sm font-medium"
+                                            disabled={cvUploading || isLoading}
+                                        >
+                                            Xóa CV
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Helper Text */}
+                                <div className="text-xs text-gray-600 space-y-1 bg-gray-50 rounded-lg p-3">
+                                    <p>• Tải lên PDF/Word (tối đa 5MB)</p>
+                                    <p>• Hoặc dán link Google Drive</p>
+                                    {cvAccessStatus === 'not_accessible' && (
+                                        <p className="text-red-600 font-medium">
+                                            ⚠️ Không thể truy cập. Kiểm tra quyền chia sẻ.
+                                        </p>
+                                    )}
+                                    {cvAccessStatus === 'accessible' && (
+                                        <p className="text-green-600 font-medium">
+                                            ✓ File có thể truy cập
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className={theme.viewBox}>
+                                {subProfileInfo.cv ? (
+                                    <a
+                                        href={subProfileInfo.cv}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-cyan-600 hover:underline flex items-center space-x-2"
+                                    >
+                                        <FileText className="w-4 h-4 flex-shrink-0" />
+                                        <span className="truncate">Xem CV</span>
+                                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                    </a>
+                                ) : (
+                                    'Chưa cập nhật'
+                                )}
+                            </div>
+                        )}
+                    </div>
+
 
                     <div className="space-y-2 md:col-span-2">
                         <label className={theme.label}>Mô tả bản thân</label>
@@ -695,19 +841,19 @@ const CombinedProfileTab: React.FC<CombinedProfileTabProps> = ({
                 </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Mobile Responsive */}
             {isEditing && (
-                <div className="flex justify-end space-x-4 pt-6">
+                <div className="flex flex-col-reverse sm:flex-row justify-end space-y-reverse space-y-4 sm:space-y-0 sm:space-x-4 pt-6">
                     <button
                         onClick={onCancel}
-                        className="px-6 py-2 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-all duration-300"
+                        className="w-full sm:w-auto px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-all duration-300 text-sm sm:text-base"
                         disabled={isLoading}
                     >
                         Hủy
                     </button>
                     <button
-                        onClick={handleSaveBoth}  // ← Gọi parent save function
-                        className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2"
+                        onClick={handleSaveBoth}
+                        className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 py-3 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center space-x-2 text-sm sm:text-base"
                         disabled={isLoading}
                     >
                         {isLoading ? (

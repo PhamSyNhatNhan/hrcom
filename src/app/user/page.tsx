@@ -7,75 +7,19 @@ import Notification from '@/component/Notification';
 import { useNotificationWithUtils } from '@/hooks/useNotification';
 import { supabase } from '@/utils/supabase/client';
 
-// Import tab components
+import type {
+    TabType,
+    PersonalInfo,
+    SubProfileInfo,
+    MentorInfo,
+    PasswordData,
+    ShowPasswords,
+    UniversityMajor
+} from '@/types/profile_user';
+
 import CombinedProfileTab from '@/component/profile/CombinedProfileTab';
 import MentorTab from '@/component/profile/MentorTab';
 import PasswordTab from '@/component/profile/PasswordTab';
-
-export type TabType = 'profile' | 'mentor' | 'password';
-
-export interface PersonalInfo {
-    name: string;
-    email: string;
-    avatar: string;
-    gender?: string;
-    birthdate?: string;
-    phone_number?: string;
-}
-
-export interface SubProfileInfo {
-    university_major_id?: string;
-    linkedin_url?: string;
-    github_url?: string;
-    portfolio_url?: string;
-    description?: string;
-}
-
-export interface MentorSkill {
-    id: string;
-    name: string;
-    description?: string;
-}
-
-export interface MentorInfo {
-    // Basic info
-    full_name?: string;
-    email?: string;
-    avatar?: string;
-    phone_number?: string;
-    headline?: string;
-    description?: string;
-    published?: boolean;
-
-    // NEW
-    skills?: MentorSkill[];
-
-    // Related data
-    work_experiences?: any[];
-    educations?: any[];
-    activities?: any[];
-}
-
-export type UniversityMajor = {
-    id: string;
-    university_id: string;
-    major_id: string;
-    university: { name: string; code: string };
-    major: { name: string };
-};
-
-
-export interface PasswordData {
-    currentPassword: string;
-    newPassword: string;
-    confirmPassword: string;
-}
-
-export interface ShowPasswords {
-    current: boolean;
-    new: boolean;
-    confirm: boolean;
-}
 
 const AccountSettings: React.FC = () => {
     const { user, setUser } = useAuthStore();
@@ -102,9 +46,10 @@ const AccountSettings: React.FC = () => {
         phone_number: ''
     });
 
-    // SubProfile state - REMOVED cv field
+    // SubProfile state
     const [subProfileInfo, setSubProfileInfo] = useState<SubProfileInfo>({
         university_major_id: '',
+        cv: '',
         linkedin_url: '',
         github_url: '',
         portfolio_url: '',
@@ -237,7 +182,6 @@ const AccountSettings: React.FC = () => {
                 } as UniversityMajor & { university_id?: string; major_id?: string };
             });
 
-
             setUniversityMajors(transformedData);
         } catch (error) {
             console.error('Error loading university majors:', error);
@@ -265,6 +209,7 @@ const AccountSettings: React.FC = () => {
                 setHasSubProfile(true);
                 setSubProfileInfo({
                     university_major_id: data.university_major_id || '',
+                    cv: data.cv || '',
                     linkedin_url: data.linkedin_url || '',
                     github_url: data.github_url || '',
                     portfolio_url: data.portfolio_url || '',
@@ -315,9 +260,9 @@ const AccountSettings: React.FC = () => {
             if (relErr) {
                 console.error('❌ Error loading mentor skills:', relErr);
             }
-            const skills: MentorSkill[] = (skillRels || [])
+            const skills: any[] = (skillRels || [])
                 .map((r: any) => r.mentor_skills)
-                .filter(Boolean) as MentorSkill[];
+                .filter(Boolean);
 
             // Lấy thông tin mentor đầy đủ bao gồm work experiences, educations, activities
             const { data: mentorData, error: mentorError } = await supabase
@@ -349,7 +294,7 @@ const AccountSettings: React.FC = () => {
                     headline: mentorData.headline || '',
                     description: mentorData.description || '',
                     published: mentorData.published || false,
-                    skills, // ✅ dùng skills mới
+                    skills,
                     // Related data
                     work_experiences: mentorData.mentor_work_experiences || [],
                     educations: mentorData.mentor_educations || [],
@@ -430,7 +375,7 @@ const AccountSettings: React.FC = () => {
         setPersonalInfo(prev => ({ ...prev, avatar: '' }));
     };
 
-    // ✅ UNIFIED SAVE FUNCTION - Chỉ 1 function duy nhất
+    // ✅ UNIFIED SAVE FUNCTION
     const handleSaveProfile = async () => {
         if (!user) {
             showError('Lỗi', 'Vui lòng đăng nhập lại!');
@@ -469,6 +414,7 @@ const AccountSettings: React.FC = () => {
 
             // 2. Save Sub Profile (if has data)
             if (subProfileInfo.university_major_id ||
+                subProfileInfo.cv?.trim() ||
                 subProfileInfo.linkedin_url?.trim() ||
                 subProfileInfo.github_url?.trim() ||
                 subProfileInfo.portfolio_url?.trim() ||
@@ -476,6 +422,7 @@ const AccountSettings: React.FC = () => {
 
                 const subProfileData = {
                     university_major_id: subProfileInfo.university_major_id || null,
+                    cv: subProfileInfo.cv?.trim() || null,
                     linkedin_url: subProfileInfo.linkedin_url?.trim() || null,
                     github_url: subProfileInfo.github_url?.trim() || null,
                     portfolio_url: subProfileInfo.portfolio_url?.trim() || null,
@@ -516,17 +463,17 @@ const AccountSettings: React.FC = () => {
                 }
             });
 
-            // 4. Success - CHỈ 1 notification và thoát edit mode
+            // 4. Success
             showSuccess('Thành công', 'Thông tin đã được cập nhật!');
             setPreviewAvatar('');
-            setIsEditing(false);  // ← QUAN TRỌNG: Thoát edit mode
+            setIsEditing(false);
             console.log('✅ Profile save completed, exiting edit mode');
 
         } catch (error: any) {
             console.error('❌ Error saving profile:', error);
             showError('Lỗi', error?.message || 'Không thể cập nhật thông tin. Vui lòng thử lại.');
         } finally {
-            setIsLoading(false);  // ← CHỈ 1 lần set loading = false
+            setIsLoading(false);
         }
     };
 
@@ -612,7 +559,7 @@ const AccountSettings: React.FC = () => {
 
                 // Thêm work experiences mới
                 const workExperiencesToInsert = mentorInfo.work_experiences
-                    .filter(exp => exp.company && exp.position) // Chỉ lưu những exp có đủ thông tin
+                    .filter(exp => exp.company && exp.position)
                     .map(exp => ({
                         mentor_id: mentorId,
                         avatar: exp.avatar || null,
@@ -653,7 +600,7 @@ const AccountSettings: React.FC = () => {
 
                 // Thêm educations mới
                 const educationsToInsert = mentorInfo.educations
-                    .filter(edu => edu.school && edu.degree) // Chỉ lưu những edu có đủ thông tin
+                    .filter(edu => edu.school && edu.degree)
                     .map(edu => ({
                         mentor_id: mentorId,
                         avatar: edu.avatar || null,
@@ -694,7 +641,7 @@ const AccountSettings: React.FC = () => {
 
                 // Thêm activities mới
                 const activitiesToInsert = mentorInfo.activities
-                    .filter(act => act.activity_name && act.organization && act.role) // Chỉ lưu những activity có đủ thông tin
+                    .filter(act => act.activity_name && act.organization && act.role)
                     .map(act => ({
                         mentor_id: mentorId,
                         avatar: act.avatar || null,
@@ -814,7 +761,6 @@ const AccountSettings: React.FC = () => {
             { id: 'profile' as TabType, label: 'Thông tin cá nhân', icon: User }
         ];
 
-        // CHỈ hiển thị tab Mentor cho user và mentor, KHÔNG cho admin/superadmin
         if (user?.role === 'user' || user?.role === 'mentor') {
             tabs.push({ id: 'mentor' as TabType, label: 'Thông tin Mentor', icon: GraduationCap });
         }
@@ -884,7 +830,7 @@ const AccountSettings: React.FC = () => {
                                 uploading={uploading}
                                 onAvatarUpload={handleAvatarUpload}
                                 onRemoveAvatar={handleRemoveAvatar}
-                                onSave={handleSaveProfile}  // ← CHỈ 1 save function
+                                onSave={handleSaveProfile}
                                 onCancel={handleCancelEdit}
                                 user={user}
                                 setUser={setUser}

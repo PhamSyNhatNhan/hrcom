@@ -508,14 +508,16 @@ const MentorBookingContent = () => {
                                     >
                                         <div className="flex items-start gap-3">
                                             {mentor.avatar ? (
-                                                <Image
-                                                    src={mentor.avatar}
-                                                    alt={mentor.full_name}
-                                                    width={56}
-                                                    height={56}
-                                                    className="flex-shrink-0"
-                                                    style={{ objectFit: 'cover', borderRadius: '50%' }}
-                                                />
+                                                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
+                                                    <Image
+                                                        src={mentor.avatar}
+                                                        alt={mentor.full_name}
+                                                        width={56}
+                                                        height={56}
+                                                        className="w-full h-full"
+                                                        style={{ objectFit: 'cover' }}
+                                                    />
+                                                </div>
                                             ) : (
                                                 <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                                                     <User className="w-7 h-7 text-gray-400" />
@@ -843,14 +845,16 @@ const MentorBookingContent = () => {
                             <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                                 <div className="flex items-start gap-3">
                                     {selectedMentor?.avatar ? (
-                                        <Image
-                                            src={selectedMentor.avatar}
-                                            alt={selectedMentor.full_name}
-                                            width={56}
-                                            height={56}
-                                            className="flex-shrink-0"
-                                            style={{ objectFit: 'cover', borderRadius: '50%' }}
-                                        />
+                                        <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
+                                            <Image
+                                                src={selectedMentor.avatar}
+                                                alt={selectedMentor.full_name}
+                                                width={56}
+                                                height={56}
+                                                className="w-full h-full"
+                                                style={{ objectFit: 'cover' }}
+                                            />
+                                        </div>
                                     ) : (
                                         <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                                             <User className="w-7 h-7 text-gray-400" />
@@ -1039,14 +1043,16 @@ const MentorBookingContent = () => {
                                         <div className="space-y-4">
                                             <div className="flex items-start gap-3">
                                                 {booking.mentors?.avatar ? (
-                                                    <Image
-                                                        src={booking.mentors.avatar}
-                                                        alt={booking.mentors.full_name}
-                                                        width={48}
-                                                        height={48}
-                                                        className="flex-shrink-0"
-                                                        style={{ objectFit: 'cover', borderRadius: '50%' }}
-                                                    />
+                                                    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-gray-200">
+                                                        <Image
+                                                            src={booking.mentors.avatar}
+                                                            alt={booking.mentors.full_name}
+                                                            width={48}
+                                                            height={48}
+                                                            className="w-full h-full"
+                                                            style={{ objectFit: 'cover' }}
+                                                        />
+                                                    </div>
                                                 ) : (
                                                     <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                                                         <User className="w-6 h-6 text-gray-400" />
@@ -1318,13 +1324,16 @@ const MentorBookingContent = () => {
                             <div className="p-4 sm:p-6 space-y-6">
                                 <div className="flex items-center gap-3">
                                     {reviewingBooking.mentors?.avatar ? (
-                                        <Image
-                                            src={reviewingBooking.mentors.avatar}
-                                            alt={reviewingBooking.mentors.full_name}
-                                            width={56}
-                                            height={56}
-                                            style={{ objectFit: 'cover', borderRadius: '50%' }}
-                                        />
+                                        <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200">
+                                            <Image
+                                                src={reviewingBooking.mentors.avatar}
+                                                alt={reviewingBooking.mentors.full_name}
+                                                width={56}
+                                                height={56}
+                                                className="w-full h-full"
+                                                style={{ objectFit: 'cover' }}
+                                            />
+                                        </div>
                                     ) : (
                                         <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center">
                                             <User className="w-7 h-7 text-gray-400" />

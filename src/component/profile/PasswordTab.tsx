@@ -2,27 +2,7 @@
 
 import React from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
-
-interface PasswordData {
-    currentPassword: string;
-    newPassword: string;
-    confirmPassword: string;
-}
-
-interface ShowPasswords {
-    current: boolean;
-    new: boolean;
-    confirm: boolean;
-}
-
-interface PasswordTabProps {
-    passwordData: PasswordData;
-    setPasswordData: React.Dispatch<React.SetStateAction<PasswordData>>;
-    showPasswords: ShowPasswords;
-    togglePasswordVisibility: (field: keyof ShowPasswords) => void;
-    isLoading: boolean;
-    onSubmit: () => void;
-}
+import type { PasswordTabProps } from '@/types/profile_user';
 
 const PasswordTab: React.FC<PasswordTabProps> = ({
                                                      passwordData,
@@ -36,19 +16,19 @@ const PasswordTab: React.FC<PasswordTabProps> = ({
         {
             key: 'currentPassword' as const,
             label: 'Mật khẩu hiện tại',
-            showKey: 'current' as keyof ShowPasswords,
+            showKey: 'current' as keyof typeof showPasswords,
             placeholder: 'Nhập mật khẩu hiện tại'
         },
         {
             key: 'newPassword' as const,
             label: 'Mật khẩu mới',
-            showKey: 'new' as keyof ShowPasswords,
+            showKey: 'new' as keyof typeof showPasswords,
             placeholder: 'Nhập mật khẩu mới (tối thiểu 6 ký tự)'
         },
         {
             key: 'confirmPassword' as const,
             label: 'Xác nhận mật khẩu mới',
-            showKey: 'confirm' as keyof ShowPasswords,
+            showKey: 'confirm' as keyof typeof showPasswords,
             placeholder: 'Nhập lại mật khẩu mới'
         }
     ];

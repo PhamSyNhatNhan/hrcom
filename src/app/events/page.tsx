@@ -38,11 +38,14 @@ import {
     EventFilters,
     PaginationState
 } from '@/types/events_user';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const ITEMS_PER_PAGE = 12;
 
 const EventsPage = () => {
     const { user } = useAuthStore();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
     // View mode
     const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
@@ -103,8 +106,20 @@ const EventsPage = () => {
     }, []);
 
     useEffect(() => {
+        const eventId = searchParams.get('id');
+        if (eventId) {
+            setSelectedEventId(eventId);
+            setViewMode('detail');
+        }
+    }, [searchParams]);
+
+    useEffect(() => {
         if (viewMode === 'list') {
             loadEvents();
+            // Clear URL parameter when back to list
+            if (searchParams.get('id')) {
+                router.push('/events', { scroll: false });
+            }
         }
     }, [viewMode, pagination.currentPage, filters, user]);
 
@@ -316,6 +331,8 @@ const EventsPage = () => {
     const openEventDetail = (eventId: string) => {
         setSelectedEventId(eventId);
         setViewMode('detail');
+        // Update URL with event ID
+        router.push(`/events?id=${eventId}`, { scroll: false });
     };
 
     const backToList = () => {
@@ -405,6 +422,13 @@ const EventsPage = () => {
         const endDate = event.end_date ? new Date(event.end_date) : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
 
         return now >= eventDate && now <= endDate;
+    };
+
+    const isRegistrationDeadlinePassed = (event: Event | EventDetail) => {
+        if (!event.registration_deadline) return false;
+        const now = new Date();
+        const deadline = new Date(event.registration_deadline);
+        return now > deadline;
     };
 
     const getPageNumbers = () => {
@@ -641,6 +665,14 @@ const EventsPage = () => {
                                                         className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                                                     >
                                                         Đăng ký
+                                                    </button>
+                                                ) : isRegistrationDeadlinePassed(event) && !event.is_past ? (
+                                                    <button
+                                                        className="w-full px-4 py-2 bg-gray-100 border border-gray-300 text-gray-600 rounded-lg font-medium flex items-center justify-center gap-2"
+                                                        disabled
+                                                    >
+                                                        <Clock className="w-4 h-4" />
+                                                        Đã hết hạn đăng ký
                                                     </button>
                                                 ) : null}
                                             </div>
@@ -1069,6 +1101,13 @@ const EventsPage = () => {
                                             <div className="px-6 py-3 bg-red-50 border border-red-200 rounded-lg">
                                                 <AlertCircle className="w-5 h-5 text-red-600 inline mr-2" />
                                                 <span className="text-red-800 font-medium">Sự kiện đã đầy</span>
+                                            </div>
+                                        )}
+
+                                        {!selectedEvent.is_registered && !selectedEvent.can_register && isRegistrationDeadlinePassed(selectedEvent) && !selectedEvent.is_past && !selectedEvent.is_full && (
+                                            <div className="px-6 py-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                                <Clock className="w-5 h-5 text-orange-600 inline mr-2" />
+                                                <span className="text-orange-800 font-medium">Đã hết hạn đăng ký</span>
                                             </div>
                                         )}
 
