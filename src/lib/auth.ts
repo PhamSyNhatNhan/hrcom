@@ -52,7 +52,7 @@ export const signInWithEmail = async (email: string, password: string): Promise<
             }
 
             // ✅ CẬP NHẬT ZUSTAND STORE
-            useAuthStore.getState().setUser(user)
+            useAuthStore.getState().setUser(user as any)
 
             // ✅ KIỂM TRA EMAIL VERIFICATION
             if (!data.user.email_confirmed_at) {
