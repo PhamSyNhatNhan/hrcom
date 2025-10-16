@@ -1,3 +1,4 @@
+// src/app/admin/post/page.tsx - PART 1
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/stores/authStore';
@@ -5,96 +6,20 @@ import { SectionHeader } from '@/component/SectionHeader';
 import { supabase } from '@/utils/supabase/client';
 import { Button } from '@/component/Button';
 import {
-    Plus,
-    Search,
-    Edit,
-    Upload,
-    X,
-    Save,
-    Check,
-    XCircle,
-    AlertCircle,
-    CheckCircle,
-    Loader2,
-    RefreshCw,
-    MessageSquare,
-    Filter,
-    Settings,
-    Calendar,
-    Clock,
-    Eye,
-    Tag
+    Plus, Search, Upload, X, Save, Check, XCircle,
+    AlertCircle, CheckCircle, Loader2, RefreshCw,
+    MessageSquare, Calendar, Clock, Eye, Tag, Settings, Edit
 } from 'lucide-react';
 import Image from 'next/image';
 import { Editor } from '@tinymce/tinymce-react';
-import Link from 'next/link';
+
+// Import types
+import { Tag as TagType, Post, PostSubmission, PostFormData, TabType } from '@/types/post_admin';
 
 // Import tab components
 import PostsTab from '@/component/admin/post/PostsTab';
 import SubmissionsTab from '@/component/admin/post/SubmissionsTab';
 import TagsTab from '@/component/admin/post/TagsTab';
-
-// Types
-interface Tag {
-    id: string;
-    name: string;
-    description?: string;
-    created_at?: string;
-    updated_at?: string;
-    post_count?: number;
-}
-
-interface Post {
-    id: string;
-    title: string;
-    description?: string;
-    thumbnail: string | null;
-    content: any;
-    author_id: string;
-    type: 'activity' | 'blog';
-    published: boolean;
-    published_at: string | null;
-    created_at: string;
-    updated_at: string;
-    profiles?: {
-        full_name: string;
-        image_url?: string;
-    };
-    tags?: Tag[];
-}
-
-interface PostSubmission {
-    id: string;
-    post_id: string;
-    author_id: string;
-    status: 'pending' | 'approved' | 'rejected';
-    reviewed_by: string | null;
-    reviewed_at: string | null;
-    admin_notes: string | null;
-    submitted_at: string;
-    created_at: string;
-    updated_at: string;
-    posts: Post | null;
-    profiles: {
-        full_name: string;
-        image_url?: string;
-    };
-    reviewed_by_profile?: {
-        full_name: string;
-    };
-}
-
-interface PostFormData {
-    title: string;
-    description: string;
-    type: 'activity' | 'blog';
-    content: string;
-    thumbnail: File | null;
-    published: boolean;
-    selectedTags: string[];
-}
-
-type TabType = 'posts' | 'submissions' | 'tags';
 
 // Helper functions
 function getErrorMessage(err: unknown): string {
@@ -111,23 +36,6 @@ function getErrorCode(err: unknown): string | undefined {
         ? (err as { code?: string }).code
         : undefined;
 }
-
-// Preview content render function
-const renderPreviewContent = (content: string) => {
-    if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
-
-    return (
-        <div
-            className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
-            style={{
-                lineHeight: '1.7',
-                ['--tw-prose-ul' as any]: 'disc',
-                ['--tw-prose-ol' as any]: 'decimal',
-            }}
-            dangerouslySetInnerHTML={{ __html: content }}
-        />
-    );
-};
 
 const PostPage: React.FC = () => {
     const { user } = useAuthStore();
@@ -148,11 +56,11 @@ const PostPage: React.FC = () => {
     const [editingPost, setEditingPost] = useState<Post | null>(null);
     const [reviewingSubmission, setReviewingSubmission] = useState<PostSubmission | null>(null);
     const [adminNotes, setAdminNotes] = useState('');
-    const [tags, setTags] = useState<Tag[]>([]);
+    const [tags, setTags] = useState<TagType[]>([]);
     const [tagSearch, setTagSearch] = useState('');
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showTagForm, setShowTagForm] = useState(false);
-    const [editingTag, setEditingTag] = useState<Tag | null>(null);
+    const [editingTag, setEditingTag] = useState<TagType | null>(null);
     const [tagFormData, setTagFormData] = useState({
         name: '',
         description: ''
@@ -184,7 +92,7 @@ const PostPage: React.FC = () => {
         message: string;
     } | null>(null);
 
-    // Preview states - FIXED VERSION
+    // Preview states
     const [showPreview, setShowPreview] = useState(false);
     const [showLivePreview, setShowLivePreview] = useState(false);
     const [previewContent, setPreviewContent] = useState('');
@@ -202,29 +110,55 @@ const PostPage: React.FC = () => {
         try {
             const { data, error } = await supabase
                 .from('tags')
-                .select(`
-                *,
-                post_tags (
-                    id
-                )
-            `)
+                .select('*')
                 .order('name', { ascending: true });
 
             if (error) throw error;
-
-            const tagsWithCount = (data || []).map(tag => ({
-                ...tag,
-                post_count: tag.post_tags?.length || 0
-            }));
-
-            setTags(tagsWithCount);
+            setTags(data || []);
         } catch (error) {
             console.error('Error loading tags:', error);
             showNotification('error', 'Không thể tải danh sách tag: ' + getErrorMessage(error));
         }
     };
 
-    // FIXED PREVIEW HANDLERS
+    // FIXED: Upload image with better error handling
+    const uploadImage = async (file: File): Promise<string> => {
+        // Validate file
+        if (!file || !file.name) {
+            throw new Error('File không hợp lệ');
+        }
+
+        // Get extension safely
+        const fileName = file.name || 'unnamed';
+        const fileExt = fileName.includes('.')
+            ? fileName.split('.').pop()
+            : 'jpg';
+
+        const newFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `posts/${newFileName}`;
+
+        try {
+            const { data, error } = await supabase.storage
+                .from('images')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
+
+            if (error) throw error;
+
+            const { data: urlData } = supabase.storage
+                .from('images')
+                .getPublicUrl(filePath);
+
+            return urlData.publicUrl;
+        } catch (error) {
+            console.error('Upload error:', error);
+            throw new Error(`Lỗi upload ảnh: ${getErrorMessage(error)}`);
+        }
+    };
+
+    // Preview handlers
     const handlePreview = () => {
         const content = editorRef.current?.getContent() || '';
         setPreviewContent(content);
@@ -243,13 +177,10 @@ const PostPage: React.FC = () => {
         setIsLivePreviewClosing(true);
 
         try {
-            // Đợi một chút để đảm bảo editor đã sẵn sàng
             await new Promise(resolve => setTimeout(resolve, 150));
 
-            // Lấy content cuối cùng từ live editor
             let finalContent = '';
 
-            // Ưu tiên lấy từ live editor
             if (liveEditorRef.current) {
                 try {
                     finalContent = liveEditorRef.current.getContent();
@@ -258,24 +189,16 @@ const PostPage: React.FC = () => {
                 }
             }
 
-            // Fallback theo thứ tự ưu tiên
             if (!finalContent) {
                 finalContent = pendingLiveContent || livePreviewContent || '';
             }
 
-            // Sync về main editor nếu có content
             if (finalContent && editorRef.current) {
                 try {
                     editorRef.current.setContent(finalContent);
-
-                    // Trigger các events để đảm bảo form nhận diện thay đổi
                     editorRef.current.fire('change');
                     editorRef.current.fire('input');
-
-                    // Cập nhật form data để chắc chắn
                     setFormData(prev => ({ ...prev, content: finalContent }));
-
-                    console.log('Content synced successfully:', finalContent.length, 'characters');
                 } catch (error) {
                     console.error('Error syncing content to main editor:', error);
                 }
@@ -284,136 +207,12 @@ const PostPage: React.FC = () => {
         } catch (error) {
             console.error('Error during live preview close:', error);
         } finally {
-            // Reset states
             setShowLivePreview(false);
             setPreviewContent('');
             setIsLivePreviewClosing(false);
             setLivePreviewContent('');
             setPendingLiveContent('');
         }
-    };
-
-    // Updated live preview content handler
-    const updateLivePreview = () => {
-        if (showLivePreview && liveEditorRef.current && !isLivePreviewClosing) {
-            const content = liveEditorRef.current.getContent();
-            setPreviewContent(content);
-            setPendingLiveContent(content);
-
-            // Sync to main editor in real-time
-            if (editorRef.current) {
-                editorRef.current.setContent(content);
-            }
-        }
-    };
-
-    // Tag management functions
-    const createTag = async () => {
-        if (!tagFormData.name.trim()) {
-            showNotification('error', 'Tên tag không được để trống');
-            return;
-        }
-
-        try {
-            setUploading(true);
-
-            const { error } = await supabase
-                .from('tags')
-                .insert([{
-                    name: tagFormData.name.trim(),
-                    description: tagFormData.description.trim() || null
-                }]);
-
-            if (error) throw error;
-
-            showNotification('success', 'Tạo tag thành công');
-            resetTagForm();
-            loadTags();
-            tagsTabRef.current?.reload();
-        } catch (err) {
-            console.error('Error creating tag:', err);
-            const code = getErrorCode(err);
-            if (code === '23505') {
-                showNotification('error', 'Tag với tên này đã tồn tại');
-            } else {
-                showNotification('error', 'Lỗi khi tạo tag: ' + getErrorMessage(err));
-            }
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const updateTag = async () => {
-        if (!editingTag || !tagFormData.name.trim()) {
-            showNotification('error', 'Tên tag không được để trống');
-            return;
-        }
-
-        try {
-            setUploading(true);
-
-            const { error } = await supabase
-                .from('tags')
-                .update({
-                    name: tagFormData.name.trim(),
-                    description: tagFormData.description.trim() || null
-                })
-                .eq('id', editingTag.id);
-
-            if (error) throw error;
-
-            showNotification('success', 'Cập nhật tag thành công');
-            resetTagForm();
-            loadTags();
-            tagsTabRef.current?.reload();
-        } catch (err) {
-            console.error('Error updating tag:', err);
-            const code = getErrorCode(err);
-            if (code === '23505') {
-                showNotification('error', 'Tag với tên này đã tồn tại');
-            } else {
-                showNotification('error', 'Lỗi khi cập nhật tag: ' + getErrorMessage(err));
-            }
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const editTag = (tag: Tag) => {
-        setEditingTag(tag);
-        setTagFormData({
-            name: tag.name,
-            description: tag.description || ''
-        });
-        setShowTagForm(true);
-    };
-
-    const resetTagForm = () => {
-        setShowTagForm(false);
-        setEditingTag(null);
-        setTagFormData({
-            name: '',
-            description: ''
-        });
-    };
-
-    // Upload image to Supabase Storage
-    const uploadImage = async (file: File): Promise<string> => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-        const filePath = `posts/${fileName}`;
-
-        const { data, error } = await supabase.storage
-            .from('images')
-            .upload(filePath, file);
-
-        if (error) throw error;
-
-        const { data: urlData } = supabase.storage
-            .from('images')
-            .getPublicUrl(filePath);
-
-        return urlData.publicUrl;
     };
 
     // Handle thumbnail upload
@@ -444,8 +243,7 @@ const PostPage: React.FC = () => {
         tag.name.toLowerCase().includes(tagSearch.toLowerCase())
     );
 
-    // Save post
-    // Fixed savePost function - thay thế function cũ trong PostPage
+    // Save post using RPC
     const savePost = async () => {
         if (!user) return;
 
@@ -459,64 +257,19 @@ const PostPage: React.FC = () => {
 
             const content = editorRef.current?.getContent() || formData.content || '';
 
-            // Prepare post data - PRESERVE ORIGINAL AUTHOR when editing
-            const postData = {
-                title: formData.title,
-                description: formData.description,
-                type: formData.type,
-                content: content,
-                thumbnail: thumbnailUrl || null,
-                published: formData.published,
-                published_at: formData.published ? new Date().toISOString() : null,
-                // Only set author_id for NEW posts, preserve original author for edits
-                ...(editingPost ? {} : { author_id: user.id })
-            };
+            const { data, error } = await supabase.rpc('posts_admin_save_post', {
+                p_post_id: editingPost?.id || null,
+                p_title: formData.title,
+                p_description: formData.description,
+                p_type: formData.type,
+                p_content: content,
+                p_thumbnail: thumbnailUrl || null,
+                p_published: formData.published,
+                p_author_id: editingPost ? undefined : user.id,
+                p_tag_ids: formData.selectedTags
+            });
 
-            let result;
-            let postId;
-
-            if (editingPost) {
-                // EDITING existing post - do NOT change author_id
-                result = await supabase
-                    .from('posts')
-                    .update(postData)
-                    .eq('id', editingPost.id)
-                    .select('id')
-                    .single();
-
-                if (result.error) throw result.error;
-                postId = editingPost.id;
-
-                // Update tags: remove existing and add new ones
-                await supabase
-                    .from('post_tags')
-                    .delete()
-                    .eq('post_id', postId);
-            } else {
-                // CREATING new post - set author_id to current user
-                result = await supabase
-                    .from('posts')
-                    .insert([postData])
-                    .select('id')
-                    .single();
-
-                if (result.error) throw result.error;
-                postId = result.data.id;
-            }
-
-            // Add selected tags
-            if (formData.selectedTags.length > 0) {
-                const tagInserts = formData.selectedTags.map(tagId => ({
-                    post_id: postId,
-                    tag_id: tagId
-                }));
-
-                const tagResult = await supabase
-                    .from('post_tags')
-                    .insert(tagInserts);
-
-                if (tagResult.error) throw tagResult.error;
-            }
+            if (error) throw error;
 
             showNotification('success', editingPost ? 'Cập nhật bài viết thành công' : 'Tạo bài viết thành công');
             resetForm();
@@ -590,6 +343,92 @@ const PostPage: React.FC = () => {
         }
     };
 
+    // Tag management functions
+    const createTag = async () => {
+        if (!tagFormData.name.trim()) {
+            showNotification('error', 'Tên tag không được để trống');
+            return;
+        }
+
+        try {
+            setUploading(true);
+
+            const { error } = await supabase.rpc('posts_admin_create_tag', {
+                p_name: tagFormData.name.trim(),
+                p_description: tagFormData.description.trim() || null
+            });
+
+            if (error) throw error;
+
+            showNotification('success', 'Tạo tag thành công');
+            resetTagForm();
+            loadTags();
+            tagsTabRef.current?.reload();
+        } catch (err) {
+            console.error('Error creating tag:', err);
+            const code = getErrorCode(err);
+            if (code === '23505') {
+                showNotification('error', 'Tag với tên này đã tồn tại');
+            } else {
+                showNotification('error', 'Lỗi khi tạo tag: ' + getErrorMessage(err));
+            }
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const updateTag = async () => {
+        if (!editingTag || !tagFormData.name.trim()) {
+            showNotification('error', 'Tên tag không được để trống');
+            return;
+        }
+
+        try {
+            setUploading(true);
+
+            const { error } = await supabase.rpc('posts_admin_update_tag', {
+                p_tag_id: editingTag.id,
+                p_name: tagFormData.name.trim(),
+                p_description: tagFormData.description.trim() || null
+            });
+
+            if (error) throw error;
+
+            showNotification('success', 'Cập nhật tag thành công');
+            resetTagForm();
+            loadTags();
+            tagsTabRef.current?.reload();
+        } catch (err) {
+            console.error('Error updating tag:', err);
+            const code = getErrorCode(err);
+            if (code === '23505') {
+                showNotification('error', 'Tag với tên này đã tồn tại');
+            } else {
+                showNotification('error', 'Lỗi khi cập nhật tag: ' + getErrorMessage(err));
+            }
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const editTag = (tag: TagType) => {
+        setEditingTag(tag);
+        setTagFormData({
+            name: tag.name,
+            description: tag.description || ''
+        });
+        setShowTagForm(true);
+    };
+
+    const resetTagForm = () => {
+        setShowTagForm(false);
+        setEditingTag(null);
+        setTagFormData({
+            name: '',
+            description: ''
+        });
+    };
+
     // Edit post handler
     const handleEditPost = (post: Post) => {
         setEditingPost(post);
@@ -631,7 +470,6 @@ const PostPage: React.FC = () => {
         setThumbnailPreview('');
         setTagSearch('');
         setShowTagDropdown(false);
-        // Reset preview states
         setPreviewContent('');
         setLivePreviewContent('');
         setPendingLiveContent('');
@@ -675,7 +513,6 @@ const PostPage: React.FC = () => {
         };
     }, [showForm]);
 
-    // Cleanup effect for live preview
     useEffect(() => {
         return () => {
             if (showLivePreview && !isLivePreviewClosing) {
@@ -1087,13 +924,13 @@ const PostPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Content Editor với Text Wrap Quickbar */}
+                                {/* Content Editor */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Nội dung bài viết
                                     </label>
 
-                                    {/* Preview Controls - Always visible */}
+                                    {/* Preview Controls */}
                                     <div className="flex gap-4 mb-4">
                                         <button
                                             type="button"
@@ -1125,13 +962,11 @@ const PostPage: React.FC = () => {
                                         }}
                                         licenseKey="gpl"
                                         initialValue={editingPost?.content || ''}
-
                                         init={{
                                             base_url: '/tinymce',
                                             suffix: '.min',
                                             height: 560,
                                             menubar: 'file edit view insert format tools table help',
-
                                             plugins: [
                                                 'advlist', 'anchor', 'autolink', 'autosave', 'charmap', 'code', 'codesample',
                                                 'directionality', 'emoticons', 'fullscreen', 'help', 'image', 'importcss',
@@ -1139,7 +974,6 @@ const PostPage: React.FC = () => {
                                                 'preview', 'quickbars', 'searchreplace', 'table', 'visualblocks',
                                                 'visualchars', 'wordcount'
                                             ],
-
                                             toolbar: [
                                                 'undo redo | restoredraft',
                                                 'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
@@ -1148,26 +982,18 @@ const PostPage: React.FC = () => {
                                                 'link anchor | image media | table codesample charmap emoticons pagebreak nonbreaking insertdatetime',
                                                 'searchreplace visualblocks visualchars code help'
                                             ].join(' | '),
-
                                             font_family_formats:
                                                 'Inter=Inter,sans-serif;Arial=arial,helvetica,sans-serif;Georgia=georgia,serif;Courier New=courier new,courier,monospace',
                                             fontsize_formats: '12px 14px 16px 18px 20px 24px 28px 32px',
                                             line_height_formats: '1 1.15 1.33 1.5 1.75 2',
-
-                                            /* Quickbars configuration */
                                             quickbars_selection_toolbar:
                                                 'bold italic underline | forecolor backcolor | link | h2 h3 blockquote | bullist numlist',
                                             quickbars_insert_toolbar: 'image media table | hr pagebreak',
-
-                                            /* QUICKBAR CHO HÌNH ẢNH - 3 nút wrap + nút clear */
                                             quickbars_image_toolbar: 'wrapleft wrapright wrapcenter | clearwrap',
-
                                             image_advtab: true,
                                             image_dimensions: false,
                                             image_title: true,
                                             file_picker_types: 'image media',
-
-                                            /* CSS chỉ cho text wrapping - KHÔNG thay đổi kích thước ảnh */
                                             content_css: [
                                                 'data:text/css;charset=UTF-8,' + encodeURIComponent(`
                                                     body {
@@ -1176,45 +1002,35 @@ const PostPage: React.FC = () => {
                                                         line-height: 1.7;
                                                         padding: 1rem;
                                                     }
-                                                    
                                                     img {
                                                         border-radius: 8px;
                                                         height: auto;
                                                     }
-                
-                                                    /* Text wrapping classes - KHÔNG THAY ĐỔI KÍCH THƯỚC */
                                                     .wrap-left {
                                                         float: left !important;
                                                         margin: 0 2rem 1rem 0 !important;
                                                         clear: none !important;
                                                     }
-                
                                                     .wrap-right {
                                                         float: right !important;
                                                         margin: 0 0 1rem 2rem !important;
                                                         clear: none !important;
                                                     }
-                
                                                     .wrap-center {
                                                         display: block !important;
                                                         float: none !important;
                                                         margin: 2rem auto !important;
                                                         clear: both !important;
                                                     }
-                
-                                                    /* Container fixes */
                                                     p {
                                                         margin-bottom: 1rem;
                                                         overflow: visible !important;
                                                     }
-                
                                                     p:has(.wrap-left),
                                                     p:has(.wrap-right) {
                                                         overflow: visible !important;
                                                         min-height: 50px !important;
                                                     }
-                
-                                                    /* Clear utility */
                                                     .clear-wrap {
                                                         clear: both !important;
                                                         height: 0 !important;
@@ -1222,18 +1038,14 @@ const PostPage: React.FC = () => {
                                                         font-size: 0 !important;
                                                         line-height: 0 !important;
                                                     }
-                
                                                     table {
                                                         border-collapse: collapse;
                                                         width: 100%;
                                                     }
-                                                    
                                                     table td, table th {
                                                         border: 1px solid #e5e7eb;
                                                         padding: .5rem;
                                                     }
-                
-                                                    /* Responsive */
                                                     @media (max-width: 768px) {
                                                         .wrap-left,
                                                         .wrap-right {
@@ -1244,14 +1056,11 @@ const PostPage: React.FC = () => {
                                                     }
                                                 `)
                                             ],
-
                                             setup: function (editor) {
-                                                // Helper: báo TinyMCE là đối tượng "đã resize"
                                                 const fireWrapChange = (img: HTMLElement) => {
                                                     editor.fire('ObjectResized', { target: img } as any);
                                                 };
 
-                                                // Commands và buttons cho wrap (giống code cũ)
                                                 editor.addCommand('WrapImageLeft', function () {
                                                     const img = editor.selection.getNode() as HTMLElement;
                                                     if (img && img.tagName === 'IMG') {
@@ -1305,7 +1114,6 @@ const PostPage: React.FC = () => {
                                                     }
                                                 });
 
-                                                // Buttons cho quickbar
                                                 editor.ui.registry.addButton('wrapleft', {
                                                     icon: 'align-left',
                                                     tooltip: 'Text wrap bên phải ảnh',
@@ -1359,7 +1167,6 @@ const PostPage: React.FC = () => {
                                                     }
                                                 });
 
-                                                // Auto-fix container khi có ảnh wrap
                                                 editor.on('NodeChange', function () {
                                                     const wrappedImages = editor.dom.select('img.wrap-left, img.wrap-right');
                                                     wrappedImages.forEach((imgEl) => {
@@ -1368,20 +1175,24 @@ const PostPage: React.FC = () => {
                                                     });
                                                 });
                                             },
-
-                                            /* Upload ảnh vào Supabase Storage */
-                                            images_upload_handler: async (blobInfo: any, progress?: (percent: number) => void) => {
-                                                return new Promise(async (resolve, reject) => {
-                                                    try {
-                                                        const file = blobInfo.blob() as File;
-                                                        const url = await uploadImage(file);
-                                                        resolve(url);
-                                                    } catch (err) {
-                                                        reject('Lỗi upload ảnh: ' + (err as any));
+                                            images_upload_handler: async (blobInfo: any) => {
+                                                try {
+                                                    const blob = blobInfo.blob();
+                                                    if (!blob) {
+                                                        throw new Error('Không thể lấy dữ liệu ảnh');
                                                     }
-                                                });
+                                                    const file = new File(
+                                                        [blob],
+                                                        blobInfo.filename() || `image-${Date.now()}.jpg`,
+                                                        { type: blob.type || 'image/jpeg' }
+                                                    );
+                                                    const url = await uploadImage(file);
+                                                    return url;
+                                                } catch (err) {
+                                                    console.error('Upload error:', err);
+                                                    throw new Error('Lỗi upload ảnh: ' + getErrorMessage(err));
+                                                }
                                             },
-
                                             file_picker_callback: (cb: any, value: any, meta: any) => {
                                                 const input = document.createElement('input');
                                                 input.type = 'file';
@@ -1398,8 +1209,6 @@ const PostPage: React.FC = () => {
                                                 };
                                                 input.click();
                                             },
-
-                                            /* Media embedding */
                                             media_live_embeds: true,
                                             media_url_resolver: (data: any, resolve: any) => {
                                                 const url = data.url;
@@ -1412,34 +1221,22 @@ const PostPage: React.FC = () => {
                                                 }
                                                 resolve({ url });
                                             },
-
-                                            /* Table settings */
                                             table_header_type: 'sectionCells',
                                             table_toolbar:
                                                 'tableprops tabledelete | tableinsertrowbefore tableinsertrowafter tabledeleterow | tableinsertcolbefore tableinsertcolafter tabledeletecol | cellprops',
                                             table_resize_bars: true,
-
-                                            /* Autosave */
                                             autosave_ask_before_unload: true,
                                             autosave_interval: '20s',
                                             autosave_retention: '30m',
-
-                                            /* Link settings */
                                             link_default_target: '_blank',
                                             link_assume_external_targets: true,
-
-                                            /* UI settings */
                                             branding: false,
                                             promotion: false,
                                             statusbar: true,
                                             elementpath: false,
                                             toolbar_mode: 'sliding',
-
-                                            /* Preserve elements and classes */
                                             extended_valid_elements: 'div[class|style],img[class|src|alt|title|width|height]',
                                             keep_styles: false,
-
-                                            /* Context menu (backup) */
                                             contextmenu: 'link image table spellchecker',
                                         }}
                                     />
@@ -1510,7 +1307,6 @@ const PostPage: React.FC = () => {
                                     </div>
 
                                     <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-                                        {/* Post Header */}
                                         <div className="mb-8 pb-6 border-b border-gray-200">
                                             <div className="mb-3">
                                                 <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
@@ -1541,7 +1337,6 @@ const PostPage: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* Content */}
                                         <div
                                             className="preview-content tinymce-content prose prose-lg max-w-none"
                                             dangerouslySetInnerHTML={{ __html: previewContent }}
@@ -1551,7 +1346,7 @@ const PostPage: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Live Preview Modal - FIXED VERSION */}
+                        {/* Live Preview Modal */}
                         {showLivePreview && (
                             <div
                                 className="fixed inset-0 z-[60] bg-white"
@@ -1563,7 +1358,6 @@ const PostPage: React.FC = () => {
                                 tabIndex={-1}
                             >
                                 <div className="h-full flex flex-col">
-                                    {/* Header */}
                                     <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
                                         <h3 className="text-lg font-bold">Live Preview - {formData.title || 'Bài viết mới'}</h3>
                                         <button
@@ -1575,7 +1369,6 @@ const PostPage: React.FC = () => {
                                         </button>
                                     </div>
 
-                                    {/* Content */}
                                     <div className="flex-1 flex overflow-hidden">
                                         {/* Editor Side */}
                                         <div className="w-1/2 border-r border-gray-200 flex flex-col">
@@ -1588,7 +1381,6 @@ const PostPage: React.FC = () => {
                                                     tinymceScriptSrc="/tinymce/tinymce.min.js"
                                                     onInit={(evt, editor) => {
                                                         liveEditorRef.current = editor;
-                                                        // Load content từ main editor hoặc stored content
                                                         const currentContent = livePreviewContent || editorRef.current?.getContent() || editingPost?.content || '';
                                                         if (currentContent) {
                                                             setTimeout(() => {
@@ -1608,7 +1400,6 @@ const PostPage: React.FC = () => {
                                                         branding: false,
                                                         promotion: false,
                                                         statusbar: false,
-
                                                         plugins: [
                                                             'advlist', 'anchor', 'autolink', 'autosave', 'charmap', 'code', 'codesample',
                                                             'directionality', 'emoticons', 'fullscreen', 'help', 'image', 'importcss',
@@ -1616,7 +1407,6 @@ const PostPage: React.FC = () => {
                                                             'preview', 'quickbars', 'searchreplace', 'table', 'visualblocks',
                                                             'visualchars', 'wordcount'
                                                         ],
-
                                                         toolbar: [
                                                             'undo redo | restoredraft',
                                                             'blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor removeformat',
@@ -1625,97 +1415,74 @@ const PostPage: React.FC = () => {
                                                             'link anchor | image media | table codesample charmap emoticons pagebreak nonbreaking insertdatetime',
                                                             'searchreplace visualblocks visualchars code help'
                                                         ].join(' | '),
-
                                                         font_family_formats:
                                                             'Inter=Inter,sans-serif;Arial=arial,helvetica,sans-serif;Georgia=georgia,serif;Courier New=courier new,courier,monospace',
                                                         fontsize_formats: '12px 14px 16px 18px 20px 24px 28px 32px',
                                                         line_height_formats: '1 1.15 1.33 1.5 1.75 2',
-
                                                         quickbars_selection_toolbar:
                                                             'bold italic underline | forecolor backcolor | link | h2 h3 blockquote | bullist numlist',
                                                         quickbars_insert_toolbar: 'image media table | hr pagebreak',
                                                         quickbars_image_toolbar: 'wrapleft wrapright wrapcenter | clearwrap',
-
                                                         image_advtab: true,
                                                         image_dimensions: false,
                                                         image_title: true,
                                                         file_picker_types: 'image media',
-
                                                         content_css: [
                                                             'data:text/css;charset=UTF-8,' + encodeURIComponent(`
-                                        body {
-                                            font-family: Inter, Arial, sans-serif;
-                                            font-size: 14px;
-                                            line-height: 1.7;
-                                            padding: 1rem;
-                                        }
-                                        
-                                        img {
-                                            border-radius: 8px;
-                                            height: auto;
-                                        }
-        
-                                        .wrap-left {
-                                            float: left !important;
-                                            margin: 0 2rem 1rem 0 !important;
-                                            clear: none !important;
-                                        }
-        
-                                        .wrap-right {
-                                            float: right !important;
-                                            margin: 0 0 1rem 2rem !important;
-                                            clear: none !important;
-                                        }
-        
-                                        .wrap-center {
-                                            display: block !important;
-                                            float: none !important;
-                                            margin: 2rem auto !important;
-                                            clear: both !important;
-                                        }
-        
-                                        p {
-                                            margin-bottom: 1rem;
-                                            overflow: visible !important;
-                                        }
-        
-                                        p:has(.wrap-left),
-                                        p:has(.wrap-right) {
-                                            overflow: visible !important;
-                                            min-height: 50px !important;
-                                        }
-        
-                                        .clear-wrap {
-                                            clear: both !important;
-                                            height: 0 !important;
-                                            margin: 1rem 0 !important;
-                                            font-size: 0 !important;
-                                            line-height: 0 !important;
-                                        }
-        
-                                        table {
-                                            border-collapse: collapse;
-                                            width: 100%;
-                                        }
-                                        
-                                        table td, table th {
-                                            border: 1px solid #e5e7eb;
-                                            padding: .5rem;
-                                        }
-        
-                                        @media (max-width: 768px) {
-                                            .wrap-left,
-                                            .wrap-right {
-                                                float: none !important;
-                                                display: block !important;
-                                                margin: 1rem auto !important;
-                                            }
-                                        }
-                                    `)
+                                                                body {
+                                                                    font-family: Inter, Arial, sans-serif;
+                                                                    font-size: 14px;
+                                                                    line-height: 1.7;
+                                                                    padding: 1rem;
+                                                                }
+                                                                img {
+                                                                    border-radius: 8px;
+                                                                    height: auto;
+                                                                }
+                                                                .wrap-left {
+                                                                    float: left !important;
+                                                                    margin: 0 2rem 1rem 0 !important;
+                                                                    clear: none !important;
+                                                                }
+                                                                .wrap-right {
+                                                                    float: right !important;
+                                                                    margin: 0 0 1rem 2rem !important;
+                                                                    clear: none !important;
+                                                                }
+                                                                .wrap-center {
+                                                                    display: block !important;
+                                                                    float: none !important;
+                                                                    margin: 2rem auto !important;
+                                                                    clear: both !important;
+                                                                }
+                                                                p {
+                                                                    margin-bottom: 1rem;
+                                                                    overflow: visible !important;
+                                                                }
+                                                                p:has(.wrap-left),
+                                                                p:has(.wrap-right) {
+                                                                    overflow: visible !important;
+                                                                    min-height: 50px !important;
+                                                                }
+                                                                table {
+                                                                    border-collapse: collapse;
+                                                                    width: 100%;
+                                                                }
+                                                                table td, table th {
+                                                                    border: 1px solid #e5e7eb;
+                                                                    padding: .5rem;
+                                                                }
+                                                                @media (max-width: 768px) {
+                                                                    .wrap-left,
+                                                                    .wrap-right {
+                                                                        float: none !important;
+                                                                        display: block !important;
+                                                                        margin: 1rem auto !important;
+                                                                    }
+                                                                }
+                                                            `)
                                                         ],
-
                                                         setup: function(editor) {
-                                                            // Wrap commands (same as main editor)
                                                             const fireWrapChange = (img: HTMLElement) => {
                                                                 editor.fire('ObjectResized', { target: img } as any);
                                                             };
@@ -1773,7 +1540,6 @@ const PostPage: React.FC = () => {
                                                                 }
                                                             });
 
-                                                            // Buttons
                                                             editor.ui.registry.addButton('wrapleft', {
                                                                 icon: 'align-left',
                                                                 tooltip: 'Text wrap bên phải ảnh',
@@ -1827,22 +1593,19 @@ const PostPage: React.FC = () => {
                                                                 }
                                                             });
 
-                                                            // ENHANCED CONTENT SYNC SYSTEM
                                                             let syncTimeout: NodeJS.Timeout;
                                                             let lastSyncTime = 0;
 
                                                             const performSync = () => {
                                                                 const now = Date.now();
-                                                                if (now - lastSyncTime < 100) return; // Throttle
+                                                                if (now - lastSyncTime < 100) return;
 
                                                                 lastSyncTime = now;
                                                                 const content = editor.getContent();
 
-                                                                // Update preview immediately
                                                                 setPreviewContent(content);
                                                                 setPendingLiveContent(content);
 
-                                                                // Sync to main editor with debounce
                                                                 clearTimeout(syncTimeout);
                                                                 syncTimeout = setTimeout(() => {
                                                                     if (editorRef.current && !isLivePreviewClosing) {
@@ -1856,13 +1619,11 @@ const PostPage: React.FC = () => {
                                                                 }, 300);
                                                             };
 
-                                                            // Multiple event listeners for comprehensive sync
                                                             editor.on('KeyUp Change Input NodeChange', performSync);
                                                             editor.on('Paste Undo Redo ExecCommand', () => {
                                                                 setTimeout(performSync, 50);
                                                             });
 
-                                                            // Periodic sync as backup
                                                             const intervalSync = setInterval(() => {
                                                                 if (!isLivePreviewClosing) {
                                                                     performSync();
@@ -1871,28 +1632,32 @@ const PostPage: React.FC = () => {
                                                                 }
                                                             }, 2000);
 
-                                                            // Final sync on blur
                                                             editor.on('blur', () => {
                                                                 setTimeout(performSync, 100);
                                                             });
 
-                                                            // Cleanup
                                                             editor.on('remove', () => {
                                                                 clearTimeout(syncTimeout);
                                                                 clearInterval(intervalSync);
                                                             });
                                                         },
-
                                                         images_upload_handler: async (blobInfo: any) => {
                                                             try {
-                                                                const file = blobInfo.blob() as File;
+                                                                const blob = blobInfo.blob();
+                                                                if (!blob) {
+                                                                    throw new Error('Không thể lấy dữ liệu ảnh');
+                                                                }
+                                                                const file = new File(
+                                                                    [blob],
+                                                                    blobInfo.filename() || `image-${Date.now()}.jpg`,
+                                                                    { type: blob.type || 'image/jpeg' }
+                                                                );
                                                                 const url = await uploadImage(file);
                                                                 return url;
                                                             } catch (err) {
                                                                 throw 'Lỗi upload ảnh: ' + err;
                                                             }
                                                         },
-
                                                         file_picker_callback: (cb: any, value: any, meta: any) => {
                                                             const input = document.createElement('input');
                                                             input.type = 'file';
@@ -1920,7 +1685,6 @@ const PostPage: React.FC = () => {
                                                 <h4 className="font-semibold text-gray-700">Preview</h4>
                                             </div>
                                             <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 to-white">
-                                                {/* Post Header */}
                                                 <div className="mb-8 pb-6 border-b border-gray-200">
                                                     <div className="mb-3">
                                                         <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
@@ -1951,7 +1715,6 @@ const PostPage: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Content */}
                                                 <div
                                                     className="live-preview-content tinymce-content prose prose-lg max-w-none"
                                                     dangerouslySetInnerHTML={{ __html: previewContent }}

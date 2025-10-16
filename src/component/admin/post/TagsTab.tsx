@@ -1,23 +1,16 @@
+// src/component/admin/post/TagsTab.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase/client';
+import { Tag } from '@/types/post_admin';
 import {
     Edit,
     Trash2,
-    Tag,
+    Tag as TagIcon,
     Loader2,
     ChevronLeft,
     ChevronRight
 } from 'lucide-react';
-
-interface Tag {
-    id: string;
-    name: string;
-    description?: string;
-    created_at: string;
-    updated_at: string;
-    post_count?: number;
-}
 
 interface TagsTabProps {
     searchTerm: string;
@@ -25,7 +18,6 @@ interface TagsTabProps {
     showNotification: (type: 'success' | 'error' | 'warning', message: string) => void;
 }
 
-// Helper functions
 function getErrorMessage(err: unknown): string {
     if (err instanceof Error) return err.message;
     if (typeof err === 'object' && err && 'message' in err) {
@@ -47,48 +39,38 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
     const [totalPages, setTotalPages] = useState(0);
     const pageSize = 20;
 
-    // Load tags with pagination and filters
     const loadTags = async (page: number = 1) => {
         try {
             setLoading(true);
 
-            // Build query
-            let query = supabase
-                .from('tags')
-                .select(`
-                    *,
-                    post_tags (
-                        id
-                    )
-                `, { count: 'exact' });
-
-            // Apply search filter
-            if (searchTerm.trim()) {
-                query = query.or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-            }
-
-            // Pagination
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-
-            query = query
-                .range(from, to)
-                .order('name', { ascending: true });
-
-            const { data, error, count } = await query;
+            const { data, error } = await supabase.rpc('posts_admin_get_tags', {
+                page_number: page,
+                page_size: pageSize,
+                search_term: searchTerm
+            });
 
             if (error) throw error;
 
-            // Transform data to include post count
-            const tagsWithCount = (data || []).map(tag => ({
-                ...tag,
-                post_count: tag.post_tags?.length || 0
-            }));
+            if (data && data.length > 0) {
+                const totalCount = data[0].total_count || 0;
+                setTotalCount(totalCount);
+                setTotalPages(Math.ceil(totalCount / pageSize));
 
-            setTags(tagsWithCount);
-            setTotalCount(count || 0);
-            setTotalPages(Math.ceil((count || 0) / pageSize));
+                const transformedTags = data.map((row: any) => ({
+                    id: row.id,
+                    name: row.name,
+                    description: row.description,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                    post_count: Number(row.post_count) || 0
+                }));
 
+                setTags(transformedTags);
+            } else {
+                setTags([]);
+                setTotalCount(0);
+                setTotalPages(0);
+            }
         } catch (error) {
             console.error('Error loading tags:', error);
             showNotification('error', 'Không thể tải danh sách tag: ' + getErrorMessage(error));
@@ -97,7 +79,6 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
         }
     };
 
-    // Delete tag
     const deleteTag = async (tag: Tag) => {
         if (tag.post_count && tag.post_count > 0) {
             if (!confirm(`Tag "${tag.name}" đang được sử dụng bởi ${tag.post_count} bài viết. Bạn có chắc chắn muốn xóa?`)) {
@@ -110,16 +91,14 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
         }
 
         try {
-            const { error } = await supabase
-                .from('tags')
-                .delete()
-                .eq('id', tag.id);
+            const { error } = await supabase.rpc('posts_admin_delete_tag', {
+                p_tag_id: tag.id
+            });
 
             if (error) throw error;
 
             showNotification('success', 'Xóa tag thành công');
 
-            // If current page becomes empty, go to previous page
             if (tags.length === 1 && currentPage > 1) {
                 setCurrentPage(currentPage - 1);
                 loadTags(currentPage - 1);
@@ -132,18 +111,15 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
         }
     };
 
-    // Handle page change
     const handlePageChange = (newPage: number) => {
         setCurrentPage(newPage);
         loadTags(newPage);
     };
 
-    // Expose reload function for parent component
     React.useImperativeHandle(ref, () => ({
         reload: () => loadTags(currentPage)
     }));
 
-    // Effects
     useEffect(() => {
         setCurrentPage(1);
         loadTags(1);
@@ -168,7 +144,6 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
 
     return (
         <>
-            {/* Tags Table */}
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead className="bg-gray-50">
@@ -195,24 +170,24 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
                         <tr key={tag.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
-                                    <Tag className="w-4 h-4 text-gray-400 mr-2" />
+                                    <TagIcon className="w-4 h-4 text-gray-400 mr-2" />
                                     <span className="text-sm font-medium text-gray-900">
-                                            {tag.name}
-                                        </span>
+                                        {tag.name}
+                                    </span>
                                 </div>
                             </td>
                             <td className="px-6 py-4">
-                                    <span className="text-sm text-gray-600">
-                                        {tag.description || 'Chưa có mô tả'}
-                                    </span>
+                                <span className="text-sm text-gray-600">
+                                    {tag.description || 'Chưa có mô tả'}
+                                </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
-                                        {tag.post_count || 0} bài viết
-                                    </span>
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                    {tag.post_count || 0} bài viết
+                                </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {new Date(tag.created_at).toLocaleDateString('vi-VN')}
+                                {new Date(tag.created_at!).toLocaleDateString('vi-VN')}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div className="flex items-center justify-end gap-2">
@@ -238,7 +213,6 @@ const TagsTab = React.forwardRef<{ reload: () => void }, TagsTabProps>(({
                 </table>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
                 <div className="px-6 py-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">

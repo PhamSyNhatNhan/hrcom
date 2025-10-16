@@ -1,6 +1,8 @@
+// src/component/admin/post/SubmissionsTab.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabase/client';
+import { PostSubmission } from '@/types/post_admin';
 import {
     Eye,
     MessageSquare,
@@ -17,48 +19,6 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 
-interface Tag {
-    id: string;
-    name: string;
-    description?: string;
-}
-
-interface Post {
-    id: string;
-    title: string;
-    description?: string;
-    thumbnail: string | null;
-    content: any;
-    author_id: string;
-    type: 'activity' | 'blog';
-    published: boolean;
-    published_at: string | null;
-    created_at: string;
-    updated_at: string;
-    tags?: Tag[];
-}
-
-interface PostSubmission {
-    id: string;
-    post_id: string;
-    author_id: string;
-    status: 'pending' | 'approved' | 'rejected';
-    reviewed_by: string | null;
-    reviewed_at: string | null;
-    admin_notes: string | null;
-    submitted_at: string;
-    created_at: string;
-    updated_at: string;
-    posts: Post | null;
-    profiles: {
-        full_name: string;
-        image_url?: string;
-    };
-    reviewed_by_profile?: {
-        full_name: string;
-    };
-}
-
 interface SubmissionsTabProps {
     searchTerm: string;
     filterType: 'all' | 'activity' | 'blog';
@@ -68,7 +28,6 @@ interface SubmissionsTabProps {
     showNotification: (type: 'success' | 'error' | 'warning', message: string) => void;
 }
 
-// Helper functions
 function getErrorMessage(err: unknown): string {
     if (err instanceof Error) return err.message;
     if (typeof err === 'object' && err && 'message' in err) {
@@ -78,32 +37,22 @@ function getErrorMessage(err: unknown): string {
     return typeof err === 'string' ? err : JSON.stringify(err);
 }
 
-// Preview content render function
 const renderPreviewContent = (content: string) => {
     if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
 
-    // Handle if content is a JSON object (from TinyMCE)
     let htmlContent = '';
-
     if (typeof content === 'string') {
         htmlContent = content;
     } else if (content && typeof content === 'object') {
-        // Thu hẹp kiểu object trước khi đọc thuộc tính html
         const maybeHtml = (content as { html?: unknown }).html;
         htmlContent = typeof maybeHtml === 'string' ? maybeHtml : JSON.stringify(content);
     } else {
         htmlContent = String(content ?? '');
     }
 
-
     return (
         <div
-            className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
-            style={{
-                lineHeight: '1.7',
-                ['--tw-prose-ul' as any]: 'disc',
-                ['--tw-prose-ol' as any]: 'decimal',
-            }}
+            className="tinymce-content prose prose-lg max-w-none"
             dangerouslySetInnerHTML={{ __html: htmlContent }}
         />
     );
@@ -124,141 +73,72 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
     const [totalPages, setTotalPages] = useState(0);
     const pageSize = 20;
 
-    // Preview state
     const [showPreview, setShowPreview] = useState(false);
     const [previewSubmission, setPreviewSubmission] = useState<PostSubmission | null>(null);
 
-    // Load post submissions
     const loadSubmissions = async (page: number = 1) => {
         try {
             setLoading(true);
 
-            // Simple single query approach
-            let query = supabase
-                .from('post_submissions')
-                .select(`
-                    id,
-                    post_id,
-                    author_id,
-                    status,
-                    reviewed_by,
-                    reviewed_at,
-                    admin_notes,
-                    submitted_at,
-                    created_at,
-                    updated_at,
-                    posts (
-                        id,
-                        title,
-                        description,
-                        thumbnail,
-                        content,
-                        type,
-                        published,
-                        published_at,
-                        created_at,
-                        updated_at,
-                        author_id
-                    ),
-                    profiles!post_submissions_author_id_fkey (
-                        full_name,
-                        image_url
-                    ),
-                    reviewed_by_profile:profiles!post_submissions_reviewed_by_fkey (
-                        full_name
-                    )
-                `, { count: 'exact' });
-
-            // Apply filters
-            if (filterStatus !== 'all') {
-                query = query.eq('status', filterStatus);
-            }
-
-            if (filterType !== 'all') {
-                query = query.eq('posts.type', filterType);
-            }
-
-            if (searchTerm.trim()) {
-                query = query.or(`posts.title.ilike.%${searchTerm}%,posts.description.ilike.%${searchTerm}%`);
-            }
-
-            // Pagination
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-
-            query = query
-                .range(from, to)
-                .order('submitted_at', { ascending: false });
-
-            const { data, error, count } = await query;
+            const { data, error } = await supabase.rpc('posts_admin_get_submissions', {
+                page_number: page,
+                page_size: pageSize,
+                filter_type: filterType,
+                filter_status: filterStatus,
+                filter_tag: filterTag,
+                search_term: searchTerm
+            });
 
             if (error) throw error;
 
-            console.log('Raw submissions data:', data);
+            if (data && data.length > 0) {
+                const totalCount = data[0].total_count || 0;
+                setTotalCount(totalCount);
+                setTotalPages(Math.ceil(totalCount / pageSize));
 
-            if (!data || data.length === 0) {
+                const transformedSubmissions = data.map((row: any) => {
+                    const postData = row.post_data || {};
+                    return {
+                        id: row.id,
+                        post_id: row.post_id,
+                        author_id: row.author_id,
+                        status: row.status,
+                        reviewed_by: row.reviewed_by,
+                        reviewed_at: row.reviewed_at,
+                        admin_notes: row.admin_notes,
+                        submitted_at: row.submitted_at,
+                        created_at: row.created_at,
+                        updated_at: row.updated_at,
+                        posts: postData.id ? {
+                            id: postData.id,
+                            title: postData.title,
+                            description: postData.description,
+                            thumbnail: postData.thumbnail,
+                            content: postData.content,
+                            type: postData.type,
+                            published: postData.published,
+                            tags: postData.tags || [],
+                            author_id: row.author_id,
+                            published_at: null,
+                            created_at: row.created_at,
+                            updated_at: row.updated_at
+                        } : null,
+                        profiles: {
+                            full_name: row.author_name,
+                            image_url: row.author_avatar
+                        },
+                        reviewed_by_profile: row.reviewer_name ? {
+                            full_name: row.reviewer_name
+                        } : undefined
+                    };
+                });
+
+                setSubmissions(transformedSubmissions);
+            } else {
                 setSubmissions([]);
                 setTotalCount(0);
                 setTotalPages(0);
-                return;
             }
-
-            // Get post IDs for tags
-            const postIds = data
-                .map((item: any) => item.posts?.id)
-                .filter((id): id is string => Boolean(id));
-
-            // Fetch tags separately
-            let tagsMap: { [key: string]: Tag[] } = {};
-            if (postIds.length > 0) {
-                const { data: tagsData, error: tagsError } = await supabase
-                    .from('post_tags')
-                    .select(`
-                        post_id,
-                        tags (
-                            id,
-                            name,
-                            description
-                        )
-                    `)
-                    .in('post_id', postIds);
-
-                if (!tagsError && tagsData) {
-                    // Group tags by post_id
-                    tagsData.forEach(item => {
-                        if (item.post_id && item.tags) {
-                            if (!tagsMap[item.post_id]) {
-                                tagsMap[item.post_id] = [];
-                            }
-                            tagsMap[item.post_id].push(item.tags as unknown as Tag);
-                        }
-                    });
-                }
-            }
-
-            // Transform data
-            const submissionsWithTags = data.map(submission => ({
-                ...submission,
-                posts: submission.posts ? {
-                    ...submission.posts,
-                    tags: (submission.posts as any)?.id ? (tagsMap[(submission.posts as any).id] || []) : []
-                } : null
-            }));
-
-            // Client-side filter by tag if needed
-            let filteredSubmissions = submissionsWithTags;
-            if (filterTag !== 'all') {
-                filteredSubmissions = submissionsWithTags.filter(submission =>
-                    submission.posts?.tags && submission.posts.tags.some((tag: Tag) => tag.id === filterTag)
-                );
-            }
-
-            console.log('Final submissions with tags:', filteredSubmissions);
-
-            setSubmissions(filteredSubmissions as unknown as PostSubmission[]);
-            setTotalCount(count || 0);
-            setTotalPages(Math.ceil((count || 0) / pageSize));
-
         } catch (error) {
             console.error('Error loading submissions:', error);
             showNotification('error', 'Không thể tải danh sách duyệt bài: ' + getErrorMessage(error));
@@ -268,20 +148,16 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
         }
     };
 
-    // Handle page change
     const handlePageChange = (newPage: number) => {
         setCurrentPage(newPage);
         loadSubmissions(newPage);
     };
 
-    // Handle preview
     const handlePreview = (submission: PostSubmission) => {
-        console.log('Preview submission:', submission);
         setPreviewSubmission(submission);
         setShowPreview(true);
     };
 
-    // Get status badge
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'pending':
@@ -310,12 +186,10 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
         }
     };
 
-    // Expose reload function for parent component
     React.useImperativeHandle(ref, () => ({
         reload: () => loadSubmissions(currentPage)
     }));
 
-    // Effects
     useEffect(() => {
         setCurrentPage(1);
         loadSubmissions(1);
@@ -353,7 +227,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
 
     return (
         <>
-            {/* Submissions Table */}
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead className="bg-gray-50">
@@ -422,18 +295,18 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                                         </div>
                                     )}
                                     <span className="text-sm text-gray-900">
-                                            {submission.profiles?.full_name || 'Không rõ tên'}
-                                        </span>
+                                        {submission.profiles?.full_name || 'Không rõ tên'}
+                                    </span>
                                 </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                        submission.posts?.type === 'activity'
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-blue-100 text-blue-800'
-                                    }`}>
-                                        {submission.posts?.type === 'activity' ? 'Hoạt động' : 'Blog'}
-                                    </span>
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    submission.posts?.type === 'activity'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                    {submission.posts?.type === 'activity' ? 'Hoạt động' : 'Blog'}
+                                </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                                 {getStatusBadge(submission.status)}
@@ -443,7 +316,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div className="flex items-center justify-end gap-2">
-                                    {/* Preview button */}
                                     <button
                                         onClick={() => handlePreview(submission)}
                                         className="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50 transition-colors"
@@ -451,8 +323,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                                     >
                                         <Eye className="w-4 h-4" />
                                     </button>
-
-                                    {/* Review button */}
                                     {submission.status === 'pending' && (
                                         <button
                                             onClick={() => onReviewSubmission(submission)}
@@ -470,7 +340,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                 </table>
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
                 <div className="px-6 py-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">
@@ -532,7 +401,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                 </div>
             )}
 
-            {/* Preview Modal */}
             {showPreview && previewSubmission && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div
@@ -564,7 +432,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
 
                         <div className="overflow-y-auto max-h-[calc(90vh-160px)]">
                             <div className="p-6">
-                                {/* Post Header */}
                                 <div className="mb-8 pb-6 border-b border-gray-200">
                                     <div className="mb-3">
                                         <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 text-sm font-semibold rounded-full">
@@ -582,10 +449,9 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                                         </p>
                                     )}
 
-                                    {/* Tags */}
                                     {previewSubmission.posts?.tags && previewSubmission.posts.tags.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mb-6">
-                                            {previewSubmission.posts.tags.map((tag) => (
+                                            {previewSubmission.posts.tags.map((tag: any) => (
                                                 <span
                                                     key={tag.id}
                                                     className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-gray-100 text-gray-800"
@@ -610,12 +476,10 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                                     </div>
                                 </div>
 
-                                {/* Content */}
                                 <div className="preview-content">
                                     {renderPreviewContent(previewSubmission.posts?.content || '')}
                                 </div>
 
-                                {/* Admin Notes */}
                                 {previewSubmission.admin_notes && (
                                     <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-lg">
                                         <h4 className="font-medium text-red-900 mb-2">Ghi chú từ Admin:</h4>
@@ -625,7 +489,6 @@ const SubmissionsTab = React.forwardRef<{ reload: () => void }, SubmissionsTabPr
                             </div>
                         </div>
 
-                        {/* Preview Actions */}
                         <div className="p-6 border-t border-gray-200 flex gap-4 justify-end bg-gray-50">
                             <button
                                 onClick={() => setShowPreview(false)}
