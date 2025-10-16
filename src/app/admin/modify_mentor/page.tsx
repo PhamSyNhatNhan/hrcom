@@ -13,37 +13,17 @@ import {
     AlertCircle
 } from 'lucide-react';
 
+// Import types
+import type {
+    AdminMentorTabType,
+    MentorSkill,
+    MentorRegistration
+} from '@/types/mentor_admin';
+
 // Import components
 import MentorListTab from '@/component/admin/mentor/MentorListTab';
 import MentorRegistrationsTab from '@/component/admin/mentor/MentorRegistrationsTab';
 import MentorSkillsTab from '@/component/admin/mentor/MentorSkillsTab';
-
-export type AdminMentorTabType = 'mentors' | 'registrations' | 'skills';
-
-interface MentorSkill {
-    id: string;
-    name: string;
-    description?: string;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-interface MentorRegistration {
-    id: string;
-    user_id: string;
-    email: string;
-    phone?: string;
-    notes?: string;
-    admin_notes?: string;
-    status: 'pending' | 'approved' | 'rejected';
-    created_at: string;
-    updated_at: string;
-    profiles?: {
-        full_name: string;
-        image_url?: string;
-    };
-}
 
 const AdminMentorManager: React.FC = () => {
     const { user } = useAuthStore();
@@ -72,14 +52,12 @@ const AdminMentorManager: React.FC = () => {
         setTimeout(() => setNotification(null), 5000);
     };
 
-    // Load skills
+    // Load skills using RPC
     const loadSkills = async () => {
         try {
             setLoadingSkills(true);
             const { data, error } = await supabase
-                .from('mentor_skills')
-                .select('*')
-                .order('name', { ascending: true });
+                .rpc('mentor_admin_get_skills', { published_only: false });
 
             if (error) throw error;
             setSkills(data || []);
@@ -91,23 +69,22 @@ const AdminMentorManager: React.FC = () => {
         }
     };
 
-    // Load registrations
+    // Load registrations using RPC
     const loadRegistrations = async () => {
         try {
             setLoadingRegistrations(true);
             const { data, error } = await supabase
-                .from('mentor_registrations')
-                .select(`
-                    *,
-                    profiles (
-                        full_name,
-                        image_url
-                    )
-                `)
-                .order('created_at', { ascending: false });
+                .rpc('mentor_admin_get_registrations', { status_filter: null });
 
             if (error) throw error;
-            setRegistrations(data || []);
+
+            // Parse profile_info JSONB to proper structure
+            const parsedRegistrations: MentorRegistration[] = (data || []).map((reg: any) => ({
+                ...reg,
+                profiles: reg.profile_info || null
+            }));
+
+            setRegistrations(parsedRegistrations);
         } catch (error) {
             console.error('Error loading registrations:', error);
             showNotification('error', 'Không thể tải danh sách đăng ký');
@@ -137,7 +114,7 @@ const AdminMentorManager: React.FC = () => {
         );
     }
 
-    // Get available tabs - SAME STYLE AS DASHBOARD
+    // Get available tabs
     const getAvailableTabs = () => {
         return [
             {
@@ -160,7 +137,7 @@ const AdminMentorManager: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-            {/* Notification - Z-index cao nhất */}
+            {/* Notification */}
             {notification && (
                 <div
                     className={`fixed top-4 right-4 z-[9999] p-4 rounded-lg shadow-lg max-w-sm w-full ${
@@ -192,7 +169,7 @@ const AdminMentorManager: React.FC = () => {
                     subtitle="Tổng quan quản lý mentor, đăng ký và skills"
                 />
 
-                {/* Tabs - SAME STYLE AS DASHBOARD */}
+                {/* Tabs */}
                 <div className="mb-8 bg-white rounded-xl shadow-sm">
                     <div className="border-b border-gray-200">
                         <nav className="-mb-px flex space-x-8 px-6">
@@ -222,6 +199,7 @@ const AdminMentorManager: React.FC = () => {
                             <MentorListTab
                                 loading={loading}
                                 setLoading={setLoading}
+                                showNotification={showNotification}
                             />
                         )}
 

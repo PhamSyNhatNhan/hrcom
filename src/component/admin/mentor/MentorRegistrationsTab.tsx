@@ -19,21 +19,8 @@ import {
     RefreshCw
 } from 'lucide-react';
 
-interface MentorRegistration {
-    id: string;
-    user_id: string;
-    email: string;
-    phone?: string;
-    notes?: string;
-    admin_notes?: string;
-    status: 'pending' | 'approved' | 'rejected';
-    created_at: string;
-    updated_at: string;
-    profiles?: {
-        full_name: string;
-        image_url?: string;
-    };
-}
+// Import types
+import type { MentorRegistration, RegistrationStatus } from '@/types/mentor_admin';
 
 interface MentorRegistrationsTabProps {
     registrations: MentorRegistration[];
@@ -52,7 +39,7 @@ const MentorRegistrationsTab: React.FC<MentorRegistrationsTabProps> = ({
                                                                        }) => {
     // State
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | RegistrationStatus>('all');
     const [expandedRegistration, setExpandedRegistration] = useState<string | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [adminNotes, setAdminNotes] = useState<{[key: string]: string}>({});
@@ -77,7 +64,7 @@ const MentorRegistrationsTab: React.FC<MentorRegistrationsTabProps> = ({
         rejected: registrations.filter(r => r.status === 'rejected').length
     };
 
-    // Update registration status and auto-create mentor profile if approved
+    // Update registration status using RPC
     const updateRegistrationStatus = async (
         registrationId: string,
         newStatus: 'approved' | 'rejected',
@@ -86,22 +73,30 @@ const MentorRegistrationsTab: React.FC<MentorRegistrationsTabProps> = ({
         try {
             setProcessingId(registrationId);
 
-            const updateData: any = {
-                status: newStatus,
-                updated_at: new Date().toISOString()
-            };
+            if (newStatus === 'approved') {
+                // Use approve RPC which creates mentor automatically
+                const { data: mentorId, error } = await supabase
+                    .rpc('mentor_admin_approve_registration', {
+                        p_registration_id: registrationId,
+                        p_admin_notes: notes || null
+                    });
 
-            if (notes) {
-                updateData.admin_notes = notes;
+                if (error) throw error;
+
+                showNotification('success', 'Đã phê duyệt đăng ký và tạo mentor profile thành công!');
+            } else {
+                // Just update status for rejection
+                const { error } = await supabase
+                    .rpc('mentor_admin_update_registration_status', {
+                        p_registration_id: registrationId,
+                        p_status: newStatus,
+                        p_admin_notes: notes || null
+                    });
+
+                if (error) throw error;
+
+                showNotification('success', 'Đã từ chối đăng ký thành công!');
             }
-
-            // Update registration status
-            const { error } = await supabase
-                .from('mentor_registrations')
-                .update(updateData)
-                .eq('id', registrationId);
-
-            if (error) throw error;
 
             // Update local state
             setRegistrations(prev =>
@@ -112,111 +107,14 @@ const MentorRegistrationsTab: React.FC<MentorRegistrationsTabProps> = ({
                 )
             );
 
-            // Auto-create mentor profile if approved
-            if (newStatus === 'approved') {
-                const registration = registrations.find(r => r.id === registrationId);
-                if (registration) {
-                    await createMentorProfile(registration);
-                }
-            }
-
             // Clear admin notes input
             setAdminNotes(prev => ({ ...prev, [registrationId]: '' }));
 
-            showNotification('success', `Đăng ký đã được ${newStatus === 'approved' ? 'phê duyệt' : 'từ chối'} thành công!${newStatus === 'approved' ? ' Hồ sơ mentor đã được tạo tự động.' : ''}`);
-
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating registration status:', error);
-            showNotification('error', 'Lỗi khi cập nhật trạng thái đăng ký: ' + (error as Error).message);
+            showNotification('error', 'Lỗi khi cập nhật trạng thái đăng ký: ' + error.message);
         } finally {
             setProcessingId(null);
-        }
-    };
-
-    // Create mentor profile for approved registration
-    const createMentorProfile = async (registration: MentorRegistration) => {
-        if (!registration.profiles) {
-            console.error('Không tìm thấy thông tin profile của người dùng');
-            return;
-        }
-
-        try {
-            // Check if mentor profile already exists
-            const { data: existingMentor, error: checkError } = await supabase
-                .from('mentors')
-                .select('id')
-                .eq('email', registration.email)
-                .single();
-
-            if (checkError && checkError.code !== 'PGRST116') {
-                throw checkError;
-            }
-
-            if (existingMentor) {
-                console.log('Mentor profile đã tồn tại cho email này');
-                return;
-            }
-
-            // Create mentor profile
-            const { data: newMentor, error: createError } = await supabase
-                .from('mentors')
-                .insert([{
-                    email: registration.email,
-                    full_name: registration.profiles.full_name,
-                    avatar: registration.profiles.image_url || null,
-                    phone_number: registration.phone || null,
-                    headline: '',
-                    description: '',
-                    published: false
-                }])
-                .select('id')
-                .single();
-
-            if (createError) throw createError;
-
-            // Create profile_mentor relation
-            const { error: relationError } = await supabase
-                .from('profile_mentor')
-                .insert([{
-                    profile_id: registration.user_id,
-                    mentor_id: newMentor.id
-                }]);
-
-            if (relationError) throw relationError;
-
-            // Update user role to mentor in auth.users metadata
-            const { error: roleError } = await supabase.auth.admin.updateUserById(
-                registration.user_id,
-                {
-                    user_metadata: { role: 'mentor' }
-                }
-            );
-
-            // If admin API fails, try updating via profiles table or RPC
-            if (roleError) {
-                console.warn('Could not update user role via admin API, trying alternative method:', roleError);
-
-                // Try updating via a custom RPC function (if available)
-                try {
-                    const { error: rpcError } = await supabase
-                        .rpc('update_user_role', {
-                            target_user_id: registration.user_id,
-                            new_role: 'mentor'
-                        });
-
-                    if (rpcError) {
-                        console.warn('RPC update also failed:', rpcError);
-                    }
-                } catch (rpcErr) {
-                    console.warn('RPC function not available or failed:', rpcErr);
-                }
-            }
-
-            console.log('Mentor profile và liên kết đã được tạo thành công!');
-
-        } catch (error) {
-            console.error('Error creating mentor profile:', error);
-            showNotification('error', 'Lỗi khi tạo mentor profile: ' + (error as Error).message);
         }
     };
 

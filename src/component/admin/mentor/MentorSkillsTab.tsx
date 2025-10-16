@@ -1,5 +1,5 @@
 'use client';
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/utils/supabase/client';
 
 import {
@@ -16,14 +16,8 @@ import {
     RefreshCw
 } from 'lucide-react';
 
-interface MentorSkill {
-    id: string;
-    name: string;
-    description?: string;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-}
+// Import types
+import type { MentorSkill } from '@/types/mentor_admin';
 
 interface MentorSkillsTabProps {
     skills: MentorSkill[];
@@ -91,7 +85,7 @@ const MentorSkillsTab: React.FC<MentorSkillsTabProps> = ({
         setShowForm(true);
     };
 
-    // Save skill
+    // Save skill using RPC
     const saveSkill = async () => {
         if (!formData.name.trim()) {
             showNotification('error', 'Vui lòng nhập tên skill');
@@ -101,125 +95,116 @@ const MentorSkillsTab: React.FC<MentorSkillsTabProps> = ({
         try {
             setSaving(true);
 
-            const skillData = {
-                name: formData.name.trim(),
-                description: formData.description.trim() || null,
-                published: formData.published
-            };
-
             if (editingSkill) {
                 // Update existing skill
-                const { data, error } = await supabase
-                    .from('mentor_skills')
-                    .update(skillData)
-                    .eq('id', editingSkill.id)
-                    .select()
-                    .single();
+                const { error } = await supabase.rpc('mentor_admin_update_skill', {
+                    p_skill_id: editingSkill.id,
+                    p_name: formData.name.trim(),
+                    p_description: formData.description.trim() || null,
+                    p_published: formData.published
+                });
 
                 if (error) throw error;
 
                 // Update local state
                 setSkills(prev => prev.map(skill =>
-                    skill.id === editingSkill.id ? data : skill
+                    skill.id === editingSkill.id
+                        ? { ...skill, name: formData.name.trim(), description: formData.description.trim(), published: formData.published, updated_at: new Date().toISOString() }
+                        : skill
                 ));
             } else {
                 // Create new skill
-                const { data, error } = await supabase
-                    .from('mentor_skills')
-                    .insert([skillData])
-                    .select()
-                    .single();
+                const { data: newSkillId, error } = await supabase.rpc('mentor_admin_create_skill', {
+                    p_name: formData.name.trim(),
+                    p_description: formData.description.trim() || null,
+                    p_published: formData.published
+                });
 
                 if (error) throw error;
 
                 // Add to local state
-                setSkills(prev => [data, ...prev]);
+                const newSkill: MentorSkill = {
+                    id: newSkillId,
+                    name: formData.name.trim(),
+                    description: formData.description.trim() || undefined,
+                    published: formData.published,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                setSkills(prev => [newSkill, ...prev]);
             }
 
             resetForm();
             showNotification('success', `Skill đã được ${editingSkill ? 'cập nhật' : 'tạo'} thành công!`);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving skill:', error);
-            showNotification('error', 'Lỗi khi lưu skill: ' + (error as Error).message);
+            showNotification('error', 'Lỗi khi lưu skill: ' + error.message);
         } finally {
             setSaving(false);
         }
     };
 
-    // Delete skill
+    // Delete skill using RPC
     const deleteSkill = async (skillId: string) => {
         if (!confirm('Bạn có chắc chắn muốn xóa skill này? Hành động này không thể hoàn tác.')) {
             return;
         }
 
         try {
-            // Check if skill is being used by mentors
-            const { data: usageData, error: usageError } = await supabase
-                .from('mentor_skill_relations')
-                .select('id')
-                .eq('skill_id', skillId)
-                .limit(1);
+            const { error } = await supabase.rpc('mentor_admin_delete_skill', {
+                p_skill_id: skillId
+            });
 
-            if (usageError) throw usageError;
-
-            if (usageData && usageData.length > 0) {
-                showNotification('warning', 'Không thể xóa skill này vì đang được sử dụng bởi các mentor. Vui lòng ẩn skill thay vì xóa.');
-                return;
+            if (error) {
+                if (error.message.includes('in use')) {
+                    showNotification('warning', 'Không thể xóa skill này vì đang được sử dụng bởi các mentor. Vui lòng ẩn skill thay vì xóa.');
+                    return;
+                }
+                throw error;
             }
-
-            const { error } = await supabase
-                .from('mentor_skills')
-                .delete()
-                .eq('id', skillId);
-
-            if (error) throw error;
 
             // Remove from local state
             setSkills(prev => prev.filter(skill => skill.id !== skillId));
             showNotification('success', 'Skill đã được xóa thành công!');
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting skill:', error);
-            showNotification('error', 'Lỗi khi xóa skill: ' + (error as Error).message);
+            showNotification('error', 'Lỗi khi xóa skill: ' + error.message);
         }
     };
 
-    // Toggle published status
+    // Toggle published status using RPC
     const togglePublishStatus = async (skillId: string, currentStatus: boolean) => {
         try {
-            const { data, error } = await supabase
-                .from('mentor_skills')
-                .update({ published: !currentStatus })
-                .eq('id', skillId)
-                .select()
-                .single();
+            const { error } = await supabase.rpc('mentor_admin_update_skill', {
+                p_skill_id: skillId,
+                p_published: !currentStatus
+            });
 
             if (error) throw error;
 
             // Update local state
             setSkills(prev => prev.map(skill =>
-                skill.id === skillId ? data : skill
+                skill.id === skillId ? { ...skill, published: !currentStatus, updated_at: new Date().toISOString() } : skill
             ));
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating publish status:', error);
-            showNotification('error', 'Lỗi khi cập nhật trạng thái: ' + (error as Error).message);
+            showNotification('error', 'Lỗi khi cập nhật trạng thái: ' + error.message);
         }
     };
 
+    // Lock body scroll when modal open
     useEffect(() => {
         if (showForm) {
-            // Lock body scroll khi modal mở
             document.body.style.overflow = 'hidden';
-            document.body.style.paddingRight = '15px'; // Compensate for scrollbar
+            document.body.style.paddingRight = '15px';
         } else {
-            // Unlock body scroll khi modal đóng
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
         }
 
-        // Cleanup khi component unmount
         return () => {
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
@@ -464,8 +449,6 @@ const MentorSkillsTab: React.FC<MentorSkillsTabProps> = ({
                                                     )}
                                                 </div>
                                             </div>
-
-
                                         </div>
                                     </div>
 

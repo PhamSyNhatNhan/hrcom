@@ -32,114 +32,13 @@ import {
     RefreshCw
 } from 'lucide-react';
 
-// Interfaces
-interface MentorEducation {
-    id?: string;
-    avatar?: string;
-    school: string;
-    degree: string;
-    start_date: string;
-    end_date?: string;
-    description: string[];
-    published: boolean;
-}
+ import type {
+     Mentor,
+     MentorFormData,
+     MentorSkill,
+     ProfileInfo,
+ } from '@/types/mentor_admin';
 
-interface MentorWorkExperience {
-    id?: string;
-    avatar?: string;
-    company: string;
-    position: string;
-    start_date: string;
-    end_date?: string;
-    description: string[];
-    published: boolean;
-}
-
-interface MentorActivity {
-    id?: string;
-    avatar?: string;
-    organization: string;
-    role: string;
-    activity_name: string;
-    start_date: string;
-    end_date?: string;
-    description: string[];
-    published: boolean;
-}
-
-interface MentorSkill {
-    id: string;
-    name: string;
-    description?: string;
-    published: boolean;
-}
-
-interface ProfileInfo {
-    id: string;
-    full_name: string;
-    image_url?: string;
-    phone_number?: string;
-    created_at: string;
-    auth_email?: string;
-}
-
-interface MentorProfileConnection {
-    id: string;
-    profile_id: string;
-    mentor_id: string;
-    created_at: string;
-    profiles: ProfileInfo;
-}
-
-interface MentorReview {
-    id: string;
-    rating: number;
-    comment?: string;
-    is_published: boolean;
-    created_at: string;
-    profiles?: {
-        full_name: string;
-        image_url?: string;
-    };
-}
-
-interface Mentor {
-    id: string;
-    email: string;
-    full_name: string;
-    avatar?: string;
-    headline?: string;
-    description?: string;
-    phone_number?: string;
-    published: boolean;
-    created_at: string;
-    updated_at: string;
-    mentor_work_experiences?: MentorWorkExperience[];
-    mentor_educations?: MentorEducation[];
-    mentor_activities?: MentorActivity[];
-    skills?: MentorSkill[];
-    profile_connection?: MentorProfileConnection;
-    // Statistics
-    total_bookings: number;
-    completed_bookings: number;
-    average_rating: number;
-    reviews: MentorReview[];
-}
-
-interface MentorFormData {
-    email: string;
-    full_name: string;
-    avatar?: string;
-    headline: string;
-    description: string;
-    phone_number: string;
-    selected_skills: string[];
-    published: boolean;
-    work_experiences: MentorWorkExperience[];
-    educations: MentorEducation[];
-    activities: MentorActivity[];
-    connected_profile_id?: string;
-}
 
 interface MentorListTabProps {
     loading: boolean;
@@ -193,10 +92,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
     const loadAvailableSkills = async () => {
         try {
             const { data, error } = await supabase
-                .from('mentor_skills')
-                .select('*')
-                .eq('published', true)
-                .order('name', { ascending: true });
+                .rpc('mentor_admin_get_skills', { published_only: true });
 
             if (error) throw error;
             setAvailableSkills(data || []);
@@ -262,131 +158,28 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         }
     };
 
-    // Load mentors with all related data including profile connections
-    // Load mentors with all related data including profile connections - FIXED BASED ON SCHEMA
+    // Load mentors with all related data using RPC
     const loadMentors = async () => {
         try {
             setLoading(true);
 
-            // Load mentors with related data
-            const { data: mentorsData, error: mentorsError } = await supabase
-                .from('mentors')
-                .select(`
-                    *,
-                    mentor_work_experiences (*),
-                    mentor_educations (*),
-                    mentor_activities (*),
-                    profile_mentor (
-                        id,
-                        profile_id,
-                        mentor_id,
-                        created_at,
-                        profiles (
-                            id,
-                            full_name,
-                            image_url,
-                            phone_number,
-                            created_at
-                        )
-                    )
-                `)
-                .order('created_at', { ascending: false });
+            const { data, error } = await supabase
+                .rpc('mentor_admin_get_mentors', { include_unpublished: true });
 
-            if (mentorsError) throw mentorsError;
+            if (error) throw error;
 
-            // Process mentors data
-            const mentorsWithSkills = await Promise.all(
-                (mentorsData || []).map(async (mentor) => {
-                    // Load skills
-                    const { data: skillsData, error: skillsError } = await supabase
-                        .from('mentor_skill_relations')
-                        .select(`
-                            mentor_skills (
-                                id,
-                                name,
-                                description,
-                                published
-                            )
-                        `)
-                        .eq('mentor_id', mentor.id);
+            // Parse JSONB fields to proper types
+            const mentorsWithParsedData: Mentor[] = (data || []).map((mentor: any) => ({
+                ...mentor,
+                mentor_work_experiences: mentor.work_experiences || [],
+                mentor_educations: mentor.educations || [],
+                mentor_activities: mentor.activities || [],
+                skills: mentor.skills || [],
+                profile_connection: mentor.profile_connection || null,
+                reviews: mentor.reviews || []
+            }));
 
-                    if (skillsError) {
-                        console.error('Error loading skills for mentor:', mentor.id, skillsError);
-                        return { ...mentor, skills: [] };
-                    }
-
-                    const skills = skillsData?.map(item => item.mentor_skills).filter(Boolean) || [];
-
-                    // Load statistics
-                    const { data: bookingsData } = await supabase
-                        .from('mentor_bookings')
-                        .select('id, status')
-                        .eq('mentor_id', mentor.id);
-
-                    const totalBookings = bookingsData?.length || 0;
-                    const completedBookings = bookingsData?.filter(b => b.status === 'completed').length || 0;
-
-                    // Load average rating - SỬA ĐỔI: sử dụng bảng mentor_reviews thay vì mentor_ratings
-                    const { data: ratingsData } = await supabase
-                        .from('mentor_reviews')
-                        .select('rating')
-                        .eq('mentor_id', mentor.id);
-
-                    const averageRating = ratingsData?.length
-                        ? ratingsData.reduce((sum, r) => sum + r.rating, 0) / ratingsData.length
-                        : 0;
-
-                    // Load recent reviews
-                    const { data: reviewsData } = await supabase
-                        .from('mentor_reviews')
-                        .select(`
-                            id,
-                            rating,
-                            comment,
-                            is_published,
-                            created_at,
-                            profiles (
-                                full_name,
-                                image_url
-                            )
-                        `)
-                        .eq('mentor_id', mentor.id)
-                        .eq('is_published', true)
-                        .order('created_at', { ascending: false })
-                        .limit(5);
-
-                    // Process profile connection - FIXED: profile_mentor is single object, not array
-                    let profileConnection = null;
-
-                    // Vì mentor_id và profile_id đều là UNIQUE trong profile_mentor table
-                    // nên join sẽ trả về single object hoặc null, không phải array
-                    if (mentor.profile_mentor && mentor.profile_mentor.profiles) {
-                        profileConnection = {
-                            id: mentor.profile_mentor.id,
-                            profile_id: mentor.profile_mentor.profile_id,
-                            mentor_id: mentor.profile_mentor.mentor_id,
-                            created_at: mentor.profile_mentor.created_at,
-                            profiles: {
-                                ...mentor.profile_mentor.profiles,
-                                // Hiển thị tên thay vì email để tránh Admin API
-                                auth_email: mentor.profile_mentor.profiles.full_name
-                            }
-                        };
-                    }
-
-                    return {
-                        ...mentor,
-                        skills,
-                        profile_connection: profileConnection,
-                        total_bookings: totalBookings,
-                        completed_bookings: completedBookings,
-                        average_rating: averageRating,
-                        reviews: reviewsData || []
-                    };
-                })
-            );
-
-            setMentors(mentorsWithSkills);
+            setMentors(mentorsWithParsedData);
         } catch (error) {
             console.error('Error loading mentors:', error);
             showNotification('error', 'Không thể tải danh sách mentors');
@@ -424,58 +217,41 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         }
     };
 
-    // Link mentor to profile
+    // Link mentor to profile using RPC
     const linkMentorToProfile = async (mentorId: string, profileId: string) => {
         try {
-            // Check if profile is already linked to another mentor
-            const { data: existingLink, error: checkError } = await supabase
-                .from('profile_mentor')
-                .select('id, mentor_id')
-                .eq('profile_id', profileId)
-                .single();
-
-            if (checkError && checkError.code !== 'PGRST116') {
-                throw checkError;
-            }
-
-            if (existingLink) {
-                showNotification('warning', 'Profile này đã được liên kết với mentor khác');
-                return;
-            }
-
-            // Create new link
             const { error } = await supabase
-                .from('profile_mentor')
-                .insert([{
-                    mentor_id: mentorId,
-                    profile_id: profileId
-                }]);
+                .rpc('mentor_admin_link_profile', {
+                    p_mentor_id: mentorId,
+                    p_profile_id: profileId
+                });
 
             if (error) throw error;
 
-            // Không cập nhật role tự động, chỉ thông báo thành công
-            showNotification('success', 'Đã liên kết mentor với profile thành công! (Cần cập nhật role user thủ công nếu cần)');
-
+            showNotification('success', 'Đã liên kết mentor với profile thành công!');
             loadMentors();
             setShowProfileLinkModal(false);
             setLinkingMentor(null);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error linking mentor to profile:', error);
-            showNotification('error', 'Lỗi khi liên kết mentor với profile');
+            if (error.message?.includes('already linked')) {
+                showNotification('warning', 'Profile này đã được liên kết với mentor khác');
+            } else {
+                showNotification('error', 'Lỗi khi liên kết mentor với profile');
+            }
         }
     };
 
-    // Unlink mentor from profile
+    // Unlink mentor from profile using RPC
     const unlinkMentorFromProfile = async (mentorId: string) => {
         if (!confirm('Bạn có chắc chắn muốn ngắt kết nối mentor này với profile?')) return;
 
         try {
-            // Remove link
             const { error } = await supabase
-                .from('profile_mentor')
-                .delete()
-                .eq('mentor_id', mentorId);
+                .rpc('mentor_admin_unlink_profile', {
+                    p_mentor_id: mentorId
+                });
 
             if (error) throw error;
 
@@ -488,214 +264,122 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         }
     };
 
-    // Save mentor
+    // Save mentor using RPC functions
     const saveMentor = async () => {
         setUploading(true);
         try {
-            // 0) Validate tối thiểu
+            // Validate
             if (!formData.full_name || !formData.email) {
-                showNotification?.('warning', 'Vui lòng điền đầy đủ Họ tên và Email.');
+                showNotification('warning', 'Vui lòng điền đầy đủ Họ tên và Email.');
                 return;
             }
-
-            // 1) Chuẩn hoá payload mentor chính
-            const mentorData = {
-                email: normalizeString(formData.email)!,
-                full_name: normalizeString(formData.full_name)!,
-                avatar: normalizeString(formData.avatar),
-                headline: normalizeString(formData.headline),
-                description: normalizeString(formData.description),
-                phone_number: normalizeString(formData.phone_number),
-                published: !!formData.published,
-            };
 
             let mentorId: string;
 
             if (editingMentor) {
-                // UPDATE
-                const { error: upErr } = await supabase.from('mentors')
-                    .update(mentorData)
-                    .eq('id', editingMentor.id);
-                if (upErr) {
-                    const p = logSbError('update mentors', upErr);
-                    showNotification?.('error', `Lỗi cập nhật mentor: ${p.message || p.raw}`);
-                    return;
-                }
+                // Update mentor
+                const { error: updateError } = await supabase.rpc('mentor_admin_update_mentor', {
+                    p_mentor_id: editingMentor.id,
+                    p_email: formData.email.trim(),
+                    p_full_name: formData.full_name.trim(),
+                    p_avatar: formData.avatar?.trim() || null,
+                    p_headline: formData.headline?.trim() || null,
+                    p_description: formData.description?.trim() || null,
+                    p_phone_number: formData.phone_number?.trim() || null,
+                    p_published: formData.published
+                });
+
+                if (updateError) throw updateError;
                 mentorId = editingMentor.id;
             } else {
-                // INSERT
-                const { data, error: insErr } = await supabase
-                    .from('mentors')
-                    .insert([mentorData])
-                    .select('id')
-                    .single();
-                if (insErr) {
-                    const p = logSbError('insert mentors', insErr);
-                    showNotification?.('error', `Lỗi tạo mentor: ${p.message || p.raw}`);
-                    return;
-                }
-                mentorId = data!.id;
+                // Create mentor
+                const { data: newMentorId, error: createError } = await supabase.rpc('mentor_admin_create_mentor', {
+                    p_email: formData.email.trim(),
+                    p_full_name: formData.full_name.trim(),
+                    p_avatar: formData.avatar?.trim() || null,
+                    p_headline: formData.headline?.trim() || null,
+                    p_description: formData.description?.trim() || null,
+                    p_phone_number: formData.phone_number?.trim() || null,
+                    p_published: formData.published
+                });
+
+                if (createError) throw createError;
+                mentorId = newMentorId;
             }
 
-            // 2) Kỹ năng: làm sạch & ghi lại toàn bộ
-            if (editingMentor) {
-                const { error: delSkillErr } = await supabase
-                    .from('mentor_skill_relations')
-                    .delete()
-                    .eq('mentor_id', mentorId);
-                if (delSkillErr) {
-                    const p = logSbError('delete mentor_skill_relations', delSkillErr);
-                    showNotification?.('error', `Lỗi xóa kỹ năng cũ: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-            if (formData.selected_skills?.length) {
-                const skillRelations = formData.selected_skills.map(skill_id => ({
-                    mentor_id: mentorId,
-                    skill_id,
-                }));
-                const { error: insSkillErr } = await supabase
-                    .from('mentor_skill_relations')
-                    .insert(skillRelations);
-                if (insSkillErr) {
-                    const p = logSbError('insert mentor_skill_relations', insSkillErr);
-                    showNotification?.('error', `Lỗi lưu kỹ năng: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-
-            // Helper chuyển đổi record exp/edu/act
-            const mapExp = (e: any) => ({
-                mentor_id: mentorId,
-                avatar: normalizeString(e.avatar),
-                company: normalizeString(e.company),
-                position: normalizeString(e.position),
-                start_date: normalizeDate(e.start_date),
-                end_date: normalizeDate(e.end_date),
-                description: normalizeDescArray(e.description),
-                published: !!e.published,
+            // Save skills
+            const { error: skillsError } = await supabase.rpc('mentor_admin_save_skills', {
+                p_mentor_id: mentorId,
+                p_skill_ids: formData.selected_skills
             });
-            const mapEdu = (e: any) => ({
-                mentor_id: mentorId,
-                avatar: normalizeString(e.avatar),
-                school: normalizeString(e.school),
-                degree: normalizeString(e.degree),
-                start_date: normalizeDate(e.start_date),
-                end_date: normalizeDate(e.end_date),
-                description: normalizeDescArray(e.description),
-                published: !!e.published,
+            if (skillsError) throw skillsError;
+
+            // Save work experiences
+            const { error: expError } = await supabase.rpc('mentor_admin_save_experiences', {
+                p_mentor_id: mentorId,
+                p_experiences: formData.work_experiences.map(exp => ({
+                    avatar: exp.avatar?.trim() || null,
+                    company: exp.company?.trim() || '',
+                    position: exp.position?.trim() || '',
+                    start_date: exp.start_date?.trim() || null,
+                    end_date: exp.end_date?.trim() || null,
+                    description: exp.description.filter(d => d.trim() !== ''),
+                    published: exp.published
+                }))
             });
-            const mapAct = (e: any) => ({
-                mentor_id: mentorId,
-                avatar: normalizeString(e.avatar),
-                organization: normalizeString(e.organization),
-                role: normalizeString(e.role),
-                activity_name: normalizeString(e.activity_name),
-                start_date: normalizeDate(e.start_date),
-                end_date: normalizeDate(e.end_date),
-                description: normalizeDescArray(e.description),
-                published: !!e.published,
+            if (expError) throw expError;
+
+            // Save educations
+            const { error: eduError } = await supabase.rpc('mentor_admin_save_educations', {
+                p_mentor_id: mentorId,
+                p_educations: formData.educations.map(edu => ({
+                    avatar: edu.avatar?.trim() || null,
+                    school: edu.school?.trim() || '',
+                    degree: edu.degree?.trim() || '',
+                    start_date: edu.start_date?.trim() || null,
+                    end_date: edu.end_date?.trim() || null,
+                    description: edu.description.filter(d => d.trim() !== ''),
+                    published: edu.published
+                }))
             });
+            if (eduError) throw eduError;
 
-            // 3) Work experiences
-            if (editingMentor) {
-                const { error } = await supabase.from('mentor_work_experiences')
-                    .delete().eq('mentor_id', mentorId);
-                if (error) {
-                    const p = logSbError('delete mentor_work_experiences', error);
-                    showNotification?.('error', `Lỗi xóa Work Experiences cũ: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-            if (formData.work_experiences?.length) {
-                const rows = formData.work_experiences.map(mapExp);
-                const { error } = await supabase.from('mentor_work_experiences').insert(rows);
-                if (error) {
-                    const p = logSbError('insert mentor_work_experiences', error);
-                    showNotification?.('error', `Lỗi lưu Work Experiences: ${p.message || p.raw}`);
-                    return;
-                }
-            }
+            // Save activities
+            const { error: actError } = await supabase.rpc('mentor_admin_save_activities', {
+                p_mentor_id: mentorId,
+                p_activities: formData.activities.map(act => ({
+                    avatar: act.avatar?.trim() || null,
+                    organization: act.organization?.trim() || '',
+                    role: act.role?.trim() || '',
+                    activity_name: act.activity_name?.trim() || '',
+                    start_date: act.start_date?.trim() || null,
+                    end_date: act.end_date?.trim() || null,
+                    description: act.description.filter(d => d.trim() !== ''),
+                    published: act.published
+                }))
+            });
+            if (actError) throw actError;
 
-            // 4) Educations
-            if (editingMentor) {
-                const { error } = await supabase.from('mentor_educations')
-                    .delete().eq('mentor_id', mentorId);
-                if (error) {
-                    const p = logSbError('delete mentor_educations', error);
-                    showNotification?.('error', `Lỗi xóa Educations cũ: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-            if (formData.educations?.length) {
-                const rows = formData.educations.map(mapEdu);
-                const { error } = await supabase.from('mentor_educations').insert(rows);
-                if (error) {
-                    const p = logSbError('insert mentor_educations', error);
-                    showNotification?.('error', `Lỗi lưu Educations: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-
-            // 5) Activities
-            if (editingMentor) {
-                const { error } = await supabase.from('mentor_activities')
-                    .delete().eq('mentor_id', mentorId);
-                if (error) {
-                    const p = logSbError('delete mentor_activities', error);
-                    showNotification?.('error', `Lỗi xóa Activities cũ: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-            if (formData.activities?.length) {
-                const rows = formData.activities.map(mapAct);
-                const { error } = await supabase.from('mentor_activities').insert(rows);
-                if (error) {
-                    const p = logSbError('insert mentor_activities', error);
-                    showNotification?.('error', `Lỗi lưu Activities: ${p.message || p.raw}`);
-                    return;
-                }
-            }
-
-            // Done
             resetForm();
             await loadMentors();
-            showNotification?.('success', `Mentor đã được ${editingMentor ? 'cập nhật' : 'tạo'} thành công`);
+            showNotification('success', `Mentor đã được ${editingMentor ? 'cập nhật' : 'tạo'} thành công`);
         } catch (err: any) {
-            const p = logSbError('saveMentor outer', err);
-            showNotification?.('error', `Lỗi khi lưu mentor: ${p.message || p.raw}`);
+            console.error('Error saving mentor:', err);
+            showNotification('error', `Lỗi khi lưu mentor: ${err.message}`);
         } finally {
             setUploading(false);
         }
     };
 
 
-    // Delete mentor
+    // Delete mentor using RPC
     const deleteMentor = async (mentorId: string) => {
         if (!confirm('Bạn có chắc chắn muốn xóa mentor này? Hành động này sẽ xóa tất cả dữ liệu liên quan.')) return;
 
         try {
-            const mentor = mentors.find(m => m.id === mentorId);
-            const profileId = mentor?.profile_connection?.profile_id;
-
-            // Update user role back to user if connected
-            if (profileId) {
-                try {
-                    await supabase.auth.admin.updateUserById(
-                        profileId,
-                        {
-                            user_metadata: { role: 'user' }
-                        }
-                    );
-                } catch (roleErr) {
-                    console.warn('Failed to update user role:', roleErr);
-                }
-            }
-
-            const { error } = await supabase
-                .from('mentors')
-                .delete()
-                .eq('id', mentorId);
+            const { error } = await supabase.rpc('mentor_admin_delete_mentor', {
+                p_mentor_id: mentorId
+            });
 
             if (error) throw error;
 
@@ -707,9 +391,10 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         }
     };
 
-    // Toggle publish status
+    // Toggle publish status using RPC
     const togglePublishStatus = async (mentorId: string, currentStatus: boolean) => {
         try {
+            // We can use the update RPC, just passing the publish status
             const { error } = await supabase
                 .from('mentors')
                 .update({ published: !currentStatus })
@@ -781,7 +466,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         return matchesSearch && matchesPublished && matchesConnection;
     });
 
-    // Search users with debounce
+    // Search users with RPC
     const searchUsers = async (searchTerm: string, page: number = 1, reset: boolean = true) => {
         if (!searchTerm.trim()) {
             if (reset) {
@@ -794,81 +479,23 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         try {
             setSearchingUsers(true);
 
-            // Tạo RPC function mới để search users với pagination và role filtering
-            const { data: searchResults, error: searchError } = await supabase
-                .rpc('search_user_role_profiles', {
-                    search_term: searchTerm.trim(),
-                    page_number: page,
-                    page_size: 10
-                });
+            const { data, error } = await supabase.rpc('mentor_admin_search_user_profiles', {
+                search_term: searchTerm.trim(),
+                page_number: page,
+                page_size: 10
+            });
 
-            if (searchError) {
-                console.warn('Search RPC error, using fallback search:', searchError);
+            if (error) throw error;
 
-                // FIXED FALLBACK: Sử dụng RPC get_user_role_profiles thay vì query trực tiếp
-                const { data: userRoleProfiles, error: userRoleError } = await supabase
-                    .rpc('get_user_role_profiles');
-
-                if (userRoleError) {
-                    console.error('Fallback RPC also failed:', userRoleError);
-                    setSearchedUsers([]);
-                    setHasMoreUsers(false);
-                    showNotification('error', 'Không thể tải danh sách users. Vui lòng kiểm tra RPC functions.');
-                    return;
-                }
-
-                // Filter results based on search term (client-side filtering as fallback)
-                const filteredProfiles = (userRoleProfiles ?? []).filter(
-                    (profile: { full_name?: string; email?: string; phone_number?: string }) =>
-                        profile.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        profile.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        profile.phone_number?.includes(searchTerm)
-                );
-
-
-                // Simple pagination on client side for fallback
-                const startIndex = (page - 1) * 10;
-                const endIndex = startIndex + 10;
-                const paginatedResults = filteredProfiles.slice(startIndex, endIndex);
-
-                const profilesWithAuthEmail = paginatedResults.map(
-                    (profile: { email?: string } & Record<string, unknown>) => ({
-                        ...profile,
-                        auth_email: profile.email ?? ''
-                    })
-                );
-
-
-                if (reset) {
-                    setSearchedUsers(profilesWithAuthEmail);
-                } else {
-                    setSearchedUsers(prev => [...prev, ...profilesWithAuthEmail]);
-                }
-
-                setHasMoreUsers(endIndex < filteredProfiles.length);
-                showNotification('warning', 'Sử dụng tìm kiếm fallback. Vui lòng tạo RPC function search_user_role_profiles.');
-                return;
-            }
-
-            const results = searchResults?.results || [];
-            const totalCount = searchResults?.total_count || 0;
-
-            // Ensure results have auth_email field
-            const resultsWithAuthEmail = (results ?? []).map(
-                (result: { email?: string } & Record<string, unknown>) => ({
-                    ...result,
-                    auth_email: result.email ?? ''
-                })
-            );
-
+            const results = data?.[0]?.results || [];
+            const totalCount = data?.[0]?.total_count || 0;
 
             if (reset) {
-                setSearchedUsers(resultsWithAuthEmail);
+                setSearchedUsers(results);
             } else {
-                setSearchedUsers(prev => [...prev, ...resultsWithAuthEmail]);
+                setSearchedUsers(prev => [...prev, ...results]);
             }
 
-            // Check if có thêm data để load
             setHasMoreUsers((page * 10) < totalCount);
 
         } catch (error) {
@@ -915,32 +542,6 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         return searchedUsers.filter(p => !connectedProfileIds.includes(p.id));
     };
 
-    // Chuẩn hoá ngày '' -> null, trim chuỗi, description đảm bảo là string[]
-    const normalizeDate = (d?: string | null) => (d && d.trim() !== '' ? d : null);
-    const normalizeString = (s?: string | null) => (s && s.trim() !== '' ? s.trim() : null);
-    const normalizeDescArray = (arr?: string[] | null) =>
-        Array.isArray(arr) ? arr.filter(x => !!x && x.trim() !== '') : [];
-
-    // Log lỗi Supabase thật chi tiết
-    const logSbError = (label: string, err: any) => {
-        // Supabase error thường có các field này
-        const payload = {
-            label,
-            code: err?.code,
-            message: err?.message,
-            details: err?.details,
-            hint: err?.hint,
-            status: err?.status,
-            // fallback stringify toàn bộ object
-            raw: (() => {
-                try { return JSON.stringify(err); } catch { return String(err); }
-            })(),
-        };
-        console.error('SB_ERROR', payload);
-        return payload;
-    };
-
-
     // ===== Helpers: add row =====
     const addWorkExperience = () => {
         setFormData(prev => ({
@@ -950,8 +551,8 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                 {
                     company: '',
                     position: '',
-                    start_date: '',
-                    end_date: '',
+                    start_date: undefined, // Can be empty
+                    end_date: undefined, // Can be empty
                     description: [''],
                     published: true,
                     avatar: ''
@@ -968,8 +569,8 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                 {
                     school: '',
                     degree: '',
-                    start_date: '',
-                    end_date: '',
+                    start_date: undefined, // Can be empty
+                    end_date: undefined, // Can be empty
                     description: [''],
                     published: true,
                     avatar: ''
@@ -987,8 +588,8 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                     organization: '',
                     role: '',
                     activity_name: '',
-                    start_date: '',
-                    end_date: '',
+                    start_date: undefined, // Can be empty
+                    end_date: undefined, // Can be empty
                     description: [''],
                     published: true,
                     avatar: ''
@@ -997,7 +598,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
         }));
     };
 
-// ===== Helpers: upload image per row =====
+    // ===== Helpers: upload image per row =====
     const handleWorkExperienceImageUpload = async (index: number, file: File) => {
         try {
             const url = await uploadImage(file, `work_${index}`);
@@ -1678,10 +1279,10 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                     </label>
                                                     <input
                                                         type="date"
-                                                        value={exp.start_date}
+                                                        value={exp.start_date || ''}
                                                         onChange={(e) => {
                                                             const newExps = [...formData.work_experiences];
-                                                            newExps[index].start_date = e.target.value;
+                                                            newExps[index].start_date = e.target.value || undefined;
                                                             setFormData(prev => ({ ...prev, work_experiences: newExps }));
                                                         }}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -1745,7 +1346,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                             </button>
                                                         </div>
                                                     )}
-                                                    {uploadingStates[`work-exp-${index}`] && (
+                                                    {uploadingStates[`work_${index}`] && (
                                                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                                     )}
                                                 </div>
@@ -1894,10 +1495,10 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                     </label>
                                                     <input
                                                         type="date"
-                                                        value={edu.start_date}
+                                                        value={edu.start_date || ''}
                                                         onChange={(e) => {
                                                             const newEdus = [...formData.educations];
-                                                            newEdus[index].start_date = e.target.value;
+                                                            newEdus[index].start_date = e.target.value || undefined;
                                                             setFormData(prev => ({ ...prev, educations: newEdus }));
                                                         }}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -1961,7 +1562,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                             </button>
                                                         </div>
                                                     )}
-                                                    {uploadingStates[`education-${index}`] && (
+                                                    {uploadingStates[`edu_${index}`] && (
                                                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                                     )}
                                                 </div>
@@ -2127,10 +1728,10 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                     </label>
                                                     <input
                                                         type="date"
-                                                        value={activity.start_date}
+                                                        value={activity.start_date || ''}
                                                         onChange={(e) => {
                                                             const newActivities = [...formData.activities];
-                                                            newActivities[index].start_date = e.target.value;
+                                                            newActivities[index].start_date = e.target.value || undefined;
                                                             setFormData(prev => ({ ...prev, activities: newActivities }));
                                                         }}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -2194,7 +1795,7 @@ const MentorListTab: React.FC<MentorListTabProps> = ({
                                                             </button>
                                                         </div>
                                                     )}
-                                                    {uploadingStates[`activity-${index}`] && (
+                                                    {uploadingStates[`act_${index}`] && (
                                                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                                                     )}
                                                 </div>

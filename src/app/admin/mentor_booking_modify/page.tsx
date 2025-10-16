@@ -273,7 +273,7 @@ const AdminMentorBookingPage = () => {
                             >
                                 <div className="flex items-center gap-2">
                                     <BarChart3 className="w-4 h-4" />
-                                    Quản lý Đăng ký Events
+                                    Quản lý Events
                                 </div>
                             </button>
                         </nav>
