@@ -9,7 +9,6 @@ import {
     Clock,
     Users,
     User,
-    Phone,
     Mail,
     AlertCircle,
     CheckCircle,
@@ -20,79 +19,31 @@ import {
     Coffee,
     MapPin,
     Eye,
-    EyeOff,
-    Filter,
     Search,
     X,
     Send,
     Save,
     RefreshCw,
     GraduationCap,
-    Building,
     Globe
 } from 'lucide-react';
 import Image from 'next/image';
-
-// Interfaces
-interface UserProfile {
-    id: string;
-    full_name: string;
-    image_url?: string;
-    phone_number?: string;
-    birthdate?: string;
-    gender?: string;
-}
-
-interface SubProfile {
-    id: string;
-    cv?: string;
-    linkedin_url?: string;
-    github_url?: string;
-    portfolio_url?: string;
-    description?: string;
-    university_majors?: {
-        universities?: {
-            name: string;
-            code: string;
-        };
-        majors?: {
-            name: string;
-        };
-    };
-}
-
-interface MentorBooking {
-    id: string;
-    user_id: string;
-    mentor_id: string;
-    scheduled_date?: string;
-    duration: number;
-    session_type: 'online' | 'offline' | 'hybrid';
-    contact_email: string;
-    contact_phone?: string;
-    user_notes?: string;
-    mentor_notes?: string;
-    admin_notes?: string;
-    status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
-    created_at: string;
-    updated_at: string;
-    completed_at?: string;
-    profiles?: UserProfile & {
-        sub_profiles?: SubProfile;
-    };
-}
+import type {
+    MentorBooking,
+    MentorProfile,
+    Notification
+} from '@/types/mentor_booking_mentor';
 
 const BookingMentorPage = () => {
     const { user } = useAuthStore();
     const [bookings, setBookings] = useState<MentorBooking[]>([]);
     const [loading, setLoading] = useState(true);
-    const [mentorProfile, setMentorProfile] = useState<any>(null);
+    const [mentorProfile, setMentorProfile] = useState<MentorProfile | null>(null);
 
-    // Filter and search states
+    // Filter states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sessionTypeFilter, setSessionTypeFilter] = useState<string>('all');
-    const [currentPage, setCurrentPage] = useState(1);
 
     // Modal states
     const [selectedBooking, setSelectedBooking] = useState<MentorBooking | null>(null);
@@ -105,32 +56,29 @@ const BookingMentorPage = () => {
     const [mentorNotes, setMentorNotes] = useState('');
     const [newScheduledDate, setNewScheduledDate] = useState('');
 
-    const [notification, setNotification] = useState<{
-        type: 'success' | 'error' | 'warning';
-        message: string;
-    } | null>(null);
+    const [notification, setNotification] = useState<Notification | null>(null);
 
     useEffect(() => {
         if (user) {
             loadMentorProfile();
-            loadBookings();
         }
     }, [user]);
 
     useEffect(() => {
-        const isAnyModalOpen = showDetailModal || showStatusModal || showNotesModal;
+        if (mentorProfile?.id) {
+            loadBookings();
+        }
+    }, [mentorProfile]);
 
+    useEffect(() => {
+        const isAnyModalOpen = showDetailModal || showStatusModal || showNotesModal;
         if (isAnyModalOpen) {
-            // Lock body scroll khi modal mở
             document.body.style.overflow = 'hidden';
             document.body.style.paddingRight = '15px';
         } else {
-            // Unlock body scroll khi modal đóng
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
         }
-
-        // Cleanup khi component unmount
         return () => {
             document.body.style.overflow = 'unset';
             document.body.style.paddingRight = '0px';
@@ -140,13 +88,14 @@ const BookingMentorPage = () => {
     const loadMentorProfile = async () => {
         try {
             const { data, error } = await supabase
-                .from('mentors')
-                .select('*')
-                .eq('email', user?.email)
-                .single();
+                .rpc('mentor_booking_mentor_s_get_mentor_id', {
+                    p_mentor_email: user?.email
+                });
 
             if (error) throw error;
-            setMentorProfile(data);
+            if (data && data.length > 0) {
+                setMentorProfile({ id: data[0].mentor_id } as MentorProfile);
+            }
         } catch (error) {
             console.error('Error loading mentor profile:', error);
             showNotification('error', 'Không thể tải thông tin mentor');
@@ -154,53 +103,62 @@ const BookingMentorPage = () => {
     };
 
     const loadBookings = async () => {
+        if (!mentorProfile?.id) return;
+
         try {
             setLoading(true);
-
-            // First get mentor profile to get mentor_id
-            const { data: mentorData, error: mentorError } = await supabase
-                .from('mentors')
-                .select('id')
-                .eq('email', user?.email)
-                .single();
-
-            if (mentorError) throw mentorError;
-
             const { data, error } = await supabase
-                .from('mentor_bookings')
-                .select(`
-                    *,
-                    profiles (
-                        id,
-                        full_name,
-                        image_url,
-                        phone_number,
-                        birthdate,
-                        gender,
-                        sub_profiles (
-                            id,
-                            cv,
-                            linkedin_url,
-                            github_url,
-                            portfolio_url,
-                            description,
-                            university_majors (
-                                universities (
-                                    name,
-                                    code
-                                ),
-                                majors (
-                                    name
-                                )
-                            )
-                        )
-                    )
-                `)
-                .eq('mentor_id', mentorData.id)
-                .order('created_at', { ascending: false });
+                .rpc('mentor_booking_mentor_s_get_bookings', {
+                    p_mentor_id: mentorProfile.id
+                });
 
             if (error) throw error;
-            setBookings(data || []);
+
+            // Transform flat data to nested structure
+            const transformedBookings: MentorBooking[] = (data || []).map((row: any) => ({
+                id: row.booking_id,
+                user_id: row.user_id,
+                mentor_id: row.mentor_id,
+                scheduled_date: row.scheduled_date,
+                duration: row.duration,
+                session_type: row.session_type,
+                contact_email: row.contact_email,
+                contact_phone: row.contact_phone,
+                user_notes: row.user_notes,
+                mentor_notes: row.mentor_notes,
+                admin_notes: row.admin_notes,
+                status: row.status,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                completed_at: row.completed_at,
+                profiles: row.profile_id ? {
+                    id: row.profile_id,
+                    full_name: row.full_name,
+                    image_url: row.image_url,
+                    phone_number: row.phone_number,
+                    birthdate: row.birthdate,
+                    gender: row.gender,
+                    sub_profiles: row.sub_profile_id ? {
+                        id: row.sub_profile_id,
+                        cv: row.cv,
+                        linkedin_url: row.linkedin_url,
+                        github_url: row.github_url,
+                        portfolio_url: row.portfolio_url,
+                        description: row.description,
+                        university_majors: (row.university_name || row.major_name) ? {
+                            universities: row.university_name ? {
+                                name: row.university_name,
+                                code: row.university_code
+                            } : undefined,
+                            majors: row.major_name ? {
+                                name: row.major_name
+                            } : undefined
+                        } : undefined
+                    } : undefined
+                } : undefined
+            }));
+
+            setBookings(transformedBookings);
         } catch (error) {
             console.error('Error loading bookings:', error);
             showNotification('error', 'Không thể tải danh sách đặt lịch');
@@ -219,30 +177,25 @@ const BookingMentorPage = () => {
         if (!selectedBooking || !newStatus) return;
 
         try {
-            const updateData: any = {
-                status: newStatus,
-                updated_at: new Date().toISOString()
-            };
-
-            if (newStatus === 'confirmed' && newScheduledDate) {
-                updateData.scheduled_date = new Date(newScheduledDate).toISOString();
-            }
-
-            if (newStatus === 'completed') {
-                updateData.completed_at = new Date().toISOString();
-            }
-
-            const { error } = await supabase
-                .from('mentor_bookings')
-                .update(updateData)
-                .eq('id', selectedBooking.id);
+            const { data, error } = await supabase
+                .rpc('mentor_booking_mentor_s_update_status', {
+                    p_booking_id: selectedBooking.id,
+                    p_new_status: newStatus,
+                    p_scheduled_date: newStatus === 'confirmed' && newScheduledDate
+                        ? new Date(newScheduledDate).toISOString()
+                        : null
+                });
 
             if (error) throw error;
 
-            showNotification('success', 'Cập nhật trạng thái thành công');
-            loadBookings();
-            setShowStatusModal(false);
-            resetModalStates();
+            if (data && data[0]?.success) {
+                showNotification('success', data[0].message);
+                loadBookings();
+                setShowStatusModal(false);
+                resetModalStates();
+            } else {
+                showNotification('error', data?.[0]?.message || 'Lỗi khi cập nhật');
+            }
         } catch (error) {
             console.error('Error updating booking status:', error);
             showNotification('error', 'Lỗi khi cập nhật trạng thái');
@@ -253,20 +206,22 @@ const BookingMentorPage = () => {
         if (!selectedBooking) return;
 
         try {
-            const { error } = await supabase
-                .from('mentor_bookings')
-                .update({
-                    mentor_notes: mentorNotes,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', selectedBooking.id);
+            const { data, error } = await supabase
+                .rpc('mentor_booking_mentor_s_update_notes', {
+                    p_booking_id: selectedBooking.id,
+                    p_new_mentor_notes: mentorNotes
+                });
 
             if (error) throw error;
 
-            showNotification('success', 'Cập nhật ghi chú thành công');
-            loadBookings();
-            setShowNotesModal(false);
-            resetModalStates();
+            if (data && data[0]?.success) {
+                showNotification('success', data[0].message);
+                loadBookings();
+                setShowNotesModal(false);
+                resetModalStates();
+            } else {
+                showNotification('error', data?.[0]?.message || 'Lỗi khi cập nhật');
+            }
         } catch (error) {
             console.error('Error updating notes:', error);
             showNotification('error', 'Lỗi khi cập nhật ghi chú');
@@ -299,7 +254,7 @@ const BookingMentorPage = () => {
         setShowDetailModal(true);
     };
 
-    // Filter bookings based on search and filters
+    // Filter bookings
     const filteredBookings = bookings.filter(booking => {
         const matchesSearch = searchTerm === '' ||
             booking.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -325,11 +280,11 @@ const BookingMentorPage = () => {
 
     const getStatusIcon = (status: string) => {
         switch (status) {
-            case 'pending': return <Clock className="w-4 h-4" />;
-            case 'confirmed': return <CheckCircle className="w-4 h-4" />;
-            case 'completed': return <CheckCircle className="w-4 h-4" />;
-            case 'cancelled': return <XCircle className="w-4 h-4" />;
-            default: return <AlertCircle className="w-4 h-4" />;
+            case 'pending': return <Clock className="w-4 h-4 sm:w-5 sm:h-5" />;
+            case 'confirmed': return <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />;
+            case 'completed': return <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />;
+            case 'cancelled': return <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />;
+            default: return <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />;
         }
     };
 
@@ -345,10 +300,10 @@ const BookingMentorPage = () => {
 
     const getSessionTypeIcon = (type: string) => {
         switch (type) {
-            case 'online': return <Video className="w-4 h-4" />;
-            case 'offline': return <Coffee className="w-4 h-4" />;
-            case 'hybrid': return <MapPin className="w-4 h-4" />;
-            default: return <Video className="w-4 h-4" />;
+            case 'online': return <Video className="w-5 h-5" />;
+            case 'offline': return <Coffee className="w-5 h-5" />;
+            case 'hybrid': return <MapPin className="w-5 h-5" />;
+            default: return <Video className="w-5 h-5" />;
         }
     };
 
@@ -387,46 +342,46 @@ const BookingMentorPage = () => {
         <div className="min-h-screen bg-gray-50 py-4 sm:py-8 px-4 sm:px-6 lg:px-8">
             {/* Notification */}
             {notification && (
-                <div className={`fixed top-4 right-4 z-50 p-3 sm:p-4 rounded-lg shadow-lg max-w-sm ${
+                <div className={`fixed top-4 right-4 left-4 sm:left-auto z-50 p-4 rounded-lg shadow-lg max-w-sm ${
                     notification.type === 'success' ? 'bg-green-100 text-green-800' :
                         notification.type === 'error' ? 'bg-red-100 text-red-800' :
                             'bg-yellow-100 text-yellow-800'
                 }`}>
-                    <div className="flex items-start">
-                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />}
-                        {notification.type === 'error' && <XCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />}
-                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />}
+                    <div className="flex items-start gap-2">
+                        {notification.type === 'success' && <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                        {notification.type === 'error' && <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
+                        {notification.type === 'warning' && <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
                         <span className="text-sm flex-1">{notification.message}</span>
                         <button
                             onClick={() => setNotification(null)}
-                            className="ml-2 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                            className="text-gray-500 hover:text-gray-700 flex-shrink-0"
                         >
-                            <X className="w-4 h-4" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
             )}
 
             <div className="max-w-7xl mx-auto">
-                <div className="text-center">
+                <div className="text-center mb-6 sm:mb-8">
                     <SectionHeader
                         title="QUẢN LÝ BOOKING"
                         subtitle="Quản lý các lịch đặt tư vấn từ học viên"
                     />
                 </div>
 
-                {/* Filters */}
-                <div className="mb-8 bg-white rounded-xl shadow-sm p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Filters - Mobile Optimized */}
+                <div className="mb-6 bg-white rounded-xl shadow-sm p-4 sm:p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         {/* Search */}
-                        <div className="relative">
+                        <div className="relative sm:col-span-2 lg:col-span-1">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                                 type="text"
-                                placeholder="Tìm kiếm theo tên, email..."
+                                placeholder="Tìm kiếm..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full pl-10 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
 
@@ -434,7 +389,7 @@ const BookingMentorPage = () => {
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            className="px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="all">Tất cả trạng thái</option>
                             <option value="pending">Chờ xác nhận</option>
@@ -447,7 +402,7 @@ const BookingMentorPage = () => {
                         <select
                             value={sessionTypeFilter}
                             onChange={(e) => setSessionTypeFilter(e.target.value)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            className="px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="all">Tất cả hình thức</option>
                             <option value="online">Online</option>
@@ -455,18 +410,17 @@ const BookingMentorPage = () => {
                             <option value="hybrid">Hybrid</option>
                         </select>
 
-                        {/* Reset Filters */}
+                        {/* Reset Button */}
                         <button
                             onClick={() => {
                                 setSearchTerm('');
                                 setStatusFilter('all');
                                 setSessionTypeFilter('all');
-                                setCurrentPage(1);
                             }}
-                            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2"
+                            className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 active:bg-gray-700 flex items-center justify-center gap-2 font-medium transition-colors"
                         >
-                            <RefreshCw className="w-4 h-4" />
-                            Xóa bộ lọc
+                            <RefreshCw className="w-5 h-5" />
+                            <span>Xóa bộ lọc</span>
                         </button>
                     </div>
                 </div>
@@ -474,17 +428,17 @@ const BookingMentorPage = () => {
                 {/* Bookings List */}
                 <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                     {loading ? (
-                        <div className="p-8 text-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                            <p className="mt-2 text-gray-600 text-sm sm:text-base">Đang tải...</p>
+                        <div className="p-12 text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="mt-4 text-gray-600">Đang tải...</p>
                         </div>
                     ) : filteredBookings.length === 0 ? (
-                        <div className="p-6 sm:p-8 text-center">
-                            <Users className="w-10 sm:w-12 h-10 sm:h-12 text-gray-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        <div className="p-12 text-center">
+                            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">
                                 {bookings.length === 0 ? 'Chưa có booking nào' : 'Không tìm thấy booking'}
                             </h3>
-                            <p className="text-gray-600 text-sm sm:text-base">
+                            <p className="text-gray-600">
                                 {bookings.length === 0
                                     ? 'Chưa có học viên nào đặt lịch tư vấn với bạn.'
                                     : 'Không có booking nào khớp với tiêu chí tìm kiếm.'
@@ -494,103 +448,78 @@ const BookingMentorPage = () => {
                     ) : (
                         <div className="divide-y divide-gray-200">
                             {filteredBookings.map((booking) => (
-                                <div key={booking.id} className="p-4 sm:p-6">
+                                <div key={booking.id} className="p-5 sm:p-6 hover:bg-gray-50 transition-colors">
                                     <div className="space-y-4">
-                                        {/* Header - Mobile Stacked */}
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                            <div className="flex items-center gap-3">
-                                                {booking.profiles?.image_url ? (
-                                                    <Image
-                                                        src={booking.profiles.image_url}
-                                                        alt={booking.profiles.full_name}
-                                                        width={40}
-                                                        height={40}
-                                                        className="rounded-full object-cover flex-shrink-0"
-                                                    />
-                                                ) : (
-                                                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                                        <User className="w-5 h-5 text-gray-400" />
-                                                    </div>
-                                                )}
-                                                <div className="min-w-0 flex-1">
-                                                    <h4 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
-                                                        {booking.profiles?.full_name || 'Người dùng ẩn danh'}
-                                                    </h4>
-                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                                                        <p className="text-xs sm:text-sm text-gray-600">
-                                                            Đặt: {new Date(booking.created_at).toLocaleDateString('vi-VN')}
-                                                        </p>
-                                                        {/* University info */}
-                                                        {booking.profiles?.sub_profiles?.university_majors && (
-                                                            <div className="flex items-center gap-1 text-xs text-blue-600">
-                                                                <GraduationCap className="w-3 h-3" />
-                                                                <span className="truncate">
-                                                                    {booking.profiles.sub_profiles.university_majors.universities?.name ||
-                                                                        booking.profiles.sub_profiles.university_majors.majors?.name}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                        {/* Header */}
+                                        <div className="flex items-start gap-3">
+                                            {booking.profiles?.image_url ? (
+                                                <Image
+                                                    src={booking.profiles.image_url}
+                                                    alt={booking.profiles.full_name}
+                                                    width={56}
+                                                    height={56}
+                                                    className="rounded-full object-cover flex-shrink-0"
+                                                />
+                                            ) : (
+                                                <div className="w-14 h-14 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                                    <User className="w-7 h-7 text-gray-400" />
                                                 </div>
-                                            </div>
-                                            <span className={`self-start sm:self-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex items-center gap-1 whitespace-nowrap ${getStatusColor(booking.status)}`}>
-                                                {getStatusIcon(booking.status)}
-                                                <span className="hidden sm:inline">{getStatusText(booking.status)}</span>
-                                                <span className="sm:hidden">
-                                                    {booking.status === 'pending' && 'Chờ'}
-                                                    {booking.status === 'confirmed' && 'OK'}
-                                                    {booking.status === 'completed' && 'Xong'}
-                                                    {booking.status === 'cancelled' && 'Hủy'}
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-lg font-semibold text-gray-900 mb-1">
+                                                    {booking.profiles?.full_name || 'Người dùng ẩn danh'}
+                                                </h4>
+                                                <p className="text-sm text-gray-600 mb-2">
+                                                    Đặt: {new Date(booking.created_at).toLocaleDateString('vi-VN')}
+                                                </p>
+                                                <span className={`inline-flex px-3 py-1.5 rounded-full text-sm font-medium items-center gap-1.5 ${getStatusColor(booking.status)}`}>
+                                                    {getStatusIcon(booking.status)}
+                                                    <span>{getStatusText(booking.status)}</span>
                                                 </span>
-                                            </span>
+                                            </div>
                                         </div>
 
-                                        {/* Info Grid - Mobile Stacked */}
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 text-xs sm:text-sm">
+                                        {/* Info Grid */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm bg-gray-50 p-4 rounded-lg">
                                             <div className="flex items-center gap-2">
-                                                <Calendar className="w-3 sm:w-4 h-3 sm:h-4 text-gray-400 flex-shrink-0" />
-                                                <span className="min-w-0">
-                                                    <strong className="hidden sm:inline">Thời gian: </strong>
-                                                    <span className="truncate">
-                                                        {booking.scheduled_date ?
-                                                            new Date(booking.scheduled_date).toLocaleString('vi-VN', {
-                                                                day: '2-digit',
-                                                                month: '2-digit',
-                                                                hour: '2-digit',
-                                                                minute: '2-digit'
-                                                            }) :
-                                                            'Chưa xác định'
-                                                        }
-                                                    </span>
+                                                <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                                <span className="text-gray-700">
+                                                    {booking.scheduled_date ?
+                                                        new Date(booking.scheduled_date).toLocaleString('vi-VN', {
+                                                            day: '2-digit',
+                                                            month: '2-digit',
+                                                            year: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit'
+                                                        }) :
+                                                        'Chưa xác định'
+                                                    }
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Clock className="w-3 sm:w-4 h-3 sm:h-4 text-gray-400 flex-shrink-0" />
-                                                <span><strong className="hidden sm:inline">Thời lượng: </strong>{booking.duration}p</span>
+                                                <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                                <span className="text-gray-700">{booking.duration} phút</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 {getSessionTypeIcon(booking.session_type)}
-                                                <span><strong className="hidden sm:inline">Hình thức: </strong>{getSessionTypeText(booking.session_type)}</span>
+                                                <span className="text-gray-700">{getSessionTypeText(booking.session_type)}</span>
                                             </div>
                                             <div className="flex items-center gap-2 min-w-0">
-                                                <Mail className="w-3 sm:w-4 h-3 sm:h-4 text-gray-400 flex-shrink-0" />
-                                                <span className="truncate">
-                                                    <strong className="hidden sm:inline">Email: </strong>
-                                                    <span className="sm:hidden">@</span>{booking.contact_email}
-                                                </span>
+                                                <Mail className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                                <span className="text-gray-700 truncate">{booking.contact_email}</span>
                                             </div>
                                         </div>
 
-                                        {/* Additional Student Info */}
+                                        {/* Student Info */}
                                         {booking.profiles?.sub_profiles && (
-                                            <div className="bg-blue-50 rounded-lg p-3">
-                                                <div className="text-xs sm:text-sm">
-                                                    <strong className="text-blue-800">Thông tin học viên:</strong>
-                                                    <div className="mt-1 space-y-1 text-blue-700">
+                                            <div className="bg-blue-50 rounded-lg p-4">
+                                                <div className="text-sm">
+                                                    <strong className="text-blue-800 block mb-2">Thông tin học viên:</strong>
+                                                    <div className="space-y-2 text-blue-700">
                                                         {booking.profiles.sub_profiles.university_majors && (
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <GraduationCap className="w-3 h-3 flex-shrink-0" />
-                                                                <span className="text-xs">
+                                                            <div className="flex items-center gap-2">
+                                                                <GraduationCap className="w-4 h-4 flex-shrink-0" />
+                                                                <span className="text-sm">
                                                                     {booking.profiles.sub_profiles.university_majors.universities?.name}
                                                                     {booking.profiles.sub_profiles.university_majors.majors?.name &&
                                                                         ` - ${booking.profiles.sub_profiles.university_majors.majors.name}`
@@ -599,28 +528,31 @@ const BookingMentorPage = () => {
                                                             </div>
                                                         )}
                                                         {booking.profiles.sub_profiles.description && (
-                                                            <p className="text-xs line-clamp-2">{booking.profiles.sub_profiles.description}</p>
+                                                            <p className="text-sm line-clamp-2">{booking.profiles.sub_profiles.description}</p>
                                                         )}
-                                                        <div className="flex gap-2 flex-wrap">
+                                                        <div className="flex gap-3 flex-wrap">
                                                             {booking.profiles.sub_profiles.linkedin_url && (
                                                                 <a href={booking.profiles.sub_profiles.linkedin_url}
                                                                    target="_blank"
-                                                                   className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                                                                    <Globe className="w-3 h-3" />LinkedIn
+                                                                   rel="noopener noreferrer"
+                                                                   className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                                                                    <Globe className="w-4 h-4" />LinkedIn
                                                                 </a>
                                                             )}
                                                             {booking.profiles.sub_profiles.github_url && (
                                                                 <a href={booking.profiles.sub_profiles.github_url}
                                                                    target="_blank"
-                                                                   className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                                                                    <Globe className="w-3 h-3" />GitHub
+                                                                   rel="noopener noreferrer"
+                                                                   className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                                                                    <Globe className="w-4 h-4" />GitHub
                                                                 </a>
                                                             )}
                                                             {booking.profiles.sub_profiles.portfolio_url && (
                                                                 <a href={booking.profiles.sub_profiles.portfolio_url}
                                                                    target="_blank"
-                                                                   className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                                                                    <Globe className="w-3 h-3" />Portfolio
+                                                                   rel="noopener noreferrer"
+                                                                   className="text-sm text-blue-600 hover:underline flex items-center gap-1">
+                                                                    <Globe className="w-4 h-4" />Portfolio
                                                                 </a>
                                                             )}
                                                         </div>
@@ -631,52 +563,47 @@ const BookingMentorPage = () => {
 
                                         {/* Notes */}
                                         {booking.user_notes && (
-                                            <div className="bg-blue-50 rounded-lg p-3">
-                                                <strong className="text-xs sm:text-sm text-blue-800">Ghi chú từ học viên:</strong>
-                                                <p className="text-xs sm:text-sm text-blue-700 mt-1 line-clamp-3">{booking.user_notes}</p>
+                                            <div className="bg-yellow-50 rounded-lg p-4">
+                                                <strong className="text-sm text-yellow-800 block mb-1">Ghi chú từ học viên:</strong>
+                                                <p className="text-sm text-yellow-700 line-clamp-3">{booking.user_notes}</p>
                                             </div>
                                         )}
 
                                         {booking.mentor_notes && (
-                                            <div className="bg-green-50 rounded-lg p-3">
-                                                <strong className="text-xs sm:text-sm text-green-800">Ghi chú của bạn:</strong>
-                                                <p className="text-xs sm:text-sm text-green-700 mt-1 line-clamp-3">{booking.mentor_notes}</p>
+                                            <div className="bg-green-50 rounded-lg p-4">
+                                                <strong className="text-sm text-green-800 block mb-1">Ghi chú của bạn:</strong>
+                                                <p className="text-sm text-green-700 line-clamp-3">{booking.mentor_notes}</p>
                                             </div>
                                         )}
 
-                                        {/* Action Buttons - Mobile Responsive */}
-                                        <div className="flex gap-2 pt-2 border-t border-gray-100">
+                                        {/* Action Buttons - Mobile Optimized with Larger Touch Targets */}
+                                        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-gray-200">
                                             <button
                                                 onClick={() => openDetailModal(booking)}
-                                                className="flex-1 sm:flex-none text-blue-600 hover:text-blue-900 px-3 py-2 rounded-lg hover:bg-blue-50 text-xs sm:text-sm font-medium flex items-center justify-center gap-1"
-                                                title="Xem chi tiết"
+                                                className="flex-1 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-sm"
                                             >
-                                                <Eye className="w-3 sm:w-4 h-3 sm:h-4" />
-                                                <span className="hidden sm:inline">Chi tiết</span>
+                                                <Eye className="w-5 h-5" />
+                                                <span>Chi tiết</span>
                                             </button>
 
-                                            {/* Chỉ cho phép cập nhật trạng thái nếu chưa hoàn thành */}
                                             {booking.status !== 'completed' && (
-                                                <button
-                                                    onClick={() => openStatusModal(booking)}
-                                                    className="flex-1 sm:flex-none text-green-600 hover:text-green-900 px-3 py-2 rounded-lg hover:bg-green-50 text-xs sm:text-sm font-medium flex items-center justify-center gap-1"
-                                                    title="Cập nhật trạng thái"
-                                                >
-                                                    <Edit className="w-3 sm:w-4 h-3 sm:h-4" />
-                                                    <span className="hidden sm:inline">Trạng thái</span>
-                                                </button>
-                                            )}
+                                                <>
+                                                    <button
+                                                        onClick={() => openStatusModal(booking)}
+                                                        className="flex-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                                    >
+                                                        <Edit className="w-5 h-5" />
+                                                        <span>Cập nhật</span>
+                                                    </button>
 
-                                            {/* Chỉ cho phép ghi chú nếu chưa hoàn thành */}
-                                            {booking.status !== 'completed' && (
-                                                <button
-                                                    onClick={() => openNotesModal(booking)}
-                                                    className="flex-1 sm:flex-none text-purple-600 hover:text-purple-900 px-3 py-2 rounded-lg hover:bg-purple-50 text-xs sm:text-sm font-medium flex items-center justify-center gap-1"
-                                                    title="Thêm ghi chú"
-                                                >
-                                                    <MessageSquare className="w-3 sm:w-4 h-3 sm:h-4" />
-                                                    <span className="hidden sm:inline">Ghi chú</span>
-                                                </button>
+                                                    <button
+                                                        onClick={() => openNotesModal(booking)}
+                                                        className="flex-1 bg-purple-500 hover:bg-purple-600 active:bg-purple-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                                    >
+                                                        <MessageSquare className="w-5 h-5" />
+                                                        <span>Ghi chú</span>
+                                                    </button>
+                                                </>
                                             )}
                                         </div>
                                     </div>
@@ -686,19 +613,20 @@ const BookingMentorPage = () => {
                     )}
                 </div>
 
-                {/* Summary Stats - Mobile Grid */}
-                <div className="mt-6 sm:mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+                {/* Summary Stats */}
+                <div className="mt-6 sm:mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Tổng cộng', count: bookings.length, color: 'bg-blue-100 text-blue-800' },
-                        { label: 'Chờ xác nhận', count: bookings.filter(b => b.status === 'pending').length, color: 'bg-yellow-100 text-yellow-800' },
-                        { label: 'Đã xác nhận', count: bookings.filter(b => b.status === 'confirmed').length, color: 'bg-green-100 text-green-800' },
-                        { label: 'Hoàn thành', count: bookings.filter(b => b.status === 'completed').length, color: 'bg-purple-100 text-purple-800' }
+                        { label: 'Tổng cộng', count: bookings.length, color: 'bg-blue-100 text-blue-800', icon: <Users className="w-5 h-5" /> },
+                        { label: 'Chờ xác nhận', count: bookings.filter(b => b.status === 'pending').length, color: 'bg-yellow-100 text-yellow-800', icon: <Clock className="w-5 h-5" /> },
+                        { label: 'Đã xác nhận', count: bookings.filter(b => b.status === 'confirmed').length, color: 'bg-green-100 text-green-800', icon: <CheckCircle className="w-5 h-5" /> },
+                        { label: 'Hoàn thành', count: bookings.filter(b => b.status === 'completed').length, color: 'bg-purple-100 text-purple-800', icon: <CheckCircle className="w-5 h-5" /> }
                     ].map((stat, index) => (
                         <div key={index} className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-                            <div className={`inline-flex px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${stat.color} mb-2`}>
-                                {stat.label}
+                            <div className={`inline-flex px-3 py-2 rounded-full text-sm font-medium ${stat.color} mb-3 items-center gap-2`}>
+                                {stat.icon}
+                                <span>{stat.label}</span>
                             </div>
-                            <div className="text-xl sm:text-2xl font-bold text-gray-900">{stat.count}</div>
+                            <div className="text-2xl sm:text-3xl font-bold text-gray-900">{stat.count}</div>
                         </div>
                     ))}
                 </div>
@@ -713,47 +641,54 @@ const BookingMentorPage = () => {
                     />
 
                     <div className="relative bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-4 sm:p-6 border-b border-gray-200">
+                        <div className="sticky top-0 bg-white p-4 sm:p-6 border-b border-gray-200 z-10">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg sm:text-xl font-bold">Chi tiết booking</h3>
                                 <button
                                     onClick={() => setShowDetailModal(false)}
-                                    className="text-gray-400 hover:text-gray-600 p-1"
+                                    className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                    <X className="w-5 sm:w-6 h-5 sm:h-6" />
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                        <div className="p-4 sm:p-6 space-y-6">
                             {/* User Info */}
                             <div className="flex items-start gap-4">
                                 {selectedBooking.profiles?.image_url ? (
                                     <Image
                                         src={selectedBooking.profiles.image_url}
                                         alt={selectedBooking.profiles.full_name}
-                                        width={60}
-                                        height={60}
+                                        width={80}
+                                        height={80}
                                         className="rounded-full object-cover flex-shrink-0"
                                     />
                                 ) : (
-                                    <div className="w-15 h-15 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                                        <User className="w-8 h-8 text-gray-400" />
+                                    <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <User className="w-10 h-10 text-gray-400" />
                                     </div>
                                 )}
                                 <div className="min-w-0 flex-1">
-                                    <h4 className="text-lg font-semibold">{selectedBooking.profiles?.full_name}</h4>
-                                    <p className="text-gray-600 text-sm break-all">{selectedBooking.contact_email}</p>
-                                    {selectedBooking.contact_phone && (
-                                        <p className="text-gray-600 text-sm">{selectedBooking.contact_phone}</p>
-                                    )}
+                                    <h4 className="text-xl font-semibold mb-2">{selectedBooking.profiles?.full_name}</h4>
+                                    <div className="space-y-1 text-sm text-gray-600">
+                                        <p className="flex items-center gap-2 break-all">
+                                            <Mail className="w-4 h-4 flex-shrink-0" />
+                                            {selectedBooking.contact_email}
+                                        </p>
+                                        {selectedBooking.contact_phone && (
+                                            <p className="flex items-center gap-2">
+                                                <span className="w-4 h-4 flex-shrink-0">📱</span>
+                                                {selectedBooking.contact_phone}
+                                            </p>
+                                        )}
+                                    </div>
 
-                                    {/* Student Additional Info */}
                                     {selectedBooking.profiles?.sub_profiles && (
-                                        <div className="mt-3 space-y-2">
+                                        <div className="mt-4 space-y-2">
                                             {selectedBooking.profiles.sub_profiles.university_majors && (
-                                                <div className="flex items-center gap-2 text-sm text-blue-600">
-                                                    <GraduationCap className="w-4 h-4 flex-shrink-0" />
+                                                <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
+                                                    <GraduationCap className="w-5 h-5 flex-shrink-0" />
                                                     <span className="break-words">
                                                         {selectedBooking.profiles.sub_profiles.university_majors.universities?.name}
                                                         {selectedBooking.profiles.sub_profiles.university_majors.majors?.name &&
@@ -773,22 +708,25 @@ const BookingMentorPage = () => {
                                                 {selectedBooking.profiles.sub_profiles.linkedin_url && (
                                                     <a href={selectedBooking.profiles.sub_profiles.linkedin_url}
                                                        target="_blank"
-                                                       className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                                                        <Globe className="w-3 h-3" />LinkedIn
+                                                       rel="noopener noreferrer"
+                                                       className="text-sm text-blue-600 hover:underline flex items-center gap-1 bg-blue-50 px-3 py-2 rounded-lg">
+                                                        <Globe className="w-4 h-4" />LinkedIn
                                                     </a>
                                                 )}
                                                 {selectedBooking.profiles.sub_profiles.github_url && (
                                                     <a href={selectedBooking.profiles.sub_profiles.github_url}
                                                        target="_blank"
-                                                       className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                                                        <Globe className="w-3 h-3" />GitHub
+                                                       rel="noopener noreferrer"
+                                                       className="text-sm text-blue-600 hover:underline flex items-center gap-1 bg-blue-50 px-3 py-2 rounded-lg">
+                                                        <Globe className="w-4 h-4" />GitHub
                                                     </a>
                                                 )}
                                                 {selectedBooking.profiles.sub_profiles.portfolio_url && (
                                                     <a href={selectedBooking.profiles.sub_profiles.portfolio_url}
                                                        target="_blank"
-                                                       className="text-sm text-blue-600 hover:underline flex items-center gap-1">
-                                                        <Globe className="w-3 h-3" />Portfolio
+                                                       rel="noopener noreferrer"
+                                                       className="text-sm text-blue-600 hover:underline flex items-center gap-1 bg-blue-50 px-3 py-2 rounded-lg">
+                                                        <Globe className="w-4 h-4" />Portfolio
                                                     </a>
                                                 )}
                                             </div>
@@ -799,32 +737,33 @@ const BookingMentorPage = () => {
 
                             {/* Booking Details */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <strong>Thời gian đặt:</strong>
-                                    <p>{new Date(selectedBooking.created_at).toLocaleString('vi-VN')}</p>
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <strong className="text-gray-700 block mb-1">Thời gian đặt:</strong>
+                                    <p className="text-gray-900">{new Date(selectedBooking.created_at).toLocaleString('vi-VN')}</p>
                                 </div>
-                                <div>
-                                    <strong>Thời gian mong muốn:</strong>
-                                    <p>{selectedBooking.scheduled_date ?
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <strong className="text-gray-700 block mb-1">Thời gian mong muốn:</strong>
+                                    <p className="text-gray-900">{selectedBooking.scheduled_date ?
                                         new Date(selectedBooking.scheduled_date).toLocaleString('vi-VN') :
                                         'Chưa xác định'
                                     }</p>
                                 </div>
-                                <div>
-                                    <strong>Thời lượng:</strong>
-                                    <p>{selectedBooking.duration} phút</p>
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <strong className="text-gray-700 block mb-1">Thời lượng:</strong>
+                                    <p className="text-gray-900">{selectedBooking.duration} phút</p>
                                 </div>
-                                <div>
-                                    <strong>Hình thức:</strong>
-                                    <p className="flex items-center gap-1">
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                    <strong className="text-gray-700 block mb-1">Hình thức:</strong>
+                                    <p className="text-gray-900 flex items-center gap-2">
                                         {getSessionTypeIcon(selectedBooking.session_type)}
                                         {getSessionTypeText(selectedBooking.session_type)}
                                     </p>
                                 </div>
-                                <div className="sm:col-span-2">
-                                    <strong>Trạng thái:</strong>
-                                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedBooking.status)}`}>
-                                        {getStatusText(selectedBooking.status)}
+                                <div className="sm:col-span-2 bg-gray-50 p-4 rounded-lg">
+                                    <strong className="text-gray-700 block mb-2">Trạng thái:</strong>
+                                    <span className={`inline-flex px-3 py-2 rounded-full text-sm font-medium ${getStatusColor(selectedBooking.status)}`}>
+                                        {getStatusIcon(selectedBooking.status)}
+                                        <span className="ml-1">{getStatusText(selectedBooking.status)}</span>
                                     </span>
                                 </div>
                             </div>
@@ -832,15 +771,15 @@ const BookingMentorPage = () => {
                             {/* Notes */}
                             {selectedBooking.user_notes && (
                                 <div>
-                                    <strong>Ghi chú từ học viên:</strong>
-                                    <p className="mt-1 p-3 bg-blue-50 rounded-lg text-sm">{selectedBooking.user_notes}</p>
+                                    <strong className="text-gray-700 block mb-2">Ghi chú từ học viên:</strong>
+                                    <p className="p-4 bg-yellow-50 rounded-lg text-sm text-yellow-800">{selectedBooking.user_notes}</p>
                                 </div>
                             )}
 
                             {selectedBooking.mentor_notes && (
                                 <div>
-                                    <strong>Ghi chú của bạn:</strong>
-                                    <p className="mt-1 p-3 bg-green-50 rounded-lg text-sm">{selectedBooking.mentor_notes}</p>
+                                    <strong className="text-gray-700 block mb-2">Ghi chú của bạn:</strong>
+                                    <p className="p-4 bg-green-50 rounded-lg text-sm text-green-800">{selectedBooking.mentor_notes}</p>
                                 </div>
                             )}
                         </div>
@@ -862,9 +801,9 @@ const BookingMentorPage = () => {
                                 <h3 className="text-lg sm:text-xl font-bold">Cập nhật trạng thái</h3>
                                 <button
                                     onClick={() => setShowStatusModal(false)}
-                                    className="text-gray-400 hover:text-gray-600 p-1"
+                                    className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                    <X className="w-5 sm:w-6 h-5 sm:h-6" />
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
@@ -877,7 +816,7 @@ const BookingMentorPage = () => {
                                 <select
                                     value={newStatus}
                                     onChange={(e) => setNewStatus(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 >
                                     <option value="pending">Chờ xác nhận</option>
                                     <option value="confirmed">Xác nhận</option>
@@ -895,28 +834,27 @@ const BookingMentorPage = () => {
                                         type="datetime-local"
                                         value={newScheduledDate}
                                         onChange={(e) => setNewScheduledDate(e.target.value)}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                                        className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                         min={new Date().toISOString().slice(0, 16)}
                                     />
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
-                            <Button
-                                variant="outline"
+                        <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3">
+                            <button
                                 onClick={() => setShowStatusModal(false)}
-                                className="w-full sm:w-auto"
+                                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 active:bg-gray-100 font-medium transition-colors"
                             >
                                 Hủy
-                            </Button>
-                            <Button
+                            </button>
+                            <button
                                 onClick={updateBookingStatus}
-                                className="w-full sm:w-auto flex items-center justify-center gap-2"
+                                className="flex-1 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-sm"
                             >
-                                <Save className="w-4 h-4" />
+                                <Save className="w-5 h-5" />
                                 Cập nhật
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -936,9 +874,9 @@ const BookingMentorPage = () => {
                                 <h3 className="text-lg sm:text-xl font-bold">Ghi chú mentor</h3>
                                 <button
                                     onClick={() => setShowNotesModal(false)}
-                                    className="text-gray-400 hover:text-gray-600 p-1"
+                                    className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
-                                    <X className="w-5 sm:w-6 h-5 sm:h-6" />
+                                    <X className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
@@ -952,40 +890,38 @@ const BookingMentorPage = () => {
                                     value={mentorNotes}
                                     onChange={(e) => setMentorNotes(e.target.value)}
                                     rows={5}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                                    className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
                                     placeholder="Thêm ghi chú về buổi tư vấn, phản hồi cho học viên..."
                                 />
-                                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                                <p className="text-xs sm:text-sm text-gray-500 mt-2">
                                     Ghi chú này sẽ được hiển thị cho học viên
                                 </p>
                             </div>
 
-                            {/* Current user notes display */}
                             {selectedBooking.user_notes && (
                                 <div>
-                                    <strong className="text-sm text-gray-700">Ghi chú từ học viên:</strong>
-                                    <p className="text-sm text-gray-600 mt-1 p-3 bg-blue-50 rounded-lg">
+                                    <strong className="text-sm text-gray-700 block mb-2">Ghi chú từ học viên:</strong>
+                                    <p className="text-sm text-gray-600 p-3 bg-yellow-50 rounded-lg">
                                         {selectedBooking.user_notes}
                                     </p>
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
-                            <Button
-                                variant="outline"
+                        <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row gap-3">
+                            <button
                                 onClick={() => setShowNotesModal(false)}
-                                className="w-full sm:w-auto"
+                                className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 active:bg-gray-100 font-medium transition-colors"
                             >
                                 Hủy
-                            </Button>
-                            <Button
+                            </button>
+                            <button
                                 onClick={updateMentorNotes}
-                                className="w-full sm:w-auto flex items-center justify-center gap-2"
+                                className="flex-1 bg-purple-500 hover:bg-purple-600 active:bg-purple-700 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors shadow-sm"
                             >
-                                <Send className="w-4 h-4" />
+                                <Send className="w-5 h-5" />
                                 Lưu ghi chú
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 </div>
