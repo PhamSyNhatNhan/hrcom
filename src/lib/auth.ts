@@ -124,7 +124,7 @@ export const getCurrentUser = async (): Promise<AuthResponse> => {
             }
 
             // ✅ CẬP NHẬT ZUSTAND STORE
-            useAuthStore.getState().setUser(userWithProfile)
+            useAuthStore.getState().setUser(userWithProfile as any)
             return { user: userWithProfile, error: null }
         }
 
