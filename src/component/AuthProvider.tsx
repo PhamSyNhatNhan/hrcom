@@ -27,7 +27,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             if (event === 'SIGNED_IN' && session?.user) {
                 // User signed in
                 const { user } = await getCurrentUser()
-                setUser(user)
+                setUser(user as any)
             } else if (event === 'SIGNED_OUT') {
                 // User signed out
                 setUser(null)
