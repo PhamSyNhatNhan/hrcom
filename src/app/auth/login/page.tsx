@@ -1,3 +1,4 @@
+// src/app/auth/login/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -6,14 +7,10 @@ import Link from 'next/link';
 import Image from "next/image";
 import { signInWithEmail } from '@/lib/auth';
 import { useAuthStore } from '@/stores/authStore';
-
-interface FormData {
-    email: string;
-    password: string;
-}
+import type { LoginFormData } from '@/types/auth_user';
 
 export default function LoginPage() {
-    const [formData, setFormData] = useState<FormData>({
+    const [formData, setFormData] = useState<LoginFormData>({
         email: '',
         password: ''
     });
@@ -30,7 +27,6 @@ export default function LoginPage() {
             ...prev,
             [name]: value
         }));
-        // Clear error when user starts typing
         if (error) setError('');
     };
 
@@ -63,14 +59,12 @@ export default function LoginPage() {
             if (user) {
                 console.log('✅ Login successful')
 
-                // ✅ NếU EMAIL CHƯA ĐƯỢC XÁC NHẬN, CHUYỂN ĐẾN TRANG OTP
                 if (needsVerification) {
                     console.log('⚠️ User needs email verification - redirecting to OTP')
                     router.push(`/auth/verify-otp?email=${encodeURIComponent(formData.email)}&type=verification`);
                     return;
                 }
 
-                // ✅ EMAIL ĐÃ XÁC NHẬN - REDIRECT THEO ROLE
                 console.log('✅ User verified - redirecting based on role')
                 router.push('/');
             }
@@ -105,7 +99,6 @@ export default function LoginPage() {
                                 </div>
                             </div>
 
-                            {/* Error Message */}
                             {error && (
                                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
                                     <div className="flex items-center">
@@ -118,7 +111,6 @@ export default function LoginPage() {
                             )}
 
                             <form className="space-y-6" onSubmit={handleSubmit}>
-                                {/* Email Input */}
                                 <div>
                                     <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
                                         Email
@@ -144,7 +136,6 @@ export default function LoginPage() {
                                     </div>
                                 </div>
 
-                                {/* Password Input */}
                                 <div>
                                     <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
                                         Mật khẩu
@@ -187,19 +178,8 @@ export default function LoginPage() {
                                     </div>
                                 </div>
 
-                                {/* Remember me & Forgot password */}
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center">
-                                        <input
-                                            id="remember-me"
-                                            name="remember-me"
-                                            type="checkbox"
-                                            disabled={isLoading}
-                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors disabled:opacity-50"
-                                        />
-                                        <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                                            Ghi nhớ đăng nhập
-                                        </label>
                                     </div>
 
                                     <Link
@@ -210,7 +190,6 @@ export default function LoginPage() {
                                     </Link>
                                 </div>
 
-                                {/* Submit Button */}
                                 <button
                                     type="submit"
                                     disabled={isLoading}
@@ -234,7 +213,6 @@ export default function LoginPage() {
                                     )}
                                 </button>
 
-                                {/* Register Link */}
                                 <div className="text-center pt-2">
                                     <span className="text-sm text-gray-600">
                                         Chưa có tài khoản?{' '}
@@ -251,7 +229,6 @@ export default function LoginPage() {
                             </form>
                         </div>
 
-                        {/* Footer */}
                         <div className="text-center mt-6">
                             <p className="text-xs text-gray-500">
                                 Bằng việc đăng nhập, bạn đồng ý với{' '}

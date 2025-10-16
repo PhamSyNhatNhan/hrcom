@@ -1,7 +1,9 @@
+// src/lib/auth.ts
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/utils/supabase/client';
+import type { AuthUser, AuthResponse } from '@/types/auth_user';
 
-export const signInWithEmail = async (email: string, password: string) => {
+export const signInWithEmail = async (email: string, password: string): Promise<AuthResponse> => {
     try {
         console.log('🔐 Attempting sign in for:', email);
 
@@ -42,7 +44,7 @@ export const signInWithEmail = async (email: string, password: string) => {
                 console.warn('⚠️ Profile fetch failed:', profileError)
             }
 
-            const user = {
+            const user: AuthUser = {
                 id: data.user.id,
                 email: data.user.email!,
                 role: userRole as 'user' | 'mentor' | 'admin' | 'superadmin',
@@ -76,7 +78,7 @@ export const signInWithEmail = async (email: string, password: string) => {
     }
 }
 
-export const getCurrentUser = async () => {
+export const getCurrentUser = async (): Promise<AuthResponse> => {
     try {
         console.log('🔍 Getting current user...');
 
@@ -114,7 +116,7 @@ export const getCurrentUser = async () => {
                 console.warn('⚠️ Profile fetch failed:', profileError)
             }
 
-            const userWithProfile = {
+            const userWithProfile: AuthUser = {
                 id: user.id,
                 email: user.email!,
                 role: userRole as 'user' | 'mentor' | 'admin' | 'superadmin',
@@ -182,18 +184,18 @@ export const hasRole = (userRole: string, requiredRole: string | string[]): bool
 }
 
 // ✅ HELPER FUNCTION LẤY USER TỪ STORE
-export const getUserFromStore = () => {
+export const getUserFromStore = (): AuthUser | null => {
     return useAuthStore.getState().user
 }
 
 // ✅ HELPER FUNCTION KIỂM TRA USER CÓ ĐĂNG NHẬP VÀ VERIFY
-export const isUserAuthenticated = () => {
+export const isUserAuthenticated = (): boolean => {
     const user = getUserFromStore()
     return !!user
 }
 
 // ✅ HELPER FUNCTION KIỂM TRA QUYỀN TRUY CẬP
-export const canAccessRoute = (routeType: 'admin' | 'mentor' | 'public') => {
+export const canAccessRoute = (routeType: 'admin' | 'mentor' | 'public'): boolean => {
     const user = getUserFromStore()
 
     if (!user) return routeType === 'public'

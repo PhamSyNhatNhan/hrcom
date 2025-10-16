@@ -1,9 +1,9 @@
+// src/app/auth/onboarding/mentee-setup/page.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
     GraduationCap,
     BookOpen,
@@ -15,19 +15,14 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
+import type {
+    University,
+    Major,
+    MenteeSetupFormData,
+    AuthUserRegiGetUniversityMajorsResult
+} from '@/types/auth_user';
 
-interface University {
-    id: string;
-    name: string;
-    code: string;
-}
-
-interface Major {
-    id: string;
-    name: string;
-}
-
-interface UniversityMajor {
+interface UniversityMajorTransformed {
     id: string;
     university_id: string;
     major_id: string;
@@ -35,20 +30,15 @@ interface UniversityMajor {
     majors: Major;
 }
 
-interface FormData {
-    university_major_id: string;
-    description: string;
-}
-
 export default function MenteeSetupPage() {
-    const [formData, setFormData] = useState<FormData>({
+    const [formData, setFormData] = useState<MenteeSetupFormData>({
         university_major_id: '',
         description: ''
     });
 
     const [universities, setUniversities] = useState<University[]>([]);
     const [majors, setMajors] = useState<Major[]>([]);
-    const [universityMajors, setUniversityMajors] = useState<UniversityMajor[]>([]);
+    const [universityMajors, setUniversityMajors] = useState<UniversityMajorTransformed[]>([]);
 
     const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null);
     const [selectedMajor, setSelectedMajor] = useState<Major | null>(null);
@@ -62,7 +52,6 @@ export default function MenteeSetupPage() {
     const [error, setError] = useState('');
     const [isDataLoading, setIsDataLoading] = useState(true);
 
-    // Refs for dropdown management
     const universityRef = useRef<HTMLDivElement>(null);
     const majorRef = useRef<HTMLDivElement>(null);
 
@@ -98,17 +87,15 @@ export default function MenteeSetupPage() {
         };
     }, []);
 
-    // Load universities and majors
+    // ✅ LOAD DỮ LIỆU BẰNG RPC FUNCTIONS
     useEffect(() => {
         const loadData = async () => {
             try {
                 setIsDataLoading(true);
 
-                // Load universities
+                // Load universities using RPC
                 const { data: universitiesData, error: universitiesError } = await supabase
-                    .from('universities')
-                    .select('*')
-                    .order('name');
+                    .rpc('auth_user_regi_get_universities');
 
                 if (universitiesError) {
                     console.error('Error loading universities:', universitiesError);
@@ -116,11 +103,9 @@ export default function MenteeSetupPage() {
                     setUniversities(universitiesData || []);
                 }
 
-                // Load majors
+                // Load majors using RPC
                 const { data: majorsData, error: majorsError } = await supabase
-                    .from('majors')
-                    .select('*')
-                    .order('name');
+                    .rpc('auth_user_regi_get_majors');
 
                 if (majorsError) {
                     console.error('Error loading majors:', majorsError);
@@ -128,20 +113,29 @@ export default function MenteeSetupPage() {
                     setMajors(majorsData || []);
                 }
 
-                // Load university-major combinations
+                // Load university-major combinations using RPC
                 const { data: universityMajorsData, error: universityMajorsError } = await supabase
-                    .from('university_majors')
-                    .select(`
-                        *,
-                        universities (id, name, code),
-                        majors (id, name)
-                    `)
-                    .order('universities(name), majors(name)');
+                    .rpc('auth_user_regi_get_university_majors');
 
                 if (universityMajorsError) {
                     console.error('Error loading university majors:', universityMajorsError);
                 } else {
-                    setUniversityMajors(universityMajorsData || []);
+                    // Transform RPC result to match component's expected format
+                    const transformedData = (universityMajorsData || []).map((item: AuthUserRegiGetUniversityMajorsResult) => ({
+                        id: item.id,
+                        university_id: item.university_id,
+                        major_id: item.major_id,
+                        universities: {
+                            id: item.university_id,
+                            name: item.university_name,
+                            code: item.university_code
+                        },
+                        majors: {
+                            id: item.major_id,
+                            name: item.major_name
+                        }
+                    }));
+                    setUniversityMajors(transformedData);
                 }
 
             } catch (err) {
@@ -161,7 +155,6 @@ export default function MenteeSetupPage() {
         setUniversitySearch(university.name);
         setShowUniversityDropdown(false);
 
-        // Reset major if it doesn't exist in the selected university
         if (selectedMajor) {
             const majorExistsInUniversity = universityMajors.some(
                 um => um.university_id === university.id && um.major_id === selectedMajor.id
@@ -171,7 +164,6 @@ export default function MenteeSetupPage() {
                 setMajorSearch('');
                 setFormData(prev => ({ ...prev, university_major_id: '' }));
             } else {
-                // Update university_major_id if the combination still exists
                 const universityMajor = universityMajors.find(
                     um => um.university_id === university.id && um.major_id === selectedMajor.id
                 );
@@ -188,7 +180,6 @@ export default function MenteeSetupPage() {
         setMajorSearch(major.name);
         setShowMajorDropdown(false);
 
-        // Find the university-major combination
         if (selectedUniversity) {
             const universityMajor = universityMajors.find(
                 um => um.university_id === selectedUniversity.id && um.major_id === major.id
@@ -215,6 +206,7 @@ export default function MenteeSetupPage() {
             major.name.toLowerCase().includes(majorSearch.toLowerCase())
         );
 
+    // ✅ SUBMIT FORM BẰNG RPC FUNCTION
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
@@ -227,28 +219,31 @@ export default function MenteeSetupPage() {
         setError('');
 
         try {
-            // Only create/update sub_profile if user selected university-major or has description
+            // Call RPC function to create mentee profile
             if (formData.university_major_id || formData.description.trim()) {
-                const { error: subProfileError } = await supabase
-                    .from('sub_profiles')
-                    .upsert({
-                        profile_id: user.id,
-                        university_major_id: formData.university_major_id || null,
-                        description: formData.description.trim() || null
-                    }, {
-                        onConflict: 'profile_id'
+                const { data, error: rpcError } = await supabase
+                    .rpc('auth_user_regi_create_mentee', {
+                        p_user_id: user.id,
+                        p_university_major_id: formData.university_major_id || null,
+                        p_description: formData.description.trim() || null
                     });
 
-                if (subProfileError) {
-                    console.error('Error saving sub profile:', subProfileError);
+                if (rpcError) {
+                    console.error('Error saving mentee profile:', rpcError);
                     setError('Không thể lưu thông tin. Vui lòng thử lại.');
                     return;
+                }
+
+                // Check RPC response
+                if (data && typeof data === 'object' && 'success' in data) {
+                    if (!data.success) {
+                        setError(data.message || 'Có lỗi xảy ra khi lưu thông tin');
+                        return;
+                    }
                 }
             }
 
             console.log('✅ Mentee setup completed successfully');
-
-            // Redirect to homepage
             router.push('/?welcome=mentee');
 
         } catch (err) {
@@ -437,7 +432,6 @@ export default function MenteeSetupPage() {
 
                                 {/* Action Buttons */}
                                 <div className="flex flex-col gap-4 justify-center items-center pt-6">
-                                    {/* Submit Button */}
                                     <button
                                         type="submit"
                                         disabled={isLoading}
@@ -460,7 +454,6 @@ export default function MenteeSetupPage() {
                                         )}
                                     </button>
 
-                                    {/* Secondary Actions */}
                                     <div className="flex flex-col sm:flex-row gap-3 text-center">
                                         <button
                                             type="button"

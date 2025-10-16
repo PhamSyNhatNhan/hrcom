@@ -1,10 +1,11 @@
+// src/app/auth/onboarding/role-selection/page.tsx
 'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Users, ArrowRight, X, CheckCircle, Heart, Briefcase } from 'lucide-react';
+import { Heart, ArrowRight, X, CheckCircle, Briefcase } from 'lucide-react';
 
 export default function RoleSelectionPage() {
     const [selectedRole, setSelectedRole] = useState<'mentee' | 'mentor' | null>(null);
@@ -23,11 +24,11 @@ export default function RoleSelectionPage() {
         try {
             // Redirect based on selected role
             if (selectedRole === 'mentee') {
-                // Chuyển đến trang setup profile cho mentee (chưa tạo)
+                // ✅ Chuyển đến trang setup profile cho mentee
                 router.push('/auth/onboarding/mentee-setup');
             } else if (selectedRole === 'mentor') {
-                // Chuyển đến trang đăng ký mentor (chưa tạo)
-                router.push('/auth/onboarding/mentor-setup');
+                // ✅ CHUYỂN ĐẾN TRANG ĐIỀU KHOẢN TRƯỚC KHI ĐĂNG KÝ MENTOR
+                router.push('/auth/onboarding/mentor-terms');
             }
         } catch (error) {
             console.error('Error during role selection:', error);
@@ -37,7 +38,6 @@ export default function RoleSelectionPage() {
     };
 
     const handleSkip = () => {
-        // Bỏ qua và về trang chủ như user bình thường
         router.push('/');
     };
 
@@ -83,7 +83,6 @@ export default function RoleSelectionPage() {
                                             : 'border-gray-200 bg-white hover:border-blue-300'
                                     }`}
                                 >
-                                    {/* Selection indicator */}
                                     {selectedRole === 'mentee' && (
                                         <div className="absolute top-4 right-4">
                                             <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
@@ -131,7 +130,6 @@ export default function RoleSelectionPage() {
                                             : 'border-gray-200 bg-white hover:border-emerald-300'
                                     }`}
                                 >
-                                    {/* Selection indicator */}
                                     {selectedRole === 'mentor' && (
                                         <div className="absolute top-4 right-4">
                                             <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
@@ -173,7 +171,6 @@ export default function RoleSelectionPage() {
 
                             {/* Action Buttons */}
                             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                                {/* Continue Button */}
                                 <button
                                     onClick={handleContinue}
                                     disabled={!selectedRole || isLoading}
@@ -205,7 +202,6 @@ export default function RoleSelectionPage() {
                                     )}
                                 </button>
 
-                                {/* Skip Button */}
                                 <button
                                     onClick={handleSkip}
                                     disabled={isLoading}

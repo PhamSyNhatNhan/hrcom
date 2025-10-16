@@ -1,9 +1,9 @@
+// src/app/auth/onboarding/mentor-setup/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
 import {
     Briefcase,
     FileText,
@@ -18,15 +18,13 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/utils/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
-
-interface FormData {
-    email: string;
-    phone: string;
-    notes: string;
-}
+import type {
+    MentorRegistrationFormData,
+    AuthUserRegiMentorRegistrationResult
+} from '@/types/auth_user';
 
 export default function MentorSetupPage() {
-    const [formData, setFormData] = useState<FormData>({
+    const [formData, setFormData] = useState<MentorRegistrationFormData>({
         email: '',
         phone: '',
         notes: ''
@@ -47,8 +45,8 @@ export default function MentorSetupPage() {
         }
     }, [user]);
 
-    // Check for existing registrations (for display purposes)
-    const [existingRegistrations, setExistingRegistrations] = useState<any[]>([]);
+    // ✅ LOAD EXISTING REGISTRATIONS BẰNG RPC
+    const [existingRegistrations, setExistingRegistrations] = useState<AuthUserRegiMentorRegistrationResult[]>([]);
 
     useEffect(() => {
         const loadExistingRegistrations = async () => {
@@ -56,10 +54,9 @@ export default function MentorSetupPage() {
 
             try {
                 const { data, error } = await supabase
-                    .from('mentor_registrations')
-                    .select('id, status, created_at, admin_notes')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false });
+                    .rpc('auth_user_regi_get_mentor_registrations', {
+                        p_user_id: user.id
+                    });
 
                 if (data && !error) {
                     setExistingRegistrations(data);
@@ -89,10 +86,10 @@ export default function MentorSetupPage() {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
 
-        // Clear error when user starts typing
         if (error) setError('');
     };
 
+    // ✅ SUBMIT FORM BẰNG RPC FUNCTION
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
@@ -122,35 +119,31 @@ export default function MentorSetupPage() {
             return;
         }
 
-        if (!formData.notes.trim()) {
-            setError('Vui lòng chia sẻ thông tin về bản thân');
-            return;
-        }
-
-        if (formData.notes.trim().length < 50) {
-            setError('Vui lòng chia sẻ ít nhất 50 ký tự về bản thân');
-            return;
-        }
-
         setIsLoading(true);
         setError('');
 
         try {
-            // Insert mentor registration
-            const { error: insertError } = await supabase
-                .from('mentor_registrations')
-                .insert({
-                    user_id: user.id,
-                    email: formData.email.trim(),
-                    phone: formData.phone.trim(),
-                    notes: formData.notes.trim(),
-                    status: 'pending'
+            // Call RPC function to create mentor registration
+            const { data, error: rpcError } = await supabase
+                .rpc('auth_user_regi_create_mentor', {
+                    p_user_id: user.id,
+                    p_email: formData.email.trim(),
+                    p_phone: formData.phone.trim(),
+                    p_notes: formData.notes.trim() || null
                 });
 
-            if (insertError) {
-                console.error('Error creating mentor registration:', insertError);
+            if (rpcError) {
+                console.error('Error creating mentor registration:', rpcError);
                 setError('Không thể gửi đăng ký. Vui lòng thử lại.');
                 return;
+            }
+
+            // Check RPC response
+            if (data && typeof data === 'object' && 'success' in data) {
+                if (!data.success) {
+                    setError(data.message || 'Có lỗi xảy ra khi gửi đăng ký');
+                    return;
+                }
             }
 
             console.log('✅ Mentor registration submitted successfully');
@@ -160,10 +153,9 @@ export default function MentorSetupPage() {
 
             // Reload existing registrations
             const { data: updatedRegistrations } = await supabase
-                .from('mentor_registrations')
-                .select('id, status, created_at, admin_notes')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false });
+                .rpc('auth_user_regi_get_mentor_registrations', {
+                    p_user_id: user.id
+                });
 
             if (updatedRegistrations) {
                 setExistingRegistrations(updatedRegistrations);
@@ -193,8 +185,8 @@ export default function MentorSetupPage() {
         router.push('/');
     };
 
-    const handleBackToRoleSelection = () => {
-        router.push('/auth/onboarding/role-selection');
+    const handleBackToTerms = () => {
+        router.push('/auth/onboarding/mentor-terms');
     };
 
     // Success state
@@ -241,14 +233,14 @@ export default function MentorSetupPage() {
                                         </ul>
                                     </div>
 
-                                    <Link
-                                        href="/"
+                                    <button
+                                        onClick={() => router.push('/')}
                                         className="inline-flex items-center gap-3 px-8 py-4 rounded-xl text-white font-semibold transition-all duration-300 transform hover:scale-105 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                                     >
                                         <Heart className="w-5 h-5" />
                                         Về trang chủ
                                         <ArrowRight className="w-5 h-5" />
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -355,11 +347,11 @@ export default function MentorSetupPage() {
                                         rows={6}
                                         className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 hover:bg-white resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                                         placeholder={`Có thể bao gồm:
-    • Giới thiệu về bản thân và kinh nghiệm
-    • Thông tin liên hệ khác (LinkedIn, Facebook, etc.)
-    • Lý do muốn trở thành mentor
-    • Thời gian có thể dành cho mentoring
-    • Ghi chú hoặc thông tin khác...`}
+• Giới thiệu về bản thân và kinh nghiệm
+• Thông tin liên hệ khác (LinkedIn, Facebook, etc.)
+• Lý do muốn trở thành mentor
+• Thời gian có thể dành cho mentoring
+• Ghi chú hoặc thông tin khác...`}
                                         value={formData.notes}
                                         onChange={handleInputChange}
                                         maxLength={1000}
@@ -415,11 +407,11 @@ export default function MentorSetupPage() {
 
                                         <button
                                             type="button"
-                                            onClick={handleBackToRoleSelection}
+                                            onClick={handleBackToTerms}
                                             disabled={isLoading}
                                             className="flex items-center gap-2 px-4 py-2 text-emerald-600 hover:text-emerald-700 font-medium transition-colors duration-200 disabled:opacity-50 text-sm"
                                         >
-                                            ← Quay về chọn vai trò
+                                            ← Quay lại xem điều khoản
                                         </button>
                                     </div>
                                 </div>
@@ -433,7 +425,7 @@ export default function MentorSetupPage() {
                                         Lịch sử đăng ký mentor
                                     </h3>
                                     <div className="space-y-3">
-                                        {existingRegistrations.map((registration, index) => (
+                                        {existingRegistrations.map((registration) => (
                                             <div key={registration.id} className="bg-white p-3 rounded-lg border border-blue-200">
                                                 <div className="flex justify-between items-start">
                                                     <div>
