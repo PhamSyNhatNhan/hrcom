@@ -22,6 +22,7 @@ export interface Event {
     is_full?: boolean;
     is_past?: boolean;
     can_register?: boolean;
+    is_checked_in?: boolean;
 }
 
 export interface EventDetail extends Event {
@@ -30,6 +31,7 @@ export interface EventDetail extends Event {
     reviews?: EventReview[];
     average_rating?: number;
     total_reviews?: number;
+    is_checked_in?: boolean;
 }
 
 export interface UserRegistration {
