@@ -50,11 +50,19 @@ const RootLayout = ({ children }: LayoutProps) => {
                         rel="noopener noreferrer"
                         className="w-10 h-10 md:w-12 md:h-12 bg-[#0068FF] text-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center transform hover:scale-110 hover:-translate-x-1 group"
                     >
-                        <Zap className="w-5 h-5 md:w-6 md:h-6" />
+                        <Image
+                            src="/icon/icons8-zalo.svg"
+                            alt="Zalo"
+                            width={32}
+                            height={32}
+                            className="object-contain"
+                        />
                         <span className="absolute right-12 md:right-14 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap hidden md:block">
                             Zalo
-                        </span>
+                          </span>
                     </Link>
+
+
 
                     {/* Facebook */}
                     <Link

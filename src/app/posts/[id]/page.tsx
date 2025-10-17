@@ -127,16 +127,24 @@ const PostDetailPage = () => {
     };
 
     const renderContent = (content: string) => {
-        if (!content) return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
+        if (!content)
+            return <p className="text-gray-500 italic">Nội dung đang được cập nhật...</p>;
 
         return (
-            <div
-                className="tinymce-content prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-p:text-lg prose-p:leading-relaxed prose-strong:text-gray-900 prose-a:text-cyan-600 prose-a:no-underline hover:prose-a:underline prose-ul:my-6 prose-ol:my-6 prose-li:text-gray-700 prose-li:text-lg prose-li:leading-relaxed prose-blockquote:border-l-4 prose-blockquote:border-cyan-500 prose-blockquote:bg-gray-50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:text-lg prose-blockquote:italic prose-img:rounded-xl prose-img:shadow-lg prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-300 prose-td:p-3 prose-th:border prose-th:border-gray-300 prose-th:p-3 prose-th:bg-gray-100"
-                style={{ lineHeight: '1.7' }}
-                dangerouslySetInnerHTML={{ __html: content }}
-            />
+            <div className="overflow-x-hidden">
+                <div
+                    className="tinymce-content prose prose-lg max-w-full break-words"
+                    style={{
+                        lineHeight: '1.7',
+                        wordWrap: 'break-word',
+                        overflowX: 'auto',
+                    }}
+                    dangerouslySetInnerHTML={{ __html: content }}
+                />
+            </div>
         );
     };
+
 
     const convertToNewsFormat = (post: any) => {
         const excerpt = post.description || extractTextFromContent(post.content || '');
