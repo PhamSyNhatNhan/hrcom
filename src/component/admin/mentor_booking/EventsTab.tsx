@@ -2408,7 +2408,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                             const svgData = new XMLSerializer().serializeToString(svg);
                                             const canvas = document.createElement('canvas');
                                             const ctx = canvas.getContext('2d');
-                                            const img = new Image();
+                                            const img = new window.Image();
 
                                             img.onload = () => {
                                                 canvas.width = img.width;
