@@ -189,6 +189,43 @@ const BookingMentorPage = () => {
             if (error) throw error;
 
             if (data && data[0]?.success) {
+                try {
+                    const userName = selectedBooking.profiles?.full_name ||
+                        selectedBooking.contact_email.split('@')[0] || 'User';
+
+                    const mentorName = user?.email?.split('@')[0] || 'Mentor';
+
+                    const { data: emailData, error: emailError } = await supabase.functions.invoke(
+                        'send-booking-status-update',
+                        {
+                            body: {
+                                booking_id: selectedBooking.id,
+                                user_email: selectedBooking.contact_email,
+                                user_name: userName,
+                                mentor_name: mentorName,
+                                old_status: selectedBooking.status,
+                                new_status: newStatus,
+                                scheduled_date: newStatus === 'confirmed' && newScheduledDate
+                                    ? newScheduledDate
+                                    : selectedBooking.scheduled_date,
+                                duration: selectedBooking.duration,
+                                session_type: selectedBooking.session_type,
+                                mentor_notes: selectedBooking.mentor_notes,
+                                // TEST - Comment dòng này khi deploy production
+                                //override_email: 'hrcomsupa@gmail.com'
+                            }
+                        }
+                    );
+
+                    if (emailError) {
+                        console.error('Email notification error:', emailError);
+                    } else {
+                        console.log('Email sent successfully:', emailData);
+                    }
+                } catch (emailError) {
+                    console.error('Failed to send email:', emailError);
+                }
+
                 showNotification('success', data[0].message);
                 loadBookings();
                 setShowStatusModal(false);

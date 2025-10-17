@@ -772,7 +772,7 @@ const RootLayout = ({ children }: LayoutProps) => {
                         <div className="text-center">
                             <p className="text-gray-400 text-sm">
                                 &copy; 2025 HR Companion - Doanh nghiệp xã hội vì cộng đồng.
-                                <span className="block md:inline md:ml-2">Được vận hành bởi NhanSangThanh.</span>
+                                <span className="block md:inline md:ml-2">Web Powered By NhatNhan.</span>
                             </p>
                         </div>
                     </div>

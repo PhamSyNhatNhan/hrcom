@@ -237,6 +237,38 @@ const EventsContent = () => {
 
             if (error) throw error;
 
+            try {
+                const userName = user?.email?.split('@')[0] || 'User';
+
+                const { data: emailData, error: emailError } = await supabase.functions.invoke(
+                    'send-event-registration-notification',
+                    {
+                        body: {
+                            registration_id: data?.registration_id || 'temp-id',
+                            event_id: registeringEvent.id,
+                            event_title: registeringEvent.title,
+                            event_date: registeringEvent.event_date,
+                            event_location: registeringEvent.location || '',
+                            event_type: registeringEvent.event_type || 'online',
+                            user_email: registrationFormData.contact_email,
+                            user_name: userName,
+                            contact_phone: registrationFormData.contact_phone,
+                            require_approval: registeringEvent.require_approval || false,
+                            // TEST - Comment dòng này khi deploy production
+                            //override_email: 'hrcomsupa@gmail.com'
+                        }
+                    }
+                );
+
+                if (emailError) {
+                    console.error('Email notification error:', emailError);
+                } else {
+                    console.log('✅ Email sent successfully:', emailData);
+                }
+            } catch (emailError) {
+                console.error('Failed to send email:', emailError);
+            }
+
             showNotification('success', data?.message || 'Đăng ký thành công!');
             setShowRegisterModal(false);
             setRegisteringEvent(null);

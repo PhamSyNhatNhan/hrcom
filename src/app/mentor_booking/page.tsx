@@ -274,9 +274,23 @@ const MentorBookingContent = () => {
         try {
             setSubmitting(true);
 
-            const userNotes = `${formData.selectedSkills.length > 0 ? 'Kỹ năng: ' + formData.selectedSkills.join(', ') : ''}${formData.otherSkills ? (formData.selectedSkills.length > 0 ? '; ' : '') + 'Kỹ năng khác: ' + formData.otherSkills : ''}${formData.user_notes ? '; Ghi chú: ' + formData.user_notes : ''}`;
+            // Tạo user notes từ skills và ghi chú
+            const skillsText = formData.selectedSkills.length > 0
+                ? `Kỹ năng: ${formData.selectedSkills.join(', ')}`
+                : '';
+            const otherSkillsText = formData.otherSkills
+                ? `Kỹ năng khác: ${formData.otherSkills}`
+                : '';
+            const notesText = formData.user_notes
+                ? `Ghi chú: ${formData.user_notes}`
+                : '';
+
+            const userNotes = [skillsText, otherSkillsText, notesText]
+                .filter(Boolean)
+                .join('; ');
 
             if (editingBooking) {
+                // Cập nhật booking
                 const { data, error } = await supabase.rpc('mentor_booking_user_update_booking', {
                     p_booking_id: editingBooking.id,
                     p_user_id: user?.id,
@@ -294,18 +308,26 @@ const MentorBookingContent = () => {
 
                 showNotification('success', 'Đã cập nhật đặt lịch thành công');
             } else {
-                const { data, error } = await supabase.rpc('mentor_booking_user_create_booking', {
-                    p_user_id: user?.id,
-                    p_mentor_id: formData.mentor_id,
-                    p_scheduled_date: new Date(formData.scheduled_date).toISOString(),
-                    p_duration: formData.duration,
-                    p_session_type: formData.session_type,
-                    p_contact_email: formData.contact_email,
-                    p_contact_phone: formData.contact_phone || null,
-                    p_user_notes: userNotes
-                });
+                // Tạo booking mới
+                const { data: bookingData, error: bookingError } = await supabase.rpc(
+                    'mentor_booking_user_create_booking',
+                    {
+                        p_user_id: user?.id,
+                        p_mentor_id: formData.mentor_id,
+                        p_scheduled_date: new Date(formData.scheduled_date).toISOString(),
+                        p_duration: formData.duration,
+                        p_session_type: formData.session_type,
+                        p_contact_email: formData.contact_email,
+                        p_contact_phone: formData.contact_phone || null,
+                        p_user_notes: userNotes
+                    }
+                );
 
-                if (error) throw error;
+                if (bookingError) throw bookingError;
+
+                // Gửi email thông báo
+                await sendBookingNotification(bookingData, userNotes);
+
                 showNotification('success', 'Đã gửi đặt lịch thành công');
             }
 
@@ -316,6 +338,52 @@ const MentorBookingContent = () => {
             showNotification('error', 'Lỗi khi gửi đặt lịch');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const sendBookingNotification = async (bookingId: any, userNotes: string) => {
+        try {
+            const selectedMentor = mentors.find(m => m.id === formData.mentor_id);
+
+            if (!selectedMentor) {
+                console.warn('Mentor not found, skipping email notification');
+                return;
+            }
+
+            // Lấy tên user từ email hoặc user object
+            const userName = user?.email?.split('@')[0] || 'User';
+
+            const { data: emailData, error: emailError } = await supabase.functions.invoke(
+                'send-booking-notification',
+                {
+                    body: {
+                        booking_id: bookingId || 'temp-id',
+                        user_email: formData.contact_email,
+                        user_name: userName,
+                        mentor_email: selectedMentor.email || '',
+                        mentor_name: selectedMentor.full_name || 'Mentor',
+                        mentor_headline: selectedMentor.headline || '',
+                        scheduled_date: formData.scheduled_date,
+                        duration: formData.duration,
+                        session_type: formData.session_type,
+                        user_notes: userNotes,
+
+                        // TEST - Comment 2 dòng này khi deploy production
+                        //override_user_email: 'hrcomsupa@gmail.com',
+                        //override_mentor_email: 'hrcomsupa@gmail.com'
+                    }
+                }
+            );
+
+            if (emailError) {
+                console.error('Email notification error:', emailError);
+                // Không throw error vì booking đã tạo thành công
+            } else {
+                console.log('Emails sent successfully to:', emailData?.sent_to);
+            }
+        } catch (error) {
+            console.error('Failed to send email notifications:', error);
+            // Không throw error để không ảnh hưởng flow chính
         }
     };
 

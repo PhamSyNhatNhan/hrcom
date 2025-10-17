@@ -425,7 +425,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                     p_event_type: eventFormData.event_type || 'hybrid',
                     p_max_participants: eventFormData.max_participants || null,
                     p_registration_deadline: eventFormData.registration_deadline ? new Date(eventFormData.registration_deadline).toISOString() : null,
-                    p_require_approval: eventFormData.require_approval ?? false,
+                    p_require_approval: false, // Luôn là false
                     p_check_in_enabled: eventFormData.check_in_enabled ?? true,
                     p_published: eventFormData.published ?? false,
                     p_post_id: eventFormData.post_id || null
@@ -444,7 +444,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                     p_event_type: eventFormData.event_type || 'hybrid',
                     p_max_participants: eventFormData.max_participants || null,
                     p_registration_deadline: eventFormData.registration_deadline ? new Date(eventFormData.registration_deadline).toISOString() : null,
-                    p_require_approval: eventFormData.require_approval ?? false,
+                    p_require_approval: false,
                     p_check_in_enabled: eventFormData.check_in_enabled ?? true,
                     p_published: eventFormData.published ?? false,
                     p_post_id: eventFormData.post_id || null
@@ -1407,20 +1407,6 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                     <h4 className="font-semibold text-gray-900">Cài đặt</h4>
 
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                id="require_approval"
-                                                checked={eventFormData.require_approval || false}
-                                                onChange={(e) => setEventFormData(prev => ({ ...prev, require_approval: e.target.checked }))}
-                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                disabled={submitting || uploading}
-                                            />
-                                            <label htmlFor="require_approval" className="text-sm text-gray-700">
-                                                Yêu cầu phê duyệt đăng ký
-                                            </label>
-                                        </div>
-
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="checkbox"
@@ -3111,19 +3097,6 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 <h4 className="font-semibold text-gray-900">Cài đặt</h4>
 
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            id="require_approval"
-                                            checked={eventFormData.require_approval || false}
-                                            onChange={(e) => setEventFormData(prev => ({ ...prev, require_approval: e.target.checked }))}
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            disabled={submitting || uploading}
-                                        />
-                                        <label htmlFor="require_approval" className="text-sm text-gray-700">
-                                            Yêu cầu phê duyệt đăng ký
-                                        </label>
-                                    </div>
 
                                     <div className="flex items-center gap-2">
                                         <input

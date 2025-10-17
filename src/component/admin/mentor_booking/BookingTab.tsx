@@ -287,12 +287,49 @@ export const BookingTab: React.FC<BookingTabProps> = ({
     const updateBookingStatus = async (bookingId: string, status: string, adminNotes?: string) => {
         try {
             setSubmitting(true);
+
+            // Lấy booking hiện tại
+            const booking = bookings.find(b => b.id === bookingId);
+            if (!booking) throw new Error('Không tìm thấy booking');
+
+            const oldStatus = booking.status;
+
+            // Cập nhật trạng thái
             const { data, error } = await supabase.rpc('mentor_booking_admin_update_status', {
                 p_booking_id: bookingId,
                 p_status: status,
                 p_admin_notes: adminNotes
             });
             if (error) throw error;
+
+            try {
+                const { data: emailData, error: emailError } = await supabase.functions.invoke(
+                    'send-booking-status-update',
+                    {
+                        body: {
+                            booking_id: booking.id,
+                            user_email: booking.contact_email,
+                            user_name: booking.profiles?.full_name || 'Người dùng',
+                            mentor_name: booking.mentors?.full_name || 'Mentor',
+                            old_status: oldStatus,
+                            new_status: status,
+                            scheduled_date: booking.scheduled_date || new Date().toISOString(),
+                            duration: booking.duration,
+                            session_type: booking.session_type,
+                            mentor_notes: adminNotes || booking.mentor_notes
+                        }
+                    }
+                );
+
+                if (emailError) {
+                    console.error('Email notification error:', emailError);
+                } else {
+                    console.log('✅ Email sent successfully:', emailData);
+                }
+            } catch (emailError) {
+                console.error('Failed to send email:', emailError);
+            }
+
             onShowNotification('success', 'Trạng thái đã được cập nhật');
             onRefresh();
         } catch (error) {
@@ -335,14 +372,50 @@ export const BookingTab: React.FC<BookingTabProps> = ({
         if (!editingBooking || !bookingFormData) return;
         try {
             setSubmitting(true);
+
+            const oldStatus = editingBooking.status;
+            const newStatus = bookingFormData.status || oldStatus;
+
+            // Cập nhật booking
             const { error } = await supabase.rpc('mentor_booking_admin_update', {
                 p_booking_id: editingBooking.id,
                 p_scheduled_date: bookingFormData.scheduled_date ? new Date(bookingFormData.scheduled_date).toISOString() : null,
-                p_status: bookingFormData.status,
+                p_status: newStatus,
                 p_admin_notes: bookingFormData.admin_notes,
                 p_mentor_notes: bookingFormData.mentor_notes
             });
             if (error) throw error;
+
+            if (oldStatus !== newStatus) {
+                try {
+                    const { data: emailData, error: emailError } = await supabase.functions.invoke(
+                        'send-booking-status-update',
+                        {
+                            body: {
+                                booking_id: editingBooking.id,
+                                user_email: editingBooking.contact_email,
+                                user_name: editingBooking.profiles?.full_name || 'Người dùng',
+                                mentor_name: editingBooking.mentors?.full_name || 'Mentor',
+                                old_status: oldStatus,
+                                new_status: newStatus,
+                                scheduled_date: bookingFormData.scheduled_date || editingBooking.scheduled_date || new Date().toISOString(),
+                                duration: editingBooking.duration,
+                                session_type: editingBooking.session_type,
+                                mentor_notes: bookingFormData.mentor_notes || editingBooking.mentor_notes
+                            }
+                        }
+                    );
+
+                    if (emailError) {
+                        console.error('Email notification error:', emailError);
+                    } else {
+                        console.log('✅ Email sent successfully:', emailData);
+                    }
+                } catch (emailError) {
+                    console.error('Failed to send email:', emailError);
+                }
+            }
+
             onShowNotification('success', 'Đặt lịch đã được cập nhật');
             setShowEditForm(false);
             setEditingBooking(null);
