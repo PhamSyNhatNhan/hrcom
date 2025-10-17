@@ -5,89 +5,19 @@ import { SectionHeader } from '@/component/SectionHeader';
 import { supabase } from '@/utils/supabase/client';
 import { Button } from '@/component/Button';
 import {
-    Plus,
-    Search,
-    Edit,
-    Upload,
-    X,
-    Save,
-    XCircle,
-    AlertCircle,
-    CheckCircle,
-    Loader2,
-    RefreshCw,
-    Eye,
-    EyeOff,
-    Tag,
-    Calendar,
-    Clock,
-    AlertTriangle,
-    Send,
-    Edit3,
-    Trash2,
-    MessageSquare,
-    Settings,
-    ChevronLeft,
-    ChevronRight
+    Plus, Search, Edit, Upload, X, Save, XCircle, AlertCircle, CheckCircle,
+    Loader2, RefreshCw, Eye, EyeOff, Tag, Calendar, Clock, AlertTriangle,
+    Send, Edit3, Trash2, MessageSquare, Settings, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Image from 'next/image';
 import { Editor } from '@tinymce/tinymce-react';
-
-// Types
-interface Tag {
-    id: string;
-    name: string;
-    description?: string;
-    created_at: string;
-    updated_at: string;
-}
-
-interface Post {
-    id: string;
-    title: string;
-    description?: string;
-    thumbnail: string | null;
-    content: any;
-    author_id: string;
-    type: 'activity' | 'blog';
-    published: boolean;
-    published_at: string | null;
-    created_at: string;
-    updated_at: string;
-    tags?: Tag[];
-}
-
-interface PostSubmission {
-    id: string;
-    post_id: string;
-    author_id: string;
-    status: 'pending' | 'approved' | 'rejected';
-    reviewed_by: string | null;
-    reviewed_at: string | null;
-    admin_notes: string | null;
-    submitted_at: string;
-    created_at: string;
-    updated_at: string;
-    reviewed_by_profile?: {
-        full_name: string;
-    };
-}
-
-interface PostWithSubmission extends Post {
-    latest_submission?: PostSubmission;
-    submission_history?: PostSubmission[];
-}
-
-interface PostFormData {
-    title: string;
-    description: string;
-    type: 'activity' | 'blog';
-    content: string;
-    thumbnail: File | null;
-    selectedTags: string[];
-}
-
-type StatusFilter = 'all' | 'draft' | 'pending' | 'approved' | 'rejected' | 'hidden';
+import type {
+    Tag as TagType,
+    PostWithSubmission,
+    PostFormData,
+    StatusFilter,
+    GetPostsResponse
+} from '@/types/posts_mentor';
 
 // Helper functions
 function getErrorMessage(err: unknown): string {
@@ -108,7 +38,7 @@ const PostMentorPage: React.FC = () => {
     // State management
     const [loading, setLoading] = useState(false);
     const [posts, setPosts] = useState<PostWithSubmission[]>([]);
-    const [tags, setTags] = useState<Tag[]>([]);
+    const [tags, setTags] = useState<TagType[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editingPost, setEditingPost] = useState<PostWithSubmission | null>(null);
     const [showSubmissionHistory, setShowSubmissionHistory] = useState(false);
@@ -219,15 +149,13 @@ const PostMentorPage: React.FC = () => {
 
     // Check if can edit post
     const canEditPost = (post: PostWithSubmission): boolean => {
-        if (!post.latest_submission) return true; // Draft
-
+        if (!post.latest_submission) return true;
         return ['rejected', 'approved'].includes(post.latest_submission.status);
     };
 
     // Check if can delete post
     const canDeletePost = (post: PostWithSubmission): boolean => {
-        if (!post.latest_submission) return true; // Draft
-
+        if (!post.latest_submission) return true;
         return post.latest_submission.status !== 'approved' || !post.published;
     };
 
@@ -288,109 +216,40 @@ const PostMentorPage: React.FC = () => {
         }
     };
 
-    const updateLivePreview = () => {
-        if (showLivePreview && liveEditorRef.current && !isLivePreviewClosing) {
-            const content = liveEditorRef.current.getContent();
-            setPreviewContent(content);
-            setPendingLiveContent(content);
-
-            if (editorRef.current) {
-                editorRef.current.setContent(content);
-            }
-        }
-    };
-
-    // Load posts with pagination
+    // Load posts with pagination using RPC
     const loadPosts = async (page: number = 1) => {
         if (!user) return;
 
         try {
             setLoading(true);
 
-            // Build query with filters
-            let query = supabase
-                .from('posts')
-                .select(`
-                    *,
-                    post_tags (
-                        tags (
-                            id,
-                            name,
-                            description
-                        )
-                    )
-                `, { count: 'exact' })
-                .eq('author_id', user.id);
-
-            // Apply filters
-            if (filterType !== 'all') {
-                query = query.eq('type', filterType);
-            }
-
-            if (searchTerm.trim()) {
-                query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-            }
-
-            // Pagination
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-
-            query = query
-                .range(from, to)
-                .order('updated_at', { ascending: false });
-
-            const { data: postsData, error: postsError, count } = await query;
-
-            if (postsError) throw postsError;
-
-            // Load submissions for each post
-            const postIds = postsData?.map(p => p.id) || [];
-            let submissionsData: any[] = [];
-
-            if (postIds.length > 0) {
-                const { data, error: submissionsError } = await supabase
-                    .from('post_submissions')
-                    .select(`
-                        *,
-                        reviewed_by_profile:profiles!post_submissions_reviewed_by_fkey (
-                            full_name
-                        )
-                    `)
-                    .in('post_id', postIds)
-                    .order('submitted_at', { ascending: false });
-
-                if (submissionsError) throw submissionsError;
-                submissionsData = data || [];
-            }
-
-            // Combine posts with submissions and apply status filter
-            let postsWithSubmissions: PostWithSubmission[] = (postsData || []).map(post => {
-                const postSubmissions = submissionsData.filter(s => s.post_id === post.id);
-
-                return {
-                    ...post,
-                    tags: post.post_tags?.map((pt: any) => pt.tags).filter(Boolean) || [],
-                    latest_submission: postSubmissions[0] || null,
-                    submission_history: postSubmissions
-                };
+            const { data, error } = await supabase.rpc('posts_mentor_s_get_posts', {
+                p_author_id: user.id,
+                p_filter_type: filterType === 'all' ? null : filterType,
+                p_search_term: searchTerm.trim() || null,
+                p_page: page,
+                p_page_size: pageSize
             });
+
+            if (error) throw error;
+
+            const response = data as GetPostsResponse;
+            let postsData = response.posts || [];
 
             // Client-side filters
             if (filterStatus !== 'all') {
-                postsWithSubmissions = postsWithSubmissions.filter(post =>
-                    getPostStatus(post) === filterStatus
-                );
+                postsData = postsData.filter(post => getPostStatus(post) === filterStatus);
             }
 
             if (filterTag !== 'all') {
-                postsWithSubmissions = postsWithSubmissions.filter(post =>
+                postsData = postsData.filter(post =>
                     post.tags && post.tags.some(tag => tag.id === filterTag)
                 );
             }
 
-            setPosts(postsWithSubmissions);
-            setTotalCount(count || 0);
-            setTotalPages(Math.ceil((count || 0) / pageSize));
+            setPosts(postsData);
+            setTotalCount(response.total_count || 0);
+            setTotalPages(Math.ceil((response.total_count || 0) / pageSize));
 
         } catch (error) {
             console.error('Error loading posts:', error);
@@ -406,13 +265,10 @@ const PostMentorPage: React.FC = () => {
         loadPosts(newPage);
     };
 
-    // Load tags
+    // Load tags using RPC
     const loadTags = async () => {
         try {
-            const { data, error } = await supabase
-                .from('tags')
-                .select('*')
-                .order('name', { ascending: true });
+            const { data, error } = await supabase.rpc('posts_mentor_s_get_tags');
 
             if (error) throw error;
             setTags(data || []);
@@ -424,21 +280,49 @@ const PostMentorPage: React.FC = () => {
 
     // Upload image
     const uploadImage = async (file: File): Promise<string> => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-        const filePath = `posts/${fileName}`;
+        try {
+            // Validate file
+            if (!file) {
+                throw new Error('No file provided');
+            }
 
-        const { data, error } = await supabase.storage
-            .from('images')
-            .upload(filePath, file);
+            // Get file extension safely
+            const fileName = file.name || 'unnamed';
+            const fileExt = fileName.includes('.')
+                ? fileName.split('.').pop()
+                : 'jpg'; // default extension
 
-        if (error) throw error;
+            // Generate unique file name
+            const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const filePath = `posts/${uniqueFileName}`;
 
-        const { data: urlData } = supabase.storage
-            .from('images')
-            .getPublicUrl(filePath);
+            // Upload to Supabase storage
+            const { data, error } = await supabase.storage
+                .from('images')
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
-        return urlData.publicUrl;
+            if (error) {
+                console.error('Storage upload error:', error);
+                throw error;
+            }
+
+            // Get public URL
+            const { data: urlData } = supabase.storage
+                .from('images')
+                .getPublicUrl(filePath);
+
+            if (!urlData?.publicUrl) {
+                throw new Error('Failed to get public URL');
+            }
+
+            return urlData.publicUrl;
+        } catch (error) {
+            console.error('Upload image error:', error);
+            throw new Error(`Failed to upload image: ${getErrorMessage(error)}`);
+        }
     };
 
     // Handle thumbnail change
@@ -465,8 +349,7 @@ const PostMentorPage: React.FC = () => {
         }));
     };
 
-    // Save post (creates new submission when editing approved post)
-    // Save post (fixed logic - no auto submission for rejected posts)
+    // Save post using RPC
     const savePost = async () => {
         if (!user) return;
 
@@ -480,92 +363,47 @@ const PostMentorPage: React.FC = () => {
 
             const content = editorRef.current?.getContent() || formData.content || '';
 
-            const postData = {
-                title: formData.title,
-                description: formData.description,
-                type: formData.type,
-                content: content,
-                thumbnail: thumbnailUrl || null,
-                published: false, // Always false for mentor posts
-                author_id: user.id
-            };
-
-            let postId;
-            let needsReApproval = false;
-
             if (editingPost) {
-                // Check if post was approved before editing (only approved posts need re-approval)
-                needsReApproval = editingPost.latest_submission?.status === 'approved';
-
                 // Update existing post
-                const { error } = await supabase
-                    .from('posts')
-                    .update(postData)
-                    .eq('id', editingPost.id);
+                const { data, error } = await supabase.rpc('posts_mentor_s_update_post', {
+                    p_post_id: editingPost.id,
+                    p_title: formData.title,
+                    p_description: formData.description || null,
+                    p_type: formData.type,
+                    p_content: content,
+                    p_thumbnail: thumbnailUrl || null,
+                    p_tag_ids: formData.selectedTags.length > 0 ? formData.selectedTags : null,
+                    p_author_id: user.id
+                });
 
                 if (error) throw error;
-                postId = editingPost.id;
 
-                // Only create new submission for approved posts that are being edited
-                if (needsReApproval) {
-                    const { error: submissionError } = await supabase
-                        .from('post_submissions')
-                        .insert([{
-                            post_id: postId,
-                            author_id: user.id,
-                            status: 'pending'
-                        }]);
+                const result = data as { success: boolean; needs_reapproval: boolean };
 
-                    if (submissionError) throw submissionError;
+                if (result.needs_reapproval) {
                     showNotification('warning', 'Bài viết đã được chỉnh sửa và cần admin duyệt lại');
-                }
-            } else {
-                // Create new post
-                const { data, error } = await supabase
-                    .from('posts')
-                    .insert([postData])
-                    .select('id')
-                    .single();
-
-                if (error) throw error;
-                postId = data.id;
-            }
-
-            // Handle tags
-            if (postId) {
-                // Remove existing tags
-                await supabase
-                    .from('post_tags')
-                    .delete()
-                    .eq('post_id', postId);
-
-                // Add new tags
-                if (formData.selectedTags.length > 0) {
-                    const tagInserts = formData.selectedTags.map(tagId => ({
-                        post_id: postId,
-                        tag_id: tagId
-                    }));
-
-                    const { error: tagError } = await supabase
-                        .from('post_tags')
-                        .insert(tagInserts);
-
-                    if (tagError) throw tagError;
-                }
-            }
-
-            // Show appropriate success message
-            if (!needsReApproval) {
-                if (editingPost) {
+                } else {
                     const status = editingPost.latest_submission?.status;
                     if (status === 'rejected') {
                         showNotification('success', 'Đã cập nhật bài viết bị từ chối. Bạn có thể gửi duyệt lại khi sẵn sàng.');
                     } else {
                         showNotification('success', 'Cập nhật bài viết thành công');
                     }
-                } else {
-                    showNotification('success', 'Tạo bản nháp thành công');
                 }
+            } else {
+                // Create new post
+                const { error } = await supabase.rpc('posts_mentor_s_create_post', {
+                    p_title: formData.title,
+                    p_description: formData.description || null,
+                    p_type: formData.type,
+                    p_content: content,
+                    p_thumbnail: thumbnailUrl || null,
+                    p_author_id: user.id,
+                    p_tag_ids: formData.selectedTags.length > 0 ? formData.selectedTags : null
+                });
+
+                if (error) throw error;
+                showNotification('success', 'Tạo bản nháp thành công');
             }
 
             resetForm();
@@ -579,20 +417,17 @@ const PostMentorPage: React.FC = () => {
         }
     };
 
-    // Submit for approval
+    // Submit for approval using RPC
     const submitForApproval = async (postId: string) => {
         if (!user) return;
 
         try {
             setUploading(true);
 
-            const { error } = await supabase
-                .from('post_submissions')
-                .insert([{
-                    post_id: postId,
-                    author_id: user.id,
-                    status: 'pending'
-                }]);
+            const { error } = await supabase.rpc('posts_mentor_s_submit_for_approval', {
+                p_post_id: postId,
+                p_author_id: user.id
+            });
 
             if (error) throw error;
 
@@ -606,17 +441,16 @@ const PostMentorPage: React.FC = () => {
         }
     };
 
-    // Toggle publish status (only for approved posts)
+    // Toggle publish status using RPC
     const togglePublishStatus = async (post: PostWithSubmission) => {
         if (post.latest_submission?.status !== 'approved') return;
 
         try {
             setUploading(true);
 
-            const { error } = await supabase
-                .from('posts')
-                .update({ published: !post.published })
-                .eq('id', post.id);
+            const { error } = await supabase.rpc('posts_mentor_s_toggle_publish', {
+                p_post_id: post.id
+            });
 
             if (error) throw error;
 
@@ -630,7 +464,7 @@ const PostMentorPage: React.FC = () => {
         }
     };
 
-    // Delete post
+    // Delete post using RPC
     const deletePost = async (post: PostWithSubmission) => {
         if (!canDeletePost(post)) return;
 
@@ -639,16 +473,14 @@ const PostMentorPage: React.FC = () => {
         try {
             setUploading(true);
 
-            const { error } = await supabase
-                .from('posts')
-                .delete()
-                .eq('id', post.id);
+            const { error } = await supabase.rpc('posts_mentor_s_delete_post', {
+                p_post_id: post.id
+            });
 
             if (error) throw error;
 
             showNotification('success', 'Xóa bài viết thành công');
 
-            // If current page becomes empty, go to previous page
             if (posts.length === 1 && currentPage > 1) {
                 setCurrentPage(currentPage - 1);
                 loadPosts(currentPage - 1);
@@ -723,20 +555,24 @@ const PostMentorPage: React.FC = () => {
         loadPosts(1);
     }, [searchTerm, filterType, filterStatus, filterTag]);
 
+    // Modal scroll prevention
     useEffect(() => {
-        if (showForm) {
+        const isAnyModalOpen = showForm || showPreview || showLivePreview || showSubmissionHistory;
+
+        if (isAnyModalOpen) {
+            const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
             document.body.style.overflow = 'hidden';
-            document.body.style.paddingRight = '15px';
+            document.body.style.paddingRight = `${scrollbarWidth}px`;
         } else {
-            document.body.style.overflow = 'unset';
-            document.body.style.paddingRight = '0px';
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
         }
 
         return () => {
-            document.body.style.overflow = 'unset';
-            document.body.style.paddingRight = '0px';
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
         };
-    }, [showForm]);
+    }, [showForm, showPreview, showLivePreview, showSubmissionHistory]);
 
     useEffect(() => {
         return () => {
@@ -998,7 +834,6 @@ const PostMentorPage: React.FC = () => {
 
                                                 {/* Action Buttons */}
                                                 <div className="flex items-center gap-2">
-                                                    {/* Submit for approval - Draft posts */}
                                                     {getPostStatus(post) === 'draft' && (
                                                         <button
                                                             onClick={() => submitForApproval(post.id)}
@@ -1011,7 +846,6 @@ const PostMentorPage: React.FC = () => {
                                                         </button>
                                                     )}
 
-                                                    {/* Submit for approval again - Rejected posts */}
                                                     {getPostStatus(post) === 'rejected' && (
                                                         <button
                                                             onClick={() => submitForApproval(post.id)}
@@ -1024,15 +858,10 @@ const PostMentorPage: React.FC = () => {
                                                         </button>
                                                     )}
 
-                                                    {/* Edit post */}
                                                     {canEditPost(post) && (
                                                         <button
                                                             onClick={() => handleEditPost(post)}
-                                                            className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-white rounded-lg ${
-                                                                getPostStatus(post) === 'rejected'
-                                                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                                                    : 'bg-blue-600 hover:bg-blue-700'
-                                                            }`}
+                                                            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
                                                             title={post.latest_submission?.status === 'approved' ? 'Chỉnh sửa (cần duyệt lại)' : 'Chỉnh sửa'}
                                                         >
                                                             <Edit className="w-3 h-3" />
@@ -1040,7 +869,6 @@ const PostMentorPage: React.FC = () => {
                                                         </button>
                                                     )}
 
-                                                    {/* Toggle visibility for approved posts */}
                                                     {post.latest_submission?.status === 'approved' && (
                                                         <button
                                                             onClick={() => togglePublishStatus(post)}
@@ -1052,7 +880,6 @@ const PostMentorPage: React.FC = () => {
                                                         </button>
                                                     )}
 
-                                                    {/* View submission history */}
                                                     {post.submission_history && post.submission_history.length > 0 && (
                                                         <button
                                                             onClick={() => {
@@ -1066,7 +893,6 @@ const PostMentorPage: React.FC = () => {
                                                         </button>
                                                     )}
 
-                                                    {/* Delete post */}
                                                     {canDeletePost(post) && (
                                                         <button
                                                             onClick={() => deletePost(post)}
@@ -1149,7 +975,7 @@ const PostMentorPage: React.FC = () => {
                     )}
                 </div>
 
-                {/* Guidelines Section - Similar to Admin Mentor Manager */}
+                {/* Guidelines Section */}
                 <div className="mt-8 bg-white rounded-xl shadow-sm p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -1265,7 +1091,6 @@ const PostMentorPage: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {/* Warning message */}
                                 {editingPost?.latest_submission?.status === 'approved' && (
                                     <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                                         <div className="flex items-center">
@@ -1277,7 +1102,6 @@ const PostMentorPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* Info message for rejected posts */}
                                 {editingPost?.latest_submission?.status === 'rejected' && (
                                     <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                         <div className="flex items-center">
@@ -1382,7 +1206,6 @@ const PostMentorPage: React.FC = () => {
                                         Tags
                                     </label>
 
-                                    {/* Selected Tags */}
                                     {formData.selectedTags.length > 0 && (
                                         <div className="flex flex-wrap gap-2 mb-3">
                                             {formData.selectedTags.map(tagId => {
@@ -1407,7 +1230,6 @@ const PostMentorPage: React.FC = () => {
                                         </div>
                                     )}
 
-                                    {/* Tag Search & Dropdown */}
                                     <div className="relative">
                                         <input
                                             type="text"
@@ -1465,7 +1287,6 @@ const PostMentorPage: React.FC = () => {
                                         Nội dung bài viết *
                                     </label>
 
-                                    {/* Preview Controls */}
                                     <div className="flex gap-4 mb-4">
                                         <button
                                             type="button"
@@ -1535,60 +1356,43 @@ const PostMentorPage: React.FC = () => {
                                                         line-height: 1.7;
                                                         padding: 1rem;
                                                     }
-                                                    
                                                     img {
                                                         border-radius: 8px;
                                                         height: auto;
                                                     }
-                    
                                                     .wrap-left {
                                                         float: left !important;
                                                         margin: 0 2rem 1rem 0 !important;
                                                         clear: none !important;
                                                     }
-                    
                                                     .wrap-right {
                                                         float: right !important;
                                                         margin: 0 0 1rem 2rem !important;
                                                         clear: none !important;
                                                     }
-                    
                                                     .wrap-center {
                                                         display: block !important;
                                                         float: none !important;
                                                         margin: 2rem auto !important;
                                                         clear: both !important;
                                                     }
-                    
                                                     p {
                                                         margin-bottom: 1rem;
                                                         overflow: visible !important;
                                                     }
-                    
                                                     p:has(.wrap-left),
                                                     p:has(.wrap-right) {
                                                         overflow: visible !important;
                                                         min-height: 50px !important;
                                                     }
-                    
-                                                    .clear-wrap {
-                                                        clear: both !important;
-                                                        height: 0 !important;
-                                                        margin: 1rem 0 !important;
-                                                        font-size: 0 !important;
-                                                        line-height: 0 !important;
-                                                    }
-                    
                                                     table {
                                                         border-collapse: collapse;
                                                         width: 100%;
                                                     }
-                                                    
                                                     table td, table th {
                                                         border: 1px solid #e5e7eb;
                                                         padding: .5rem;
                                                     }
-                    
                                                     @media (max-width: 768px) {
                                                         .wrap-left,
                                                         .wrap-right {
@@ -1600,7 +1404,6 @@ const PostMentorPage: React.FC = () => {
                                                 `)
                                             ],
                                             setup: function (editor) {
-                                                // Text wrapping commands
                                                 const fireWrapChange = (img: HTMLElement) => {
                                                     editor.fire('ObjectResized', { target: img } as any);
                                                 };
@@ -1655,7 +1458,6 @@ const PostMentorPage: React.FC = () => {
                                                     }
                                                 });
 
-                                                // Register buttons
                                                 editor.ui.registry.addButton('wrapleft', {
                                                     icon: 'align-left',
                                                     tooltip: 'Text wrap bên phải ảnh',
@@ -1775,7 +1577,6 @@ const PostMentorPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Form Actions */}
                             <div className="p-6 border-t border-gray-200 flex gap-4 justify-end">
                                 <Button
                                     variant="outline"
@@ -1950,60 +1751,43 @@ const PostMentorPage: React.FC = () => {
                                                                     line-height: 1.7;
                                                                     padding: 1rem;
                                                                 }
-                                                                
                                                                 img {
                                                                     border-radius: 8px;
                                                                     height: auto;
                                                                 }
-                                
                                                                 .wrap-left {
                                                                     float: left !important;
                                                                     margin: 0 2rem 1rem 0 !important;
                                                                     clear: none !important;
                                                                 }
-                                
                                                                 .wrap-right {
                                                                     float: right !important;
                                                                     margin: 0 0 1rem 2rem !important;
                                                                     clear: none !important;
                                                                 }
-                                
                                                                 .wrap-center {
                                                                     display: block !important;
                                                                     float: none !important;
                                                                     margin: 2rem auto !important;
                                                                     clear: both !important;
                                                                 }
-                                
                                                                 p {
                                                                     margin-bottom: 1rem;
                                                                     overflow: visible !important;
                                                                 }
-                                
                                                                 p:has(.wrap-left),
                                                                 p:has(.wrap-right) {
                                                                     overflow: visible !important;
                                                                     min-height: 50px !important;
                                                                 }
-                                
-                                                                .clear-wrap {
-                                                                    clear: both !important;
-                                                                    height: 0 !important;
-                                                                    margin: 1rem 0 !important;
-                                                                    font-size: 0 !important;
-                                                                    line-height: 0 !important;
-                                                                }
-                                
                                                                 table {
                                                                     border-collapse: collapse;
                                                                     width: 100%;
                                                                 }
-                                                                
                                                                 table td, table th {
                                                                     border: 1px solid #e5e7eb;
                                                                     padding: .5rem;
                                                                 }
-                                
                                                                 @media (max-width: 768px) {
                                                                     .wrap-left,
                                                                     .wrap-right {
@@ -2015,7 +1799,6 @@ const PostMentorPage: React.FC = () => {
                                                             `)
                                                         ],
                                                         setup: function(editor) {
-                                                            // Same setup as main editor (wrapping commands and buttons)
                                                             const fireWrapChange = (img: HTMLElement) => {
                                                                 editor.fire('ObjectResized', { target: img } as any);
                                                             };
@@ -2070,7 +1853,6 @@ const PostMentorPage: React.FC = () => {
                                                                 }
                                                             });
 
-                                                            // Register buttons
                                                             editor.ui.registry.addButton('wrapleft', {
                                                                 icon: 'align-left',
                                                                 tooltip: 'Text wrap bên phải ảnh',
@@ -2124,7 +1906,6 @@ const PostMentorPage: React.FC = () => {
                                                                 }
                                                             });
 
-                                                            // Content sync system
                                                             let syncTimeout: NodeJS.Timeout;
                                                             let lastSyncTime = 0;
 

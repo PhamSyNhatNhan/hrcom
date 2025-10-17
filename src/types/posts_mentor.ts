@@ -1,4 +1,4 @@
-// src/types/posts_mentor.ts
+// Types for Post Mentor Management
 
 export interface Tag {
     id: string;
@@ -54,3 +54,50 @@ export interface PostFormData {
 }
 
 export type StatusFilter = 'all' | 'draft' | 'pending' | 'approved' | 'rejected' | 'hidden';
+
+// RPC Request/Response types
+export interface GetPostsParams {
+    p_author_id: string;
+    p_filter_type?: 'activity' | 'blog';
+    p_search_term?: string;
+    p_page?: number;
+    p_page_size?: number;
+}
+
+export interface GetPostsResponse {
+    posts: PostWithSubmission[];
+    total_count: number;
+}
+
+export interface CreatePostParams {
+    p_title: string;
+    p_description?: string;
+    p_type: 'activity' | 'blog';
+    p_content: string;
+    p_thumbnail?: string;
+    p_author_id: string;
+    p_tag_ids?: string[];
+}
+
+export interface UpdatePostParams {
+    p_post_id: string;
+    p_title: string;
+    p_description?: string;
+    p_type: 'activity' | 'blog';
+    p_content: string;
+    p_thumbnail?: string;
+    p_tag_ids?: string[];
+}
+
+export interface SubmitForApprovalParams {
+    p_post_id: string;
+    p_author_id: string;
+}
+
+export interface TogglePublishParams {
+    p_post_id: string;
+}
+
+export interface DeletePostParams {
+    p_post_id: string;
+}
