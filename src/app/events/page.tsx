@@ -463,21 +463,33 @@ const EventsContent = () => {
         setQrError(null);
         try {
             const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } },
+                video: { facingMode: { ideal: 'environment' } },
                 audio: false
             });
 
-            if (videoRef.current) {
-                videoRef.current.srcObject = mediaStream;
-                await videoRef.current.play().catch(() => {});
+            const video = videoRef.current;
+            if (!video) {
+                console.warn('Video element not found');
+                return;
             }
 
+            video.srcObject = mediaStream;
             setStream(mediaStream);
+
+            video.onloadedmetadata = async () => {
+                try {
+                    await video.play();
+                    console.log('Camera started');
+                } catch (err) {
+                    console.error('Cannot play video:', err);
+                }
+            };
         } catch (error) {
             console.error('Error accessing camera:', error);
-            setQrError('Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập.');
+            setQrError('Không thể truy cập camera. Hãy kiểm tra quyền truy cập trong trình duyệt.');
         }
     };
+
 
 
     const stopQRScanner = () => {
