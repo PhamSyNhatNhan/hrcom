@@ -1790,7 +1790,7 @@ const EventsContent = () => {
                                 </div>
                             </div>
 
-                            {/* [FIX 8 Applied] */}
+                            {/* Nội dung quét QR */}
                             <div className="p-6">
                                 {qrError ? (
                                     <div className="text-center py-8">
@@ -1806,8 +1806,9 @@ const EventsContent = () => {
                                             Thử lại
                                         </button>
                                     </div>
-                                ) : stream ? (
+                                ) : (
                                     <div className="space-y-4">
+                                        {/* Khung camera */}
                                         <div className="relative aspect-square bg-black rounded-lg overflow-hidden">
                                             <video
                                                 ref={videoRef}
@@ -1816,18 +1817,27 @@ const EventsContent = () => {
                                                 muted
                                                 className="w-full h-full object-cover"
                                             />
-                                            {/* Khung quét */}
-                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                <div className="relative w-2/3 h-2/3">
-                                                    {/* 4 góc */}
-                                                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
-                                                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
-                                                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
-                                                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
-                                                </div>
-                                            </div>
 
-                                            {/* Loading indicator khi đang xử lý */}
+                                            {/* Hiển thị overlay khi camera đang khởi động */}
+                                            {!stream && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-sm">
+                                                    Đang khởi động camera...
+                                                </div>
+                                            )}
+
+                                            {/* 4 góc khung quét QR */}
+                                            {stream && (
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="relative w-2/3 h-2/3">
+                                                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
+                                                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
+                                                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
+                                                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Loading khi đang xử lý check-in */}
                                             {checkingIn && (
                                                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                                                     <Loader2 className="w-12 h-12 text-white animate-spin" />
@@ -1835,35 +1845,22 @@ const EventsContent = () => {
                                             )}
                                         </div>
 
-                                        <div className="text-center space-y-2">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                                <p className="text-sm text-gray-700 font-medium">
-                                                    Đang quét tự động...
+                                        {/* Dòng trạng thái dưới video */}
+                                        {stream && (
+                                            <div className="text-center space-y-2">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                                    <p className="text-sm text-gray-700 font-medium">
+                                                        Đang quét tự động...
+                                                    </p>
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                    Đưa mã QR vào trong khung hình để check-in
                                                 </p>
                                             </div>
-                                            <p className="text-xs text-gray-500">
-                                                Đưa QR code vào khung hình để check-in
-                                            </p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8">
-                                        <Loader2 className="w-16 h-16 animate-spin text-blue-600 mx-auto mb-4" />
-                                        <p className="text-gray-600">Đang mở camera...</p>
+                                        )}
                                     </div>
                                 )}
-                            </div>
-
-
-                            <div className="p-6 border-t border-gray-200">
-                                <button
-                                    onClick={openCheckInModal}
-                                    className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2"
-                                >
-                                    <LogIn className="w-4 h-4" />
-                                    Hoặc nhập mã thủ công
-                                </button>
                             </div>
                         </div>
                     </div>
