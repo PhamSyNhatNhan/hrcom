@@ -461,34 +461,60 @@ const EventsContent = () => {
 
     const startQRScanner = async () => {
         setQrError(null);
+
+        // Đảm bảo modal hiển thị trước khi mở camera
+        await new Promise(resolve => setTimeout(resolve, 200));
+
         try {
+            // Kiểm tra hỗ trợ
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('Trình duyệt không hỗ trợ camera');
+            }
+
+            // Yêu cầu quyền camera (ưu tiên cam sau)
             const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'environment' } },
+                video: {
+                    facingMode: { ideal: "environment" },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
                 audio: false
             });
 
-            const video = videoRef.current;
-            if (!video) {
-                console.warn('Video element not found');
-                return;
-            }
+            console.log("✅ Camera stream nhận được:", mediaStream.getVideoTracks());
 
+            const video = videoRef.current;
+            if (!video) throw new Error('Không tìm thấy phần tử video');
+
+            // Gán và phát
             video.srcObject = mediaStream;
             setStream(mediaStream);
 
-            video.onloadedmetadata = async () => {
-                try {
-                    await video.play();
-                    console.log('Camera started');
-                } catch (err) {
-                    console.error('Cannot play video:', err);
-                }
-            };
-        } catch (error) {
-            console.error('Error accessing camera:', error);
-            setQrError('Không thể truy cập camera. Hãy kiểm tra quyền truy cập trong trình duyệt.');
+            // Chờ metadata trước khi play
+            await new Promise<void>((resolve) => {
+                video.onloadedmetadata = async () => {
+                    try {
+                        await video.play();
+                        console.log("🎥 Camera đã phát");
+                        resolve();
+                    } catch (err) {
+                        console.error("Không thể play video:", err);
+                        setQrError('Không thể khởi động camera (trình duyệt chặn phát video)');
+                    }
+                };
+            });
+        } catch (error: any) {
+            console.error("🚫 Lỗi mở camera:", error);
+            if (error.name === "NotAllowedError") {
+                setQrError("Quyền camera bị từ chối. Hãy cấp lại quyền trong trình duyệt.");
+            } else if (error.name === "NotFoundError") {
+                setQrError("Không tìm thấy camera trên thiết bị.");
+            } else {
+                setQrError("Không thể mở camera. Vui lòng thử lại.");
+            }
         }
     };
+
 
 
 
