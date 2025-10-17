@@ -463,17 +463,22 @@ const EventsContent = () => {
         setQrError(null);
         try {
             const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
+                video: { facingMode: { ideal: "environment" } },
+                audio: false
             });
-            setStream(mediaStream);
+
             if (videoRef.current) {
                 videoRef.current.srcObject = mediaStream;
+                await videoRef.current.play().catch(() => {});
             }
+
+            setStream(mediaStream);
         } catch (error) {
             console.error('Error accessing camera:', error);
             setQrError('Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập.');
         }
     };
+
 
     const stopQRScanner = () => {
         if (stream) {
