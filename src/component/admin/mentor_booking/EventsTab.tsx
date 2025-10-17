@@ -38,7 +38,7 @@ import {
     QrCode,
     Copy,
     Check,
-    ArrowLeft
+    ArrowLeft, Printer
 } from 'lucide-react';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
@@ -2299,14 +2299,14 @@ export const EventsTab: React.FC<EventsTabProps> = ({
             )}
 
             {/* QR Code Modal */}
-            {showQRCodeModal && selectedCheckInCode && (
+            {showQRCodeModal && selectedCheckInCode && selectedEvent && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div
                         className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
                         onClick={() => setShowQRCodeModal(false)}
                     />
 
-                    <div className="relative bg-white rounded-xl max-w-md w-full">
+                    <div className="relative bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
                         <div className="p-6 border-b border-gray-200">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-xl font-bold">QR Code Check-in</h3>
@@ -2319,13 +2319,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                             </div>
                         </div>
 
-                        <div className="p-6 text-center space-y-4">
-                            {/* QR Code thật */}
-                            <div className="qr-code-container bg-white p-4 rounded-lg inline-block border-4 border-gray-200 shadow-lg">
+                        <div className="p-6 text-center space-y-6">
+                            {/* QR Code - ✅ ĐÚNG FORMAT */}
+                            <div className="qr-code-container bg-white p-6 rounded-lg inline-block border-4 border-gray-200 shadow-lg">
                                 <QRCodeSVG
                                     value={JSON.stringify({
                                         type: 'event_checkin',
-                                        event_id: selectedEventId,
+                                        event_id: selectedEvent.id, // ✅ Thêm event_id
                                         code: selectedCheckInCode.code,
                                         valid_until: selectedCheckInCode.valid_until
                                     })}
@@ -2337,6 +2337,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 />
                             </div>
 
+                            {/* Thông tin mã */}
                             <div>
                                 <div className="text-sm text-gray-600 mb-2">Mã check-in:</div>
                                 <div className="flex items-center justify-center gap-2">
@@ -2356,15 +2357,92 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 </div>
                             </div>
 
-                            <div className="text-sm text-gray-600 space-y-1 bg-gray-50 p-4 rounded-lg">
-                                <div><strong>Sự kiện:</strong> {selectedEvent?.title}</div>
-                                <div><strong>Hiệu lực:</strong> {new Date(selectedCheckInCode.valid_from).toLocaleString('vi-VN')}</div>
-                                <div><strong>Hết hạn:</strong> {new Date(selectedCheckInCode.valid_until).toLocaleString('vi-VN')}</div>
-                                <div><strong>Đã sử dụng:</strong> {selectedCheckInCode.usage_count} lần</div>
+                            {/* Thông tin chi tiết */}
+                            <div className="text-sm text-gray-600 space-y-2 bg-gray-50 p-4 rounded-lg text-left">
+                                <div className="flex justify-between">
+                                    <strong>Sự kiện:</strong>
+                                    <span className="text-right ml-2">{selectedEvent.title}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <strong>Hiệu lực từ:</strong>
+                                    <span>{new Date(selectedCheckInCode.valid_from).toLocaleString('vi-VN')}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <strong>Hết hạn:</strong>
+                                    <span>{new Date(selectedCheckInCode.valid_until).toLocaleString('vi-VN')}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <strong>Đã sử dụng:</strong>
+                                    <span>{selectedCheckInCode.usage_count} lần</span>
+                                </div>
+                                {selectedCheckInCode.notes && (
+                                    <div className="pt-2 border-t border-gray-200">
+                                        <strong>Ghi chú:</strong>
+                                        <p className="mt-1">{selectedCheckInCode.notes}</p>
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="text-xs text-gray-500 bg-blue-50 p-3 rounded">
-                                💡 Người tham dự có thể quét mã QR này hoặc nhập mã "{selectedCheckInCode.code}" để check-in
+                            {/* Hướng dẫn */}
+                            <div className="text-xs text-gray-500 bg-blue-50 p-3 rounded border border-blue-100">
+                                <div className="flex items-start gap-2">
+                                    <QrCode className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                                    <div className="text-left">
+                                        <p className="font-semibold text-blue-800 mb-1">Hướng dẫn sử dụng:</p>
+                                        <ul className="list-disc list-inside space-y-1 text-blue-700">
+                                            <li>Người tham dự quét QR này để check-in</li>
+                                            <li>Hoặc nhập mã "{selectedCheckInCode.code}" thủ công</li>
+                                            <li>Mã có hiệu lực trong khung thời gian đã đặt</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Nút hành động */}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        // Download QR as image
+                                        const svg = document.querySelector('.qr-code-container svg');
+                                        if (svg) {
+                                            const svgData = new XMLSerializer().serializeToString(svg);
+                                            const canvas = document.createElement('canvas');
+                                            const ctx = canvas.getContext('2d');
+                                            const img = new Image();
+
+                                            img.onload = () => {
+                                                canvas.width = img.width;
+                                                canvas.height = img.height;
+                                                ctx?.drawImage(img, 0, 0);
+
+                                                canvas.toBlob((blob) => {
+                                                    if (blob) {
+                                                        const url = URL.createObjectURL(blob);
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.download = `qr-checkin-${selectedCheckInCode.code}.png`;
+                                                        link.click();
+                                                        URL.revokeObjectURL(url);
+                                                    }
+                                                });
+                                            };
+
+                                            img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+                                        }
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    Tải QR Code
+                                </button>
+
+                                <button
+                                    onClick={() => window.print()}
+                                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2"
+                                >
+                                    <Printer className="w-4 h-4" />
+                                    In
+                                </button>
                             </div>
                         </div>
                     </div>

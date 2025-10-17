@@ -463,3 +463,21 @@ body {
 .animate-scan {
   animation: scan 2s linear infinite;
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .qr-code-container,
+  .qr-code-container * {
+    visibility: visible;
+  }
+
+  .qr-code-container {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
