@@ -48,8 +48,29 @@ import {
     EventFilters,
     PaginationState,
     CSVExportField,
-    CSVExportOptions
+    CSVExportOptions,
+    EventCheckInCode
 } from '@/types/events_admin';
+
+/**
+ * Format date to datetime-local input format (YYYY-MM-DDTHH:mm)
+ * Giữ nguyên timezone địa phương, không convert sang UTC
+ */
+const formatDateTimeLocal = (dateString: string): string => {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
+
+    // Lấy từng phần theo timezone địa phương
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 
 interface EventsTabProps {
     registrations: EventRegistration[];
@@ -60,18 +81,6 @@ interface EventsTabProps {
     onPageChange: (page: number) => void;
     onRefresh: () => void;
     onShowNotification: (type: 'success' | 'error' | 'warning', message: string) => void;
-}
-
-interface CheckInCode {
-    id: string;
-    code: string;
-    valid_from: string;
-    valid_until: string;
-    is_active: boolean;
-    notes?: string;
-    creator_name?: string;
-    usage_count: number;
-    created_at: string;
 }
 
 const DEFAULT_CSV_FIELDS: CSVExportField[] = [
@@ -140,7 +149,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     const [detailTab, setDetailTab] = useState<'participants' | 'reviews'>('participants');
     const [participants, setParticipants] = useState<EventRegistration[]>([]);
     const [reviews, setReviews] = useState<any[]>([]);
-    const [checkInCodes, setCheckInCodes] = useState<CheckInCode[]>([]);
+    const [checkInCodes, setCheckInCodes] = useState<EventCheckInCode[]>([]);
     const [participantsLoading, setParticipantsLoading] = useState(false);
     const [reviewsLoading, setReviewsLoading] = useState(false);
     const [participantsSearch, setParticipantsSearch] = useState('');
@@ -166,8 +175,9 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     const [showCheckInCodeModal, setShowCheckInCodeModal] = useState(false);
     const [checkInCodeFormData, setCheckInCodeFormData] = useState<any>({});
     const [showQRCodeModal, setShowQRCodeModal] = useState(false);
-    const [selectedCheckInCode, setSelectedCheckInCode] = useState<CheckInCode | null>(null);
+    const [selectedCheckInCode, setSelectedCheckInCode] = useState<EventCheckInCode | null>(null);
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
+    const [editingCheckInCode, setEditingCheckInCode] = useState<EventCheckInCode | null>(null);
 
     // CSV Export states
     const [showCSVModal, setShowCSVModal] = useState(false);
@@ -388,9 +398,9 @@ export const EventsTab: React.FC<EventsTabProps> = ({
             setEditingEvent(event);
             setEventFormData({
                 ...event,
-                event_date: event.event_date ? new Date(event.event_date).toISOString().slice(0, 16) : '',
-                end_date: event.end_date ? new Date(event.end_date).toISOString().slice(0, 16) : '',
-                registration_deadline: event.registration_deadline ? new Date(event.registration_deadline).toISOString().slice(0, 16) : ''
+                event_date: event.event_date ? formatDateTimeLocal(event.event_date) : '',
+                end_date: event.end_date ? formatDateTimeLocal(event.end_date) : '',
+                registration_deadline: event.registration_deadline ? formatDateTimeLocal(event.registration_deadline) : ''
             });
         } else {
             setEditingEvent(null);
@@ -498,17 +508,30 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     // Check-in Code Functions
     const openCheckInCodeModal = () => {
         const now = new Date();
-        const validUntil = new Date(selectedEvent?.event_date || now);
+        const validUntil = new Date(now);
         validUntil.setHours(validUntil.getHours() + 2);
 
+        setEditingCheckInCode(null); // Đánh dấu đang tạo mới
         setCheckInCodeFormData({
             code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-            valid_from: now.toISOString().slice(0, 16),
-            valid_until: validUntil.toISOString().slice(0, 16),
+            valid_from: formatDateTimeLocal(now.toISOString()),
+            valid_until: formatDateTimeLocal(validUntil.toISOString()),
             notes: ''
         });
         setShowCheckInCodeModal(true);
     };
+
+    const openEditCheckInCodeModal = (code: EventCheckInCode) => {
+        setEditingCheckInCode(code); // Đánh dấu đang edit
+        setCheckInCodeFormData({
+            code: code.code,
+            valid_from: formatDateTimeLocal(code.valid_from),
+            valid_until: formatDateTimeLocal(code.valid_until),
+            notes: code.notes || ''
+        });
+        setShowCheckInCodeModal(true);
+    };
+
 
     const generateNewCode = () => {
         setCheckInCodeFormData((prev: any) => ({
@@ -522,21 +545,40 @@ export const EventsTab: React.FC<EventsTabProps> = ({
 
         try {
             setSubmitting(true);
-            const { error } = await supabase.rpc('events_admin_create_check_in_code', {
-                p_event_id: selectedEventId,
-                p_code: checkInCodeFormData.code,
-                p_valid_from: new Date(checkInCodeFormData.valid_from).toISOString(),
-                p_valid_until: new Date(checkInCodeFormData.valid_until).toISOString(),
-                p_notes: checkInCodeFormData.notes || null
-            });
 
-            if (error) throw error;
-            onShowNotification('success', 'Tạo mã check-in thành công');
+            if (editingCheckInCode) {
+                // UPDATE - gọi RPC update
+                const { error } = await supabase.rpc('events_admin_update_check_in_code_full', {
+                    p_code_id: editingCheckInCode.id,
+                    p_code: checkInCodeFormData.code,
+                    p_valid_from: new Date(checkInCodeFormData.valid_from).toISOString(),
+                    p_valid_until: new Date(checkInCodeFormData.valid_until).toISOString(),
+                    p_notes: checkInCodeFormData.notes || null,
+                    p_is_active: editingCheckInCode.is_active // giữ nguyên giá trị cũ
+                });
+
+                if (error) throw error;
+                onShowNotification('success', 'Cập nhật mã check-in thành công');
+            } else {
+                // CREATE - code hiện tại
+                const { error } = await supabase.rpc('events_admin_create_check_in_code', {
+                    p_event_id: selectedEventId,
+                    p_code: checkInCodeFormData.code,
+                    p_valid_from: new Date(checkInCodeFormData.valid_from).toISOString(),
+                    p_valid_until: new Date(checkInCodeFormData.valid_until).toISOString(),
+                    p_notes: checkInCodeFormData.notes || null
+                });
+
+                if (error) throw error;
+                onShowNotification('success', 'Tạo mã check-in thành công');
+            }
+
             setShowCheckInCodeModal(false);
+            setEditingCheckInCode(null);
             loadCheckInCodes();
         } catch (error) {
-            console.error('Error creating check-in code:', error);
-            onShowNotification('error', 'Lỗi khi tạo mã check-in');
+            console.error('Error saving check-in code:', error);
+            onShowNotification('error', `Lỗi khi ${editingCheckInCode ? 'cập nhật' : 'tạo'} mã check-in`);
         } finally {
             setSubmitting(false);
         }
@@ -575,7 +617,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
         }
     };
 
-    const showQRCode = (code: CheckInCode) => {
+    const showQRCode = (code: EventCheckInCode) => {
         setSelectedCheckInCode(code);
         setShowQRCodeModal(true);
     };
@@ -1655,6 +1697,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                         <div>Hiệu lực: {new Date(code.valid_from).toLocaleString('vi-VN')}</div>
                                         <div>Hết hạn: {new Date(code.valid_until).toLocaleString('vi-VN')}</div>
                                         <div>Đã sử dụng: {code.usage_count} lần</div>
+                                        {code.notes && <div>Ghi chú: {code.notes}</div>}
                                     </div>
                                     <div className="flex gap-2">
                                         <button
@@ -1663,6 +1706,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                         >
                                             <QrCode className="w-3 h-3" />
                                             QR
+                                        </button>
+                                        <button
+                                            onClick={() => openEditCheckInCodeModal(code)}
+                                            className="flex-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200 text-sm flex items-center justify-center gap-1"
+                                        >
+                                            <Edit className="w-3 h-3" />
+                                            Sửa
                                         </button>
                                         <button
                                             onClick={() => toggleCheckInCodeStatus(code.id, code.is_active)}
@@ -2141,7 +2191,9 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                     <div className="relative bg-white rounded-xl max-w-md w-full">
                         <div className="p-6 border-b border-gray-200">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-xl font-bold">Tạo mã check-in</h3>
+                                <h3 className="text-xl font-bold">
+                                    {editingCheckInCode ? 'Chỉnh sửa mã check-in' : 'Tạo mã check-in'}
+                                </h3>
                                 <button
                                     onClick={() => !submitting && setShowCheckInCodeModal(false)}
                                     className="text-gray-400 hover:text-gray-600"
@@ -2232,12 +2284,12 @@ export const EventsTab: React.FC<EventsTabProps> = ({
                                 {submitting ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        Đang tạo...
+                                        {editingCheckInCode ? 'Đang cập nhật...' : 'Đang tạo...'}
                                     </>
                                 ) : (
                                     <>
                                         <Save className="w-4 h-4" />
-                                        Tạo mã
+                                        {editingCheckInCode ? 'Cập nhật' : 'Tạo mã'}
                                     </>
                                 )}
                             </Button>

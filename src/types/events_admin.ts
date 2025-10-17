@@ -125,7 +125,6 @@ export interface EventReview {
     };
 }
 
-// THÊM MỚI: Interface cho Check-in Code
 export interface EventCheckInCode {
     id: string;
     event_id: string;
@@ -137,7 +136,6 @@ export interface EventCheckInCode {
     notes?: string;
     created_at: string;
     updated_at: string;
-    // Thêm các trường từ RPC
     creator_name?: string;
     usage_count: number;
 }
