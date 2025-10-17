@@ -159,13 +159,65 @@ const EventsContent = () => {
         }
     }, [user]);
 
-    // Cleanup camera stream when modal closes
+    // PHẦN 7: Tự động bắt đầu quét khi mở modal
     useEffect(() => {
-        if (!showQRScannerModal && stream) {
+        let scanInterval: NodeJS.Timeout;
+
+        if (showQRScannerModal) {
+            // Bắt đầu quét tự động khi modal mở
+            startQRScanner().then(() => {
+                // Bắt đầu loop quét
+                scanInterval = setInterval(() => {
+                    if (showQRScannerModal && stream && !checkingIn) {
+                        handleQRScan();
+                    }
+                }, 500); // Quét mỗi 500ms
+            });
+        } else if (stream) {
+            // Dừng camera khi đóng modal
             stream.getTracks().forEach(track => track.stop());
             setStream(null);
         }
-    }, [showQRScannerModal]);
+
+        return () => {
+            if (scanInterval) {
+                clearInterval(scanInterval);
+            }
+        };
+    }, [showQRScannerModal, stream, checkingIn]);
+
+    // PHẦN 1: THÊM useEffect để lock scroll khi modal mở
+    useEffect(() => {
+        const isAnyModalOpen = showRegisterModal || showCheckInModal || showQRScannerModal;
+
+        if (isAnyModalOpen) {
+            // Save current scroll position
+            const scrollY = window.scrollY;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollY}px`;
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        } else {
+            // Restore scroll position
+            const scrollY = document.body.style.top;
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+
+            if (scrollY) {
+                window.scrollTo(0, parseInt(scrollY || '0') * -1);
+            }
+        }
+
+        // Cleanup on unmount
+        return () => {
+            document.body.style.position = '';
+            document.body.style.top = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+        };
+    }, [showRegisterModal, showCheckInModal, showQRScannerModal]);
 
     const loadEvents = async () => {
         try {
@@ -409,25 +461,33 @@ const EventsContent = () => {
         }
     };
 
+    // PHẦN 6: FIX QR Scanner - Sử dụng jsQR library
     const handleQRScan = async () => {
-        if (!videoRef.current) return;
+        if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) return;
 
+        const canvas = document.createElement('canvas');
+        const video = videoRef.current;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Sử dụng jsQR để quét
         try {
-            // Sử dụng BarcodeDetector API nếu có
-            if ('BarcodeDetector' in window) {
-                const barcodeDetector = new (window as any).BarcodeDetector({
-                    formats: ['qr_code']
-                });
+            const jsQR = (await import('jsqr')).default;
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-                const barcodes = await barcodeDetector.detect(videoRef.current);
-
-                if (barcodes.length > 0) {
-                    const qrData = barcodes[0].rawValue;
-                    await processQRData(qrData);
-                }
+            if (code) {
+                await processQRData(code.data);
             }
         } catch (error) {
             console.error('Error scanning QR:', error);
+            setQrError('Lỗi khi quét QR code');
         }
     };
 
@@ -528,11 +588,12 @@ const EventsContent = () => {
         });
     };
 
+    // PHẦN 2: CẬP NHẬT hàm canCheckIn
     const canCheckIn = (event: Event | EventDetail) => {
         if (!event) return false;
         if (!event.is_registered || event.user_registration_status !== 'confirmed') return false;
         if (!event.check_in_enabled) return false;
-        if (event.is_checked_in) return false;
+        if (event.is_checked_in) return false; // ✅ Đã check-in rồi
 
         const now = new Date();
         const eventDate = new Date(event.event_date);
@@ -541,7 +602,29 @@ const EventsContent = () => {
             ? new Date(event.end_date)
             : new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
 
+        // Chỉ cho check-in từ khi sự kiện bắt đầu đến khi kết thúc
         return now >= eventDate && now <= endDate;
+    };
+
+    // PHẦN 3: THÊM hàm kiểm tra có thể hủy đăng ký không
+    const canCancelRegistration = (event: Event | EventDetail) => {
+        if (!event.is_registered) return false;
+        if (event.user_registration_status !== 'pending' && event.user_registration_status !== 'confirmed') return false;
+
+        // ✅ Không cho hủy nếu sự kiện đã bắt đầu
+        const now = new Date();
+        const eventDate = new Date(event.event_date);
+        return now < eventDate;
+    };
+
+    // PHẦN 4: THÊM hàm kiểm tra vắng mặt
+    const isAbsent = (event: Event | EventDetail) => {
+        if (!event.is_registered) return false;
+        if (event.user_registration_status !== 'confirmed') return false;
+        if (event.is_checked_in) return false; // Đã check-in thì không vắng
+
+        // Kiểm tra sự kiện đã kết thúc chưa
+        return isEventPast(event);
     };
 
     const isRegistrationDeadlinePassed = (event: Event | EventDetail) => {
@@ -1141,7 +1224,7 @@ const EventsContent = () => {
                                         </div>
                                     </div>
 
-                                    {/* Action Buttons - RESPONSIVE: 4 nút bằng nhau trên mobile */}
+                                    {/* PHẦN 5: CẬP NHẬT Action Buttons trong Event Detail */}
                                     <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-3'} pt-6 border-t border-gray-200`}>
                                         {/* Đăng ký */}
                                         {(!selectedEvent.is_registered || selectedEvent.user_registration_status === 'cancelled' || selectedEvent.user_registration_status === 'rejected') && selectedEvent.can_register && (
@@ -1154,8 +1237,8 @@ const EventsContent = () => {
                                             </button>
                                         )}
 
-                                        {/* Hủy đăng ký */}
-                                        {selectedEvent.is_registered && selectedEvent.user_registration_id && (selectedEvent.user_registration_status === 'pending' || selectedEvent.user_registration_status === 'confirmed') && (
+                                        {/* Hủy đăng ký - CHỈ HIỂN THỊ NẾU CÒN CHO PHÉP HỦY */}
+                                        {selectedEvent.is_registered && selectedEvent.user_registration_id && canCancelRegistration(selectedEvent) && (
                                             <button
                                                 onClick={() => cancelRegistration(selectedEvent.user_registration_id!)}
                                                 disabled={submitting}
@@ -1175,29 +1258,29 @@ const EventsContent = () => {
                                             </button>
                                         )}
 
-                                        {/* Check-in với mã */}
+                                        {/* ✅ CHỈ HIỂN THỊ NÚT CHECK-IN NẾU CHƯA CHECK-IN */}
                                         {canDoCheckIn && (
-                                            <button
-                                                onClick={openCheckInModal}
-                                                className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 font-medium"
-                                            >
-                                                <LogIn className="w-5 h-5" />
-                                                <span className="text-sm sm:text-base">Nhập mã</span>
-                                            </button>
-                                        )}
+                                            <>
+                                                {/* Check-in với mã */}
+                                                <button
+                                                    onClick={openCheckInModal}
+                                                    className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 font-medium"
+                                                >
+                                                    <LogIn className="w-5 h-5" />
+                                                    <span className="text-sm sm:text-base">Nhập mã</span>
+                                                </button>
 
-                                        {/* QR Scanner */}
-                                        {canDoCheckIn && (
-                                            <button
-                                                onClick={() => {
-                                                    setShowQRScannerModal(true);
-                                                    setTimeout(() => startQRScanner(), 300);
-                                                }}
-                                                className="px-4 py-3 bg-white border-2 border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center justify-center gap-2 font-medium"
-                                            >
-                                                <QrCode className="w-5 h-5" />
-                                                <span className="text-sm sm:text-base">Quét QR</span>
-                                            </button>
+                                                {/* QR Scanner */}
+                                                <button
+                                                    onClick={() => {
+                                                        setShowQRScannerModal(true);
+                                                    }}
+                                                    className="px-4 py-3 bg-white border-2 border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center justify-center gap-2 font-medium"
+                                                >
+                                                    <QrCode className="w-5 h-5" />
+                                                    <span className="text-sm sm:text-base">Quét QR</span>
+                                                </button>
+                                            </>
                                         )}
 
                                         {/* Link bài viết */}
@@ -1211,14 +1294,31 @@ const EventsContent = () => {
                                             </button>
                                         )}
 
-                                        {/* Status displays */}
-                                        {selectedEvent.is_registered && selectedEvent.user_registration_status === 'confirmed' && !canDoCheckIn && (
+                                        {/* ✅ HIỂN THỊ ĐÃ CHECK-IN */}
+                                        {selectedEvent.is_checked_in && (
+                                            <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-green-50 border-2 border-green-300 rounded-lg flex items-center justify-center`}>
+                                                <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                                                <span className="text-green-800 font-medium text-sm sm:text-base">Đã check-in</span>
+                                            </div>
+                                        )}
+
+                                        {/* ✅ HIỂN THỊ VẮNG MẶT */}
+                                        {isAbsent(selectedEvent) && (
+                                            <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-red-50 border-2 border-red-300 rounded-lg flex items-center justify-center`}>
+                                                <XCircle className="w-5 h-5 text-red-600 mr-2" />
+                                                <span className="text-red-800 font-medium text-sm sm:text-base">Vắng mặt</span>
+                                            </div>
+                                        )}
+
+                                        {/* Đã xác nhận nhưng chưa đến thời gian check-in */}
+                                        {selectedEvent.is_registered && selectedEvent.user_registration_status === 'confirmed' && !canDoCheckIn && !selectedEvent.is_checked_in && !isAbsent(selectedEvent) && (
                                             <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center`}>
                                                 <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
                                                 <span className="text-green-800 font-medium text-sm sm:text-base">Bạn đã đăng ký sự kiện này</span>
                                             </div>
                                         )}
 
+                                        {/* Chờ duyệt */}
                                         {selectedEvent.is_registered && selectedEvent.user_registration_status === 'pending' && (
                                             <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-center`}>
                                                 <Clock className="w-5 h-5 text-yellow-600 mr-2" />
@@ -1226,6 +1326,7 @@ const EventsContent = () => {
                                             </div>
                                         )}
 
+                                        {/* Đã đầy */}
                                         {selectedEvent.is_full && !selectedEvent.is_registered && (
                                             <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-center`}>
                                                 <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
@@ -1233,6 +1334,7 @@ const EventsContent = () => {
                                             </div>
                                         )}
 
+                                        {/* Hết hạn đăng ký */}
                                         {!selectedEvent.is_registered && !selectedEvent.can_register && isRegistrationDeadlinePassed(selectedEvent) && !isPast && !selectedEvent.is_full && (
                                             <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center justify-center`}>
                                                 <Clock className="w-5 h-5 text-orange-600 mr-2" />
@@ -1240,13 +1342,15 @@ const EventsContent = () => {
                                             </div>
                                         )}
 
-                                        {isPast && (
+                                        {/* Sự kiện đã kết thúc */}
+                                        {isPast && !selectedEvent.is_registered && (
                                             <div className={`${isMobile ? 'col-span-2' : ''} px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center`}>
                                                 <Clock className="w-5 h-5 text-gray-600 mr-2" />
                                                 <span className="text-gray-800 font-medium text-sm sm:text-base">Sự kiện đã kết thúc</span>
                                             </div>
                                         )}
                                     </div>
+
 
                                     {selectedEvent.require_approval && selectedEvent.can_register && (
                                         <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -1559,6 +1663,7 @@ const EventsContent = () => {
                                 </div>
                             </div>
 
+                            {/* PHẦN 8: CẬP NHẬT QR Scanner Modal UI */}
                             <div className="p-6">
                                 {qrError ? (
                                     <div className="text-center">
@@ -1583,20 +1688,23 @@ const EventsContent = () => {
                                                 playsInline
                                                 className="w-full h-full object-cover"
                                             />
-                                            <div className="absolute inset-0 border-4 border-blue-500 m-8 rounded-lg pointer-events-none"></div>
+                                            {/* Khung quét với animation */}
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                <div className="relative w-3/4 h-3/4">
+                                                    <div className="absolute inset-0 border-4 border-blue-500 rounded-lg"></div>
+                                                    <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500 animate-scan"></div>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <button
-                                            onClick={handleQRScan}
-                                            className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 font-medium"
-                                        >
-                                            <Camera className="w-5 h-5" />
-                                            Quét QR Code
-                                        </button>
-
-                                        <p className="text-sm text-gray-600 text-center">
-                                            Đặt QR code vào khung hình để quét
-                                        </p>
+                                        <div className="text-center">
+                                            <p className="text-sm text-gray-600 mb-2">
+                                                Đang quét tự động...
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                Đặt QR code vào khung hình
+                                            </p>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="text-center">
