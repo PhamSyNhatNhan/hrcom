@@ -463,19 +463,16 @@ const EventsContent = () => {
         setQrError(null);
 
         try {
-            // Đảm bảo phần tử video đã render
             await new Promise(resolve => setTimeout(resolve, 500));
 
             if (!navigator.mediaDevices?.getUserMedia) {
                 throw new Error("Trình duyệt không hỗ trợ camera.");
             }
 
-            // Lấy danh sách thiết bị video
             const devices = await navigator.mediaDevices.enumerateDevices();
             const hasCamera = devices.some(d => d.kind === "videoinput");
             if (!hasCamera) throw new Error("Không tìm thấy thiết bị camera.");
 
-            // Mở stream camera (ưu tiên cam sau)
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: { ideal: "environment" },
@@ -488,7 +485,6 @@ const EventsContent = () => {
             const video = videoRef.current;
             if (!video) throw new Error("Không tìm thấy phần tử video.");
 
-            // Dừng stream cũ (nếu có)
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
@@ -496,7 +492,6 @@ const EventsContent = () => {
             video.srcObject = mediaStream;
             setStream(mediaStream);
 
-            // Đợi metadata sẵn sàng rồi mới play()
             await new Promise<void>((resolve) => {
                 video.onloadedmetadata = async () => {
                     try {
@@ -521,6 +516,18 @@ const EventsContent = () => {
             }
         }
     };
+
+    useEffect(() => {
+        if (showQRScannerModal) {
+            const delay = setTimeout(() => {
+                startQRScanner();
+            }, 500);
+            return () => clearTimeout(delay);
+        } else {
+            stopQRScanner();
+        }
+    }, [showQRScannerModal]);
+
 
 
     const stopQRScanner = () => {
@@ -1388,15 +1395,13 @@ const EventsContent = () => {
                                                 </button>
 
                                                 <button
-                                                    onClick={() => {
-                                                        setShowQRScannerModal(true);
-                                                        setTimeout(() => startQRScanner(), 300);
-                                                    }}
+                                                    onClick={() => setShowQRScannerModal(true)}
                                                     className="px-4 py-3 bg-white border-2 border-purple-300 text-purple-600 rounded-lg hover:bg-purple-50 flex items-center justify-center gap-2 font-medium"
                                                 >
                                                     <QrCode className="w-5 h-5" />
                                                     <span className="text-sm sm:text-base">Quét QR</span>
                                                 </button>
+
                                             </>
                                         )}
 
